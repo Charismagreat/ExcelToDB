@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  role      String   @default("VIEWER") // ADMIN, VIEWER
+  reports   Report[]
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  name        String
+  sheetName   String?
+  columns     String   // JSON string of column definitions: { name: string, type: string }[]
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  rows        ReportRow[]
+  createdAt   DateTime @default(now())
+}
+
+model ReportRow {
+  id        String   @id @default(cuid())
+  data      String   // JSON string of row data: { [columnName]: value }
+  reportId  String
+  report    Report   @relation(fields: [reportId], references: [id])
+}
