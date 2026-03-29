@@ -8,19 +8,81 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }, { apiVersi
 
 export interface ColumnRecommendation {
   name: string;
-  type: 'string' | 'number' | 'date' | 'currency';
+  type: 'string' | 'number' | 'date' | 'currency' | 'select' | 'boolean' | 'textarea' | 'file' | 'email' | 'phone' | 'auto';
   isRequired: boolean;
-}
-
-export interface RecommendationTable {
-  tableName: string;
-  sheetName?: string; // Optional: Some models might use sheetName instead of tableName
-  columns: ColumnRecommendation[];
-  reason: string;
+  isUnique?: boolean;
+  options?: string[];
+  autoPrefix?: string;
+  reason?: string;
 }
 
 export interface RecommendationResponse {
-  recommendedTables: RecommendationTable[];
+  columns: ColumnRecommendation[];
+}
+
+/**
+ * 추천을 위한 샘플 데이터를 기반으로 최적의 스키마를 제안합니다.
+ */
+export async function recommendSchemaFromSample(currentColumns: any[], sampleRows: any[]): Promise<RecommendationResponse> {
+  if (!apiKey) {
+    throw new Error("GOOGLE_GENERATIVE_AI_API_KEY가 설정되지 않았습니다.");
+  }
+
+  const prompt = `
+    당신은 데이터베이스 설계 전문가입니다. 현재 테이블의 컬럼 이름과 실제 데이터 샘플을 보고, 각 컬럼에 가장 적합한 속성을 추천해 주세요.
+    
+    지원하는 타입(type) 종류:
+    1. string: 일반 텍스트
+    2. number: 숫자 (집계 가능)
+    3. date: 날짜 (YYYY-MM-DD)
+    4. currency: 통화/금액
+    5. select: 정해진 목록 중 선택 (고유 값이 반복될 때 권장)
+    6. boolean: 예/아니오 (체크박스)
+    7. textarea: 50자 이상의 긴 문장이나 메모
+    8. email: 이메일 주소
+    9. phone: 전화번호
+    10. file: 이미지, 영수증, 증빙 서류 등의 파일 첨부
+    11. auto: 'DID-000001'과 같은 자동 생성 일련번호
+    
+    입력 정보:
+    - 현재 컬럼명: ${currentColumns.map(c => c.name).join(', ')}
+    - 데이터 샘플 (최대 20행): ${JSON.stringify(sampleRows)}
+    
+    분석 및 추천 가이드라인:
+    - 각 컬럼의 이름과 실제 값들의 패턴을 분석하세요.
+    - 값이 모두 채워져 있으면 isRequired를 true로 추천하세요.
+    - 이메일(@)이나 전화번호 패턴이 보이면 전용 타입을 추천하세요.
+    - 고유 값의 종류가 적고 반복적으로 등장하면 select 타입을 추천하고, 가능한 옵션 리스트(options)를 모두 추출하세요.
+    - 예/아니오, Y/N 등의 데이터는 boolean으로 추천하세요.
+    - 분석 사유(reason)를 한국어로 짧게 핵심만 포함하세요.
+    
+    응답은 반드시 아래 JSON 형식을 엄격히 지켜야 하며, 다른 텍스트는 절대 포함하지 마세요:
+    {
+      "columns": [
+        { 
+          "name": "컬럼명", 
+          "type": "위 11가지 중 하나", 
+          "isRequired": true/false, 
+          "isUnique": true/false,
+          "options": ["옵션1", "옵션2"] (select 타입인 경우만),
+          "autoPrefix": "접두어" (auto 타입인 경우만),
+          "reason": "추천 사유"
+        }
+      ]
+    }
+  `;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("AI 응답에서 유효한 JSON을 찾을 수 없습니다.");
+    return JSON.parse(jsonMatch[0]) as RecommendationResponse;
+  } catch (error) {
+    console.error("Gemini Schema Recommendation Error:", error);
+    throw error;
+  }
 }
 
 /**

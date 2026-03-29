@@ -12,7 +12,7 @@ export default function NewTableSection({ userId }: { userId: string }) {
     <section className="bg-white p-8 border border-gray-100 rounded-[32px] shadow-sm overflow-hidden relative">
       <div className="flex items-center gap-2 mb-8">
         <Plus size={20} className="text-blue-600" />
-        <h2 className="text-sm font-black text-gray-800 tracking-tight uppercase tracking-[0.2em]">Create New Report</h2>
+        <h2 className="text-sm font-black text-gray-800 tracking-tight uppercase tracking-[0.2em]">Create New Table</h2>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-stretch">
@@ -31,7 +31,7 @@ export default function NewTableSection({ userId }: { userId: string }) {
             <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white mb-6 group-hover:scale-110 transition-transform">
               <Plus size={32} />
             </div>
-            <h3 className="text-lg font-black mb-3">직접 구조 만들기</h3>
+            <h3 className="text-lg font-black mb-3">Create New Table</h3>
             <p className="text-sm text-blue-100 font-medium mb-8 leading-relaxed opacity-80">
               엑셀 파일 없이도 원하는 항목을 직접 정의하여<br/>나만의 테이블을 생성하세요.
             </p>

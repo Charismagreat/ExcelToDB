@@ -4,15 +4,54 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import { parseExcelWorkbook } from '@/lib/excel-parser';
-import { analyzeExcelImage, extractDataFromImage } from '@/lib/ai-vision';
+import { analyzeExcelImage, extractDataFromImage, recommendSchemaFromSample } from '@/lib/ai-vision';
 import crypto from 'crypto';
+import fs from 'fs/promises';
+import path from 'path';
+
+export async function uploadFileAction(formData: FormData) {
+    const file = formData.get('file') as File;
+    if (!file) throw new Error('파일이 없습니다.');
+
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+    try {
+        await fs.access(uploadDir);
+    } catch {
+        await fs.mkdir(uploadDir, { recursive: true });
+    }
+
+    const uniqueName = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+    const filePath = path.join(uploadDir, uniqueName);
+    await fs.writeFile(filePath, buffer);
+
+    return { url: `/uploads/${uniqueName}`, name: file.name };
+}
+
+export async function getSchemaRecommendationAction(reportId: string) {
+    const report = await prisma.report.findUnique({ where: { id: reportId } });
+    if (!report) throw new Error('보고서를 찾을 수 없습니다.');
+
+    const currentColumns = JSON.parse(report.columns);
+    const sampleRows = await prisma.reportRow.findMany({
+        where: { reportId },
+        take: 20
+    });
+
+    const rowsData = sampleRows.map(r => JSON.parse(r.data));
+    const recommendation = await recommendSchemaFromSample(currentColumns, rowsData);
+    
+    return recommendation.columns;
+}
 
 /**
  * 데이터 행의 중복 여부를 판단하기 위한 해시값을 생성합니다.
  * @param rowData 객체 형태의 행 데이터
  * @param columns 컬럼 정의 배열
  */
-function generateContentHash(rowData: any, columns: any[]) {
+export async function generateContentHash(rowData: any, columns: any[]) {
     // 자동 생성 필드(데이터 ID 등)는 중복 체크에서 제외
     // 사용자가 'isUnique'로 설정한 필드가 있다면 해당 필드들만 조합, 없으면 모든 일반 필드 조합
     const uniqueCols = columns.filter(c => c.isUnique);
@@ -66,9 +105,9 @@ export async function addRowAction(reportId: string, rowData: any) {
   const columns = JSON.parse(report.columns);
   
   // 1. 중복 체크
-  const hash = generateContentHash(rowData, columns);
+  const hash = await generateContentHash(rowData, columns);
   const existing = await prisma.reportRow.findFirst({
-      where: { reportId, contentHash: hash }
+      where: { reportId, contentHash: hash } as any
   });
   
   if (existing) {
@@ -107,12 +146,12 @@ export async function addRowAction(reportId: string, rowData: any) {
 
   // 4. 저장
   await prisma.reportRow.create({
-    data: {
-      reportId,
-      data: JSON.stringify(finalData),
-      contentHash: hash
-    }
-  });
+      data: {
+        reportId,
+        data: JSON.stringify(finalData),
+        contentHash: hash
+      } as any
+    });
   revalidatePath(`/report/${reportId}`);
 }
 
@@ -122,7 +161,7 @@ export async function deleteReportAction(reportId: string) {
         data: { 
             isDeleted: true,
             deletedAt: new Date()
-        }
+        } as any
     });
     revalidatePath('/');
     revalidatePath('/archive');
@@ -134,7 +173,7 @@ export async function restoreReportAction(reportId: string) {
         data: { 
             isDeleted: false,
             deletedAt: null
-        }
+        } as any
     });
     revalidatePath('/');
     revalidatePath('/archive');
@@ -157,7 +196,132 @@ export async function deleteRowsAction(reportId: string, rowIds: string[]) {
     revalidatePath(`/report/${reportId}`);
 }
 
+export async function bulkUpdateRowsAction(
+    reportId: string, 
+    rowIds: string[], 
+    fieldName: string, 
+    actionType: 'OVERWRITE' | 'FIND_REPLACE', 
+    params: { value?: any; find?: string; replace?: string }
+) {
+    const report = await prisma.report.findUnique({ where: { id: reportId } });
+    if (!report) throw new Error('보고서를 찾을 수 없습니다.');
+
+    const columns = JSON.parse(report.columns);
+    const colDef = columns.find((c: any) => c.name === fieldName);
+    if (!colDef) throw new Error('컬럼 정의를 찾을 수 없습니다.');
+
+    // 1. 대상 행 로드
+    const rows = await prisma.reportRow.findMany({
+        where: { id: { in: rowIds }, reportId }
+    });
+
+    if (rows.length === 0) throw new Error('수정할 데이터가 없습니다.');
+
+    // 2. 일괄 업데이트 처리
+    for (const row of rows) {
+        const rowData = JSON.parse(row.data);
+        let newValue = params.value;
+
+        if (actionType === 'FIND_REPLACE') {
+            const currentVal = String(rowData[fieldName] || '');
+            newValue = currentVal.replace(new RegExp(params.find || '', 'g'), params.replace || '');
+            
+            // 타입 복원 (숫자/통화인 경우)
+            if (colDef.type === 'number' || colDef.type === 'currency') {
+                const cleanVal = newValue.replace(/[^0-9.-]/g, '').trim();
+                newValue = isNaN(Number(cleanVal)) ? newValue : Number(cleanVal);
+            }
+        }
+
+        // 유효성 검사 (Overwrite인 경우에도 적용)
+        if (colDef.type === 'number' || colDef.type === 'currency') {
+            const sVal = String(newValue);
+            const cleanVal = sVal.replace(/[^0-9.-]/g, '').trim();
+            if (isNaN(Number(cleanVal))) {
+                throw new Error(`${fieldName} 필드에는 숫자만 입력 가능합니다.`);
+            }
+            newValue = Number(cleanVal);
+        }
+
+        rowData[fieldName] = newValue;
+
+        // 중복 체크용 해시 재생성
+        const newHash = await generateContentHash(rowData, columns);
+        
+        // 3. 개별 업데이트 (간단한 구현을 위해 순차 처리)
+        await prisma.reportRow.update({
+            where: { id: row.id },
+            data: {
+            data: JSON.stringify(rowData),
+            contentHash: newHash
+        } as any
+    });
+    }
+
+    revalidatePath(`/report/${reportId}`);
+    return { success: true, count: rows.length };
+}
+
+
+export async function updateSingleRowAction(
+    reportId: string, 
+    rowId: string, 
+    newData: any
+) {
+    const report = await prisma.report.findUnique({ where: { id: reportId } });
+    if (!report) throw new Error('보고서를 찾을 수 없습니다.');
+
+    const columns = JSON.parse(report.columns);
+    
+    // 1. 중복 체크용 해시 생성
+    const hash = await generateContentHash(newData, columns);
+    const existing = await prisma.reportRow.findFirst({
+        where: { 
+            reportId, 
+            contentHash: hash,
+            id: { not: rowId } // 자신은 제외
+        } as any
+    });
+    
+    if (existing) {
+        throw new Error('이미 동일한 내용의 데이터가 존재합니다. (중복 방지)');
+    }
+
+    // 2. 유효성 검사
+    const finalData = { ...newData };
+    for (const col of columns) {
+        if (col.isAutoGenerated) continue;
+        const val = finalData[col.name];
+
+        if (col.isRequired && (val === undefined || val === null || val === '')) {
+            throw new Error(`'${col.name}' 필드는 필수입니다.`);
+        }
+
+        if ((col.type === 'number' || col.type === 'currency') && val !== '' && val !== null && val !== undefined) {
+            const sVal = String(val);
+            const cleanVal = sVal.replace(/[^0-9.-]/g, '').trim();
+            if (isNaN(Number(cleanVal))) {
+                throw new Error(`${col.name} 필드에는 숫자만 입력 가능합니다.`);
+            }
+            finalData[col.name] = Number(cleanVal);
+        }
+    }
+
+    // 3. 업데이트
+    await prisma.reportRow.update({
+        where: { id: rowId },
+        data: {
+            data: JSON.stringify(finalData),
+            contentHash: hash
+        } as any
+    });
+
+    revalidatePath(`/report/${reportId}`);
+    return { success: true };
+}
+
 export async function renameReportAction(reportId: string, newName: string) {
+
     await prisma.report.update({
         where: { id: reportId },
         data: { name: newName }
@@ -196,10 +360,10 @@ export async function addRowsAction(reportId: string, rows: any[]) {
     
     // 1. 기존 데이터의 해시값 로드 (중복 체크용)
     const existingRows = await prisma.reportRow.findMany({
-        where: { reportId, contentHash: { not: null } },
-        select: { contentHash: true }
+        where: { reportId, contentHash: { not: null } } as any,
+        select: { contentHash: true } as any
     });
-    const existingHashes = new Set(existingRows.map(function(r) { return r.contentHash; }));
+    const existingHashes = new Set(existingRows.map(function(r: any) { return r.contentHash; }));
 
     // 2. 각 행당 유효성 검사 및 정제
     const cleanedRowsToInsert = [];
@@ -215,7 +379,7 @@ export async function addRowsAction(reportId: string, rows: any[]) {
         });
 
         // 중복 체크용 해시 생성
-        const hash = generateContentHash(finalData, columns);
+        const hash = await generateContentHash(finalData, columns);
         
         if (existingHashes.has(hash)) {
             skippedCount++;
@@ -262,7 +426,7 @@ export async function addRowsAction(reportId: string, rows: any[]) {
   
     if (cleanedRowsToInsert.length > 0) {
         await prisma.reportRow.createMany({
-            data: cleanedRowsToInsert
+            data: cleanedRowsToInsert as any
         });
     }
   

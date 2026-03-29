@@ -29,7 +29,7 @@ export default async function DashboardPage() {
             <div className="bg-blue-600 p-2 rounded-lg text-white">
               <LayoutDashboard size={24} />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">ExcelToDB Dashboard</h1>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">My DB</h1>
           </div>
           <Link 
             href="/archive" 
@@ -53,7 +53,7 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <FileSpreadsheet size={20} className="text-blue-600" />
-              <h2 className="text-lg font-bold text-gray-800">등록된 보고서 목록</h2>
+              <h2 className="text-lg font-bold text-gray-800">My Tables</h2>
             </div>
             <span className="text-sm text-gray-500">총 {reports.length}개</span>
           </div>
@@ -78,7 +78,7 @@ export default async function DashboardPage() {
                     href={`/report/${report.id}`}
                     className="block w-full text-center py-2.5 px-4 bg-gray-50 text-blue-600 font-semibold rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all border border-blue-50"
                   >
-                    대시보드 보기
+                    View Table
                   </Link>
                 </div>
               </div>
