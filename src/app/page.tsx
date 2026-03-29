@@ -1,9 +1,10 @@
 import React from 'react';
 import prisma from '@/lib/prisma';
 import { deleteReportAction } from './actions';
+import DeleteReportButton from '@/components/DeleteReportButton';
 import Link from 'next/link';
-import { FileSpreadsheet, Upload, User, LayoutDashboard, Trash2 } from 'lucide-react';
-import UploadWorkflow from '@/components/UploadWorkflow';
+import { FileSpreadsheet, User, LayoutDashboard, Trash2 } from 'lucide-react';
+import NewTableSection from '@/components/NewTableSection';
 
 export default async function DashboardPage() {
   // Simple internal simulation: Assume a default user for now
@@ -15,6 +16,7 @@ export default async function DashboardPage() {
   }
 
   const reports = await prisma.report.findMany({
+    where: { isDeleted: false },
     include: { _count: { select: { rows: true } } },
     orderBy: { createdAt: 'desc' }
   });
@@ -22,11 +24,20 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-8 font-[family-name:var(--font-geist-sans)]">
       <header className="max-w-6xl mx-auto flex justify-between items-center mb-12">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg text-white">
-            <LayoutDashboard size={24} />
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-600 p-2 rounded-lg text-white">
+              <LayoutDashboard size={24} />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">ExcelToDB Dashboard</h1>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">ExcelToDB Dashboard</h1>
+          <Link 
+            href="/archive" 
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-100 rounded-full text-xs font-black text-gray-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm"
+          >
+            <Trash2 size={14} />
+            DELETED TABLES
+          </Link>
         </div>
         <div className="flex items-center gap-4 bg-white px-4 py-2 border rounded-full shadow-sm text-sm font-medium text-gray-700">
           <User size={18} className="text-blue-500" />
@@ -34,16 +45,8 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto space-y-12">
-        {/* Upload Section */}
-        <section className="bg-white p-8 border rounded-2xl shadow-sm">
-          <div className="flex items-center gap-2 mb-6">
-            <Upload size={20} className="text-blue-600" />
-            <h2 className="text-lg font-bold text-gray-800">새 보고서 업로드</h2>
-          </div>
-          <UploadWorkflow userId={user.id} />
-          <p className="mt-3 text-xs text-gray-500">지원 형식: .xlsx, .xls, .csv (첫 줄은 제목으로 인식됩니다)</p>
-        </section>
+      <main className="max-w-6xl mx-auto space-y-16">
+        <NewTableSection userId={user.id} />
 
         {/* Reports List */}
         <section>
@@ -57,20 +60,13 @@ export default async function DashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {reports.map((report: any) => (
-              <div key={report.id} className="group bg-white border rounded-2xl overflow-hidden hover:border-blue-300 hover:shadow-xl transition-all duration-300">
+              <div key={report.id} className="relative group bg-white border rounded-2xl overflow-hidden hover:border-blue-300 hover:shadow-xl transition-all duration-300">
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div className="bg-blue-50 text-blue-700 p-2.5 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
                       <FileSpreadsheet size={20} />
                     </div>
-                    <form action={async () => {
-                        'use server';
-                        await deleteReportAction(report.id);
-                    }}>
-                        <button type="submit" className="text-gray-400 hover:text-red-500 transition-colors p-1">
-                            <Trash2 size={16} />
-                        </button>
-                    </form>
+                    <DeleteReportButton reportId={report.id} reportName={report.name} />
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">{report.name}</h3>
                   <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">

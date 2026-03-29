@@ -2,18 +2,21 @@
 
 import React, { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2 } from 'lucide-react';
+import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, Info } from 'lucide-react';
 import { addRowsAction } from '@/app/actions';
+import { isSubtotalRow } from '@/lib/data-utils';
 
 interface BulkUploadProps {
   reportId: string;
   columns: any[];
+  onStatusShow: (title: string, message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-export default function BulkUpload({ reportId, columns }: BulkUploadProps) {
+export default function BulkUpload({ reportId, columns, onStatusShow }: BulkUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [previewData, setPreviewData] = useState<any[] | null>(null);
+  const [filteredCount, setFilteredCount] = useState(0);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,9 +38,14 @@ export default function BulkUpload({ reportId, columns }: BulkUploadProps) {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet) as any[];
+        let jsonData = XLSX.utils.sheet_to_json(sheet) as any[];
         
         if (jsonData.length === 0) throw new Error('데이터가 없는 파일입니다.');
+        
+        // Filter subtotal/total rows
+        const originalCount = jsonData.length;
+        jsonData = jsonData.filter(row => !isSubtotalRow(row));
+        setFilteredCount(originalCount - jsonData.length);
         
         setPreviewData(jsonData);
         setSelectedIndices(new Set(jsonData.map((_, i) => i)));
@@ -95,14 +103,14 @@ export default function BulkUpload({ reportId, columns }: BulkUploadProps) {
     try {
       // 서버 액션에는 Date 객체 등이 포함된 클래스 타입을 전달할 수 없으므로 Plain Object로 변환
       const plainRows = JSON.parse(JSON.stringify(rowsToSave));
-      await addRowsAction(reportId, plainRows);
+      const result = await addRowsAction(reportId, plainRows);
       
-      setUploadStatus({ type: 'success', message: `${rowsToSave.length}개의 데이터가 추가되었습니다.` });
+      onStatusShow('업로드 완료', `${result.addedCount}건의 데이터가 성공적으로 추가되었습니다. (중복 ${result.skippedCount}건 제외)`, 'success');
       setPreviewData(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setTimeout(() => window.location.reload(), 1500);
+      // setTimeout(() => window.location.reload(), 1500); // 팝업이 뜰 것이므로 리로드 대신 수동 닫기 유도 가능
     } catch (error: any) {
-      setUploadStatus({ type: 'error', message: error.message || '저장 중 오류가 발생했습니다.' });
+      onStatusShow('업로드 실패', error.message || '저장 중 오류가 발생했습니다.', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -159,6 +167,13 @@ export default function BulkUpload({ reportId, columns }: BulkUploadProps) {
         </div>
       ) : (
         <div className="space-y-4 animate-in fade-in zoom-in duration-200">
+            {filteredCount > 0 && (
+              <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-2xl border border-amber-100 text-xs font-bold">
+                <Info size={14} />
+                <span>소계/합계 등 {filteredCount}개의 행이 자동으로 제외되었습니다.</span>
+              </div>
+            )}
+            
             <div className="bg-gray-50 rounded-2xl p-4 overflow-hidden border border-gray-100 shadow-inner">
                 <div className="flex items-center justify-between mb-3 border-b border-gray-200 pb-2">
                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">가져올 데이터 선택</span>

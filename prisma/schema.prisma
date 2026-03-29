@@ -23,11 +23,16 @@ model Report {
   owner       User     @relation(fields: [ownerId], references: [id])
   rows        ReportRow[]
   createdAt   DateTime @default(now())
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
 }
 
 model ReportRow {
-  id        String   @id @default(cuid())
-  data      String   // JSON string of row data: { [columnName]: value }
-  reportId  String
-  report    Report   @relation(fields: [reportId], references: [id])
+  id          String   @id @default(cuid())
+  data        String   // JSON string of row data: { [columnName]: value }
+  contentHash String?  // 추가: 데이터 중복 감지를 위한 해시값
+  reportId    String
+  report      Report   @relation(fields: [reportId], references: [id])
+
+  @@index([reportId, contentHash])
 }

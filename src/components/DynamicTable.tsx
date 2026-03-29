@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { Trash2, CheckCircle2, Search, ArrowUpDown, ArrowUp, ArrowDown, FilterX, FileDown, Table as TableIcon, FileText } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Trash2, Search, ArrowUpDown, ArrowUp, ArrowDown, FilterX, FileDown, Table as TableIcon, FileText, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { deleteRowsAction } from '@/app/actions';
 import * as XLSX from 'xlsx';
 
@@ -23,8 +23,17 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false 
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' | null }>({ key: '', direction: null });
   const [isExportingMenuOpen, setIsExportingMenuOpen] = useState(false);
+  
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // 1. 데이터 필터링 및 정제
+  // 검색어나 정렬이 바뀌면 1페이지로 리셋
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortConfig]);
+
+  // 1. 데이터 필터링 및 정렬
   const processedData = useMemo(() => {
     let filtered = [...data];
 
@@ -38,12 +47,16 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false 
         );
     }
 
-    // 정렬 처리 (생략 - 위와 동일)
+    // 정렬 처리
     if (sortConfig.key && sortConfig.direction) {
         filtered.sort((a, b) => {
             const aVal = a[sortConfig.key];
             const bVal = b[sortConfig.key];
+            
             if (aVal === bVal) return 0;
+            if (aVal === null || aVal === undefined) return 1;
+            if (bVal === null || bVal === undefined) return -1;
+            
             const result = aVal > bVal ? 1 : -1;
             return sortConfig.direction === 'asc' ? result : -result;
         });
@@ -52,13 +65,18 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false 
     return filtered;
   }, [data, searchTerm, sortConfig]);
 
+  // 2. 페이지네이션 계산
+  const totalPages = Math.ceil(processedData.length / itemsPerPage);
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return processedData.slice(start, start + itemsPerPage);
+  }, [processedData, currentPage, itemsPerPage]);
+
   const exportToExcel = () => {
-    // 1. 헤더와 데이터 결합 (ID 필드 제외하고 사용자 정의 컬럼만)
     const exportData = processedData.map(row => {
         const rowObj: any = {};
         columns.forEach(col => {
             let val = row[col.name];
-            // 날짜 변환 로직 동일 적용
             if (col.type === 'date' && typeof val === 'number') {
                 const date = new Date(Math.round((val - 25569) * 86400 * 1000));
                 val = date.toISOString().split('T')[0];
@@ -80,16 +98,14 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false 
     const csvRows = processedData.map(row => 
         columns.map(col => {
             let val = row[col.name]?.toString() || '';
-            // 날짜 변환 로직
             if (col.type === 'date' && typeof row[col.name] === 'number') {
                 const date = new Date(Math.round((Number(row[col.name]) - 25569) * 86400 * 1000));
                 val = date.toISOString().split('T')[0];
             }
-            // CSV 이스케이프 (쉼표 처리)
             return `"${val.replace(/"/g, '""')}"`;
         }).join(',')
     );
-    const csvContent = "\uFEFF" + [headers, ...csvRows].join('\n'); // Add BOM for Excel UTF-8
+    const csvContent = "\uFEFF" + [headers, ...csvRows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -109,6 +125,9 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false 
   };
 
   const toggleSelectAll = () => {
+    // 페이지네이션이 있으므로 현재 페이지의 아이템만 선택하거나 전체를 선택하는 기획이 필요함. 
+    // 여기서는 직관성을 위해 현재 '필터링된 전체 데이터'를 선택하는 방식을 유지하되, 
+    // UI상으로는 현재 페이지 데이터만 우선 선택 제안할 수도 있음.
     if (selectedIds.length === processedData.length) {
       setSelectedIds([]);
     } else {
@@ -226,7 +245,7 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false 
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {processedData.map((row, rowIndex) => (
+            {paginatedData.map((row, rowIndex) => (
               <tr 
                 key={row.id || rowIndex} 
                 className={`
@@ -246,16 +265,13 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false 
                 )}
                 {columns.map((col) => {
                   const val = row[col.name];
-                  
                   let displayValue = val?.toString() || '-';
                   
                   if (col.type === 'number' || col.type === 'currency') {
                       displayValue = val !== null && val !== undefined ? val.toLocaleString() : '-';
                   } else if (col.type === 'date' && val) {
-                      // 엑셀 날짜 코드(숫자)인 경우 변환
                       if (typeof val === 'number') {
                           try {
-                              // Excel 시리얼 날짜(1900-01-01 기준)를 JS Date로 변환
                               const date = new Date(Math.round((val - 25569) * 86400 * 1000));
                               displayValue = date.toISOString().split('T')[0];
                           } catch (e) {
@@ -274,7 +290,7 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false 
                 })}
               </tr>
             ))}
-            {processedData.length === 0 && (
+            {paginatedData.length === 0 && (
               <tr>
                 <td colSpan={columns.length + (isOwner ? 1 : 0)} className="px-6 py-20 text-center">
                   <div className="flex flex-col items-center gap-3">
@@ -289,6 +305,71 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false 
           </tbody>
         </table>
       </div>
+
+      {/* 페이지네이션 UI */}
+      {processedData.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-[24px] border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">목록 개수</span>
+            <select 
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-gray-50 border-none rounded-xl px-3 py-1.5 text-xs font-black text-gray-600 focus:ring-2 focus:ring-blue-100 outline-none"
+            >
+              {[10, 20, 50, 100].map(size => (
+                <option key={size} value={size}>{size}개씩 보기</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button 
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
+            >
+              <ChevronsLeft size={18} />
+            </button>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
+            >
+              <ChevronLeft size={18} />
+            </button>
+
+            <div className="flex items-center gap-1 px-2">
+              <span className="text-xs font-black text-blue-600">{currentPage}</span>
+              <span className="text-xs font-bold text-gray-300">/</span>
+              <span className="text-xs font-bold text-gray-400">{totalPages}</span>
+            </div>
+
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
+            >
+              <ChevronRight size={18} />
+            </button>
+            <button 
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
+            >
+              <ChevronsRight size={18} />
+            </button>
+          </div>
+
+          <div className="hidden sm:block">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+              Total {processedData.length} records
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

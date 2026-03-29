@@ -1,12 +1,9 @@
-import React from 'react';
 import prisma from '@/lib/prisma';
 import DynamicTable from '@/components/DynamicTable';
-import DynamicForm from '@/components/DynamicForm';
-import { addRowAction } from '../../actions';
 import Link from 'next/link';
-import { ArrowLeft, Plus, User } from 'lucide-react';
+import { ArrowLeft, User } from 'lucide-react';
 import ReportHeader from '@/components/ReportHeader';
-import BulkUpload from '@/components/BulkUpload';
+import ReportDataEditor from '@/components/ReportDataEditor';
 
 export default async function ReportDetailPage({
   params,
@@ -57,56 +54,7 @@ export default async function ReportDetailPage({
             initialColumns={columns}
         />
 
-        {isOwner && (
-            <section className="space-y-6">
-                <div className="flex items-center gap-2 mb-2">
-                    <Plus size={20} className="text-blue-600" />
-                    <h2 className="text-lg font-bold text-gray-800">새로운 데이터 추가</h2>
-                </div>
-                
-                <div className="space-y-8">
-                    {/* 데이터 직접 추가 섹션 */}
-                    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div className="bg-blue-50/50 px-6 py-3 border-b border-blue-100 flex items-center justify-between">
-                            <h3 className="text-sm font-black text-blue-700 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                                방법 1. 직접 하나씩 입력하기
-                            </h3>
-                            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter">Manual Entry</span>
-                        </div>
-                        <div className="p-6">
-                            <DynamicForm 
-                                columns={columns} 
-                                onSubmit={async (data: any) => {
-                                    'use server';
-                                    await addRowAction(id, data);
-                                }} 
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 py-2">
-                        <div className="h-px bg-gray-200 flex-1" />
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">또는 (OR)</span>
-                        <div className="h-px bg-gray-200 flex-1" />
-                    </div>
-
-                    {/* 엑셀 일괄 추가 섹션 */}
-                    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div className="bg-green-50/50 px-6 py-3 border-b border-green-100 flex items-center justify-between">
-                            <h3 className="text-sm font-black text-green-700 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                                방법 2. 엑셀 파일로 한꺼번에 올리기
-                            </h3>
-                            <span className="text-[10px] font-bold text-green-400 uppercase tracking-tighter">Bulk Excel Upload</span>
-                        </div>
-                        <div className="p-6">
-                            <BulkUpload reportId={id} columns={columns} />
-                        </div>
-                    </div>
-                </div>
-            </section>
-        )}
+        {isOwner && <ReportDataEditor reportId={report.id} columns={columns} />}
 
         <section className="space-y-4 pb-20">
             <div className="flex items-center justify-between">

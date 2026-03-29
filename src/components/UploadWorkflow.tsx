@@ -6,6 +6,7 @@ import { toPng } from 'html-to-image';
 import { ColumnDefinition, TableData } from '@/lib/excel-parser';
 import { RecommendationTable } from '@/lib/ai-vision';
 import { uploadExcelAction, analyzeExcelScreenshotAction } from '@/app/actions';
+import { isSubtotalRow } from '@/lib/data-utils';
 import { Upload, Check, AlertCircle, FileText, ChevronRight, Save, Camera, Sparkles, Image as ImageIcon, Loader2, RotateCcw, Info, GripVertical, Trash2, Edit3 } from 'lucide-react';
 
 interface SelectedField {
@@ -83,6 +84,9 @@ export default function UploadWorkflow({ userId }: { userId: string }) {
                 let maxCols = 0;
                 let headerRowIndex = 0;
                 for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+                    // 집계 행은 헤더로 간주하지 않음
+                    if (isSubtotalRow(rawRows[i])) continue;
+                    
                     const cols = rawRows[i].filter(c => c !== null && c !== undefined && c !== '').length;
                     if (cols > maxCols) {
                         maxCols = cols;
@@ -166,6 +170,9 @@ export default function UploadWorkflow({ userId }: { userId: string }) {
         if (rec) {
             let maxMatches = 0;
             for (let i = 0; i < Math.min(table.rawRows.length, 25); i++) {
+                // 집계 행은 헤더로 간주하지 않음
+                if (isSubtotalRow(table.rawRows[i])) continue;
+
                 const row = table.rawRows[i].map(c => c?.toString().trim().toLowerCase() || '');
                 const matches = rec.columns.filter(aiCol => {
                     const aiLower = aiCol.name.toLowerCase();
@@ -211,9 +218,12 @@ export default function UploadWorkflow({ userId }: { userId: string }) {
             const dateKeywordRegex = /(일|날짜|Date|Time|Period|시각|일자|만기)/i;
             const currencyKeywordRegex = /(단가|금액|비용|가격|Price|Amount|원|달러|Fee|Cost|수입|지출)/i;
 
-            for (let i = 1; i <= 10; i++) {
+            for (let i = 1; i <= 20; i++) {
                 const dataRow = table.rawRows[bestRowIndex + i];
                 if (!dataRow) break;
+                
+                // 집계 행은 타입 추론에서 제외
+                if (isSubtotalRow(dataRow)) continue;
                 
                 const val = dataRow[originalColIdx];
                 if (val !== undefined && val !== null && val !== '') {
