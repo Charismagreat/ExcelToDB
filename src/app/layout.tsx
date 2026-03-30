@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ExcelToDB: 스마트 자금일보 관리 시스템",
-  description: "사내 엑셀 보고서를 자동으로 데이터베이스화하고 시각화하는 통합 솔루션",
+  title: "Excel to DB : 마이 스마트 데이터 베이스",
+  description: "나만의 스마트한 데이터베이스 솔루션, Excel to DB",
 };
 
 export default function RootLayout({

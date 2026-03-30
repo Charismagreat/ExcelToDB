@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Trash2, Edit3, Search, ArrowUpDown, ArrowUp, ArrowDown, FilterX, FileDown, Table as TableIcon, FileText, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CheckCircle2, XCircle, ExternalLink, Eye, MoreHorizontal, Image, Mail, Phone } from 'lucide-react';
-import { deleteRowsAction, updateSingleRowAction } from '@/app/actions';
+import { Trash2, Edit3, Search, ArrowUpDown, ArrowUp, ArrowDown, FilterX, FileDown, Table as TableIcon, FileText, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CheckCircle2, XCircle, ExternalLink, Eye, History as HistoryIcon, Plus, FileSpreadsheet, Sparkles, RotateCcw } from 'lucide-react';
+import { deleteRowsAction, updateSingleRowAction, restoreRowsAction } from '@/app/actions';
 import * as XLSX from 'xlsx';
 import { Check, X as XIcon } from 'lucide-react';
 import BulkEditModal from './BulkEditModal';
 import StatusModal from './StatusModal';
+import AuditHistoryModal from './AuditHistoryModal';
 
 interface Column {
   name: string;
@@ -20,18 +21,48 @@ interface DynamicTableProps {
   columns: Column[];
   data: any[];
   isOwner?: boolean;
+  userRole?: string;
+  currentUserId?: string | null;
   onStatusShow?: (title: string, message: string, type: 'success' | 'error' | 'info') => void;
+  onToggleAddRecord?: () => void;
+  onToggleBulkUpload?: () => void;
+  onToggleAIImport?: () => void;
 }
 
-export default function DynamicTable({ reportId, columns, data, isOwner = false, onStatusShow }: DynamicTableProps) {
+export default function DynamicTable({ 
+    reportId, 
+    columns, 
+    data, 
+    isOwner = false, 
+    userRole = 'VIEWER', 
+    currentUserId, 
+    onStatusShow,
+    onToggleAddRecord,
+    onToggleBulkUpload,
+    onToggleAIImport
+}: DynamicTableProps) {
+  // 전체 테이블 수준에서의 권한 (UI 노출 여부 결정)
+  const hasBaseEditAuth = isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER';
+  const hasBaseDeleteAuth = isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER';
+
+  // 개별 행에 대한 관리 권한 유무 확인 함수
+  const isRowManager = (row: any) => {
+    if (isOwner || userRole === 'ADMIN' || userRole === 'EDITOR') return true;
+    return userRole === 'VIEWER' && row.creatorId === currentUserId;
+  };
+
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' | null }>({ key: '', direction: null });
+  // 기본 정렬을 '데이터ID' 내림차순(desc)으로 설정
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' | null }>({ key: '데이터ID', direction: 'desc' });
   const [isExportingMenuOpen, setIsExportingMenuOpen] = useState(false);
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<any>({});
+  const [historyRowId, setHistoryRowId] = useState<string | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   
   // 로컬 상태 모달 관리 (부모가 onStatusShow를 안 줄 경우 대비)
   const [localModalStatus, setLocalModalStatus] = useState<{
@@ -56,14 +87,17 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // 검색어나 정렬이 바뀌면 1페이지로 리셋
+  // 검색어, 정렬, 삭제 내역 토글이 바뀌면 1페이지로 리셋
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, sortConfig]);
+  }, [searchTerm, sortConfig, showDeleted]);
 
   // 1. 데이터 필터링 및 정렬
   const processedData = useMemo(() => {
     let filtered = [...data];
+
+    // 삭제 여부 필터링 (토글 상태에 따라)
+    filtered = filtered.filter(row => showDeleted ? row.isDeleted : !row.isDeleted);
 
     // 검색 필터링
     if (searchTerm) {
@@ -85,13 +119,14 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
             if (aVal === null || aVal === undefined) return 1;
             if (bVal === null || bVal === undefined) return -1;
             
+            // 데이터ID의 경우 문자열 내림차순 정렬이 의도한 대로 동작함 (DID-000123 > DID-000001)
             const result = aVal > bVal ? 1 : -1;
             return sortConfig.direction === 'asc' ? result : -result;
         });
     }
 
     return filtered;
-  }, [data, searchTerm, sortConfig]);
+  }, [data, searchTerm, sortConfig, showDeleted]);
 
   // 2. 페이지네이션 계산
   const totalPages = Math.ceil(processedData.length / itemsPerPage);
@@ -153,9 +188,6 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
   };
 
   const toggleSelectAll = () => {
-    // 페이지네이션이 있으므로 현재 페이지의 아이템만 선택하거나 전체를 선택하는 기획이 필요함. 
-    // 여기서는 직관성을 위해 현재 '필터링된 전체 데이터'를 선택하는 방식을 유지하되, 
-    // UI상으로는 현재 페이지 데이터만 우선 선택 제안할 수도 있음.
     if (selectedIds.length === processedData.length) {
       setSelectedIds([]);
     } else {
@@ -177,10 +209,41 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
     try {
       await deleteRowsAction(reportId, selectedIds);
       setSelectedIds([]);
+      showStatus('삭제 완료', '데이터가 성공적으로 삭제되었습니다.', 'success');
     } catch (error) {
       showStatus('삭제 실패', '데이터 삭제 중 오류가 발생했습니다.', 'error');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleRestoreSelected = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`${selectedIds.length}개의 데이터를 복구하시겠습니까?`)) return;
+
+    setIsRestoring(true);
+    try {
+      await restoreRowsAction(reportId, selectedIds);
+      setSelectedIds([]);
+      showStatus('복구 완료', '데이터가 성공적으로 복구되었습니다.', 'success');
+    } catch (error) {
+      showStatus('복구 실패', '데이터 복구 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const handleSingleRestore = async (id: string) => {
+    if (!confirm('이 데이터를 복구하시겠습니까?')) return;
+    
+    setIsRestoring(true);
+    try {
+      await restoreRowsAction(reportId, [id]);
+      showStatus('복구 완료', '데이터가 성공적으로 복구되었습니다.', 'success');
+    } catch (error) {
+      showStatus('복구 실패', '데이터 복구 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -228,6 +291,39 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
         </div>
 
         <div className="flex items-center gap-2">
+            {/* Record Entry Buttons (Optimized Bar) */}
+            {hasBaseEditAuth && (onToggleAddRecord || onToggleBulkUpload || onToggleAIImport) && (
+              <div className="flex items-center gap-2 mr-2 border-r pr-4 border-gray-100">
+                {onToggleAddRecord && (
+                  <button 
+                    onClick={onToggleAddRecord}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/10 active:scale-95 text-[11px] uppercase tracking-widest whitespace-nowrap"
+                  >
+                    <Plus size={14} strokeWidth={3} />
+                    Add Record
+                  </button>
+                )}
+                {onToggleBulkUpload && (
+                  <button 
+                    onClick={onToggleBulkUpload}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white font-black rounded-2xl hover:bg-green-700 transition-all shadow-lg shadow-green-500/10 active:scale-95 text-[11px] uppercase tracking-widest whitespace-nowrap"
+                  >
+                    <FileSpreadsheet size={14} strokeWidth={3} />
+                    Bulk Upload
+                  </button>
+                )}
+                {onToggleAIImport && (
+                  <button 
+                    onClick={onToggleAIImport}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-500/10 active:scale-95 text-[11px] uppercase tracking-widest group whitespace-nowrap"
+                  >
+                    <Sparkles size={14} className="text-yellow-300 group-hover:scale-110 transition-transform" />
+                    AI 사진 일괄 등록
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="relative">
                 <button
                     onClick={() => setIsExportingMenuOpen(!isExportingMenuOpen)}
@@ -247,35 +343,70 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
                     </div>
                 )}
             </div>
+
+            {/* Deletion History Toggle */}
+            <button
+                onClick={() => {
+                    setShowDeleted(!showDeleted);
+                    setSelectedIds([]);
+                }}
+                className={`
+                    flex items-center gap-2 px-4 py-2.5 font-black rounded-2xl border transition-all text-[11px] uppercase tracking-widest
+                    ${showDeleted 
+                        ? 'bg-red-50 text-red-600 border-red-200' 
+                        : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100'
+                    }
+                `}
+                title={showDeleted ? '일반 데이터 보기' : '삭제된 데이터 보기'}
+            >
+                <Trash2 size={14} className={showDeleted ? 'animate-pulse' : ''} />
+                {showDeleted ? 'EXIT TRASH' : '삭제 내역 보기'}
+            </button>
             
-            {isOwner && selectedIds.length > 0 && (
+            {hasBaseEditAuth && selectedIds.length > 0 && (
                <div className="bg-blue-50/50 flex items-center gap-1 pl-3 pr-1 py-1 rounded-2xl border border-blue-100/50 animate-in fade-in slide-in-from-right-4 duration-300">
                  <span className="text-[10px] font-black text-blue-700 uppercase mr-2">{selectedIds.length} SELECTED</span>
-                 <button
-                   onClick={() => setIsBulkEditOpen(true)}
-                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-[11px] font-black rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95"
-                 >
-                   <Edit3 size={12} />
-                   일괄 수정
-                 </button>
-                 <button
-                   onClick={handleDeleteSelected}
-                   disabled={isDeleting}
-                   className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-[11px] font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-100 transition-all active:scale-95 disabled:opacity-50"
-                 >
-                   <Trash2 size={12} />
-                   삭제
-                 </button>
+                 {!showDeleted && (
+                    <button
+                        onClick={() => setIsBulkEditOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-[11px] font-black rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95"
+                    >
+                        <Edit3 size={12} />
+                        일괄 수정
+                    </button>
+                 )}
+                 {showDeleted ? (
+                    <button
+                        onClick={handleRestoreSelected}
+                        disabled={isRestoring}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-[11px] font-black rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                        <RotateCcw size={12} />
+                        복구
+                    </button>
+                 ) : (
+                    hasBaseDeleteAuth && (
+                        <button
+                            onClick={handleDeleteSelected}
+                            disabled={isDeleting}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-[11px] font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-100 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            <Trash2 size={12} />
+                            삭제
+                        </button>
+                    )
+                 )}
                </div>
             )}
         </div>
       </div>
 
+      {/* Table Body */}
       <div className="overflow-x-auto border border-gray-100 rounded-[24px] shadow-sm bg-white min-h-[400px]">
         <table className="min-w-full divide-y divide-gray-100">
           <thead className="bg-gray-50/50">
             <tr>
-              {isOwner && (
+              {hasBaseEditAuth && (
                 <th className="px-6 py-4 text-left w-10">
                   <input
                     type="checkbox"
@@ -306,7 +437,7 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
                   </div>
                 </th>
               ))}
-              {isOwner && (
+              {hasBaseEditAuth && (
                 <th className="px-6 py-4 text-center text-[11px] font-black uppercase tracking-widest text-gray-400 w-24">
                   Actions
                 </th>
@@ -320,16 +451,19 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
                 className={`
                     hover:bg-blue-50/20 transition-colors group
                     ${selectedIds.includes(row.id) ? 'bg-blue-50/40' : ''}
+                    ${row.isDeleted ? 'bg-red-50/10 opacity-70' : ''}
                 `}
               >
-                {isOwner && (
+                {hasBaseEditAuth && (
                   <td className="px-6 py-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(row.id)}
-                      onChange={() => toggleSelectRow(row.id)}
-                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition-all cursor-pointer"
-                    />
+                    {isRowManager(row) && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(row.id)}
+                        onChange={() => toggleSelectRow(row.id)}
+                        className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition-all cursor-pointer"
+                      />
+                    )}
                   </td>
                 )}
                 {columns.map((col) => {
@@ -341,7 +475,7 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
                     if (col.isAutoGenerated) {
                         return (
                             <td key={col.name} className="px-4 py-2">
-                                <span className="text-xs font-black text-blue-400 bg-gray-50 px-2 py-1 rounded-md border border-gray-100 italic">
+                                <span className="text-xs font-black text-blue-400 bg-gray-100 px-2 py-1 rounded-md border border-gray-100 italic">
                                     {row[col.name]}
                                 </span>
                             </td>
@@ -400,33 +534,39 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
                     );
                   }
                   
-                  // 일반 모드 렌더링 (기존 로직 유지)
-                  if (col.type === 'boolean') {
+                  // 일반 모드 렌더링
+                  let displayValue = val?.toString() || '-';
+                  if (col.type === 'date' && val) {
+                    if (typeof val === 'number') {
+                      try {
+                        const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+                        displayValue = date.toISOString().split('T')[0];
+                      } catch (e) {
+                         displayValue = val.toString();
+                      }
+                    }
+                  } else if (col.type === 'boolean') {
                     return (
-                      <td key={col.name} className="px-6 py-4 whitespace-nowrap">
-                        {val === 'Yes' ? (
-                          <span className="flex items-center gap-1.5 text-blue-600 font-bold text-xs bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100 italic">
-                            <CheckCircle2 size={12} /> YES
-                          </span>
-                        ) : val === 'No' ? (
-                          <span className="flex items-center gap-1.5 text-red-500 font-bold text-xs bg-red-50 px-2.5 py-1 rounded-full border border-red-100 italic">
-                            <XCircle size={12} /> NO
-                          </span>
-                        ) : <span className="text-gray-300">-</span>}
-                      </td>
-                    );
-                  }
-
-                  if (col.type === 'currency' || col.type === 'number') {
+                        <td key={col.name} className="px-6 py-4 whitespace-nowrap">
+                          {val === 'Yes' ? (
+                            <span className="flex items-center gap-1.5 text-blue-600 font-bold text-xs bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100 italic">
+                              <CheckCircle2 size={12} /> YES
+                            </span>
+                          ) : val === 'No' ? (
+                            <span className="flex items-center gap-1.5 text-red-500 font-bold text-xs bg-red-50 px-2.5 py-1 rounded-full border border-red-100 italic">
+                              <XCircle size={12} /> NO
+                            </span>
+                          ) : <span className="text-gray-300">-</span>}
+                        </td>
+                      );
+                  } else if (col.type === 'currency' || col.type === 'number') {
                     const displayVal = val !== null && val !== undefined ? val.toLocaleString() : '-';
                     return (
-                      <td key={col.name} className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-900 text-right font-mono tracking-tight">
+                        <td key={col.name} className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-900 text-right font-mono tracking-tight">
                         {displayVal}
                       </td>
                     );
-                  }
-
-                  if (col.type === 'file' && val) {
+                  } else if (col.type === 'file' && val) {
                     const isImg = val.match(/\.(jpg|jpeg|png|gif|webp)$/i);
                     return (
                       <td key={col.name} className="px-6 py-4 whitespace-nowrap">
@@ -449,55 +589,13 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
                     );
                   }
 
-                  if (col.type === 'email' && val) {
-                    return (
-                      <td key={col.name} className="px-6 py-4 whitespace-nowrap text-xs font-bold text-gray-500 hover:text-blue-600 transition-colors">
-                        <a href={`mailto:${val}`} className="flex items-center gap-1.5 underline underline-offset-4 decoration-gray-200 hover:decoration-blue-400">
-                          <Mail size={12} className="shrink-0" /> {val}
-                        </a>
-                      </td>
-                    );
-                  }
-
-                  if (col.type === 'phone' && val) {
-                    return (
-                      <td key={col.name} className="px-6 py-4 whitespace-nowrap text-xs font-bold text-gray-500 hover:text-green-600 transition-colors">
-                        <a href={`tel:${val}`} className="flex items-center gap-1.5 border-b border-dashed border-gray-200 hover:border-green-400">
-                          <Phone size={12} className="shrink-0" /> {val}
-                        </a>
-                      </td>
-                    );
-                  }
-
-                  if (col.type === 'textarea' && val) {
-                    return (
-                      <td key={col.name} className="px-6 py-4 min-w-[200px] max-w-[300px]">
-                        <div className="text-xs font-medium text-gray-600 line-clamp-2 leading-relaxed bg-gray-50/50 p-2 rounded-lg border border-transparent hover:border-gray-100 hover:bg-white transition-all">
-                          {val}
-                        </div>
-                      </td>
-                    );
-                  }
-
-                  let displayValue = val?.toString() || '-';
-                  if (col.type === 'date' && val) {
-                    if (typeof val === 'number') {
-                      try {
-                        const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-                        displayValue = date.toISOString().split('T')[0];
-                      } catch (e) {
-                         displayValue = val.toString();
-                      }
-                    }
-                  }
-
                   return (
-                    <td key={col.name} className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${col.autoPrefix ? 'text-blue-600 font-black' : 'text-gray-700'}`}>
+                    <td key={col.name} className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${col.autoPrefix ? 'text-blue-600 font-black' : 'text-gray-700'} ${row.isDeleted ? 'line-through text-gray-400' : ''}`}>
                       {displayValue}
                     </td>
                   );
                 })}
-                {isOwner && (
+                {hasBaseEditAuth && (
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     {editingRowId === row.id ? (
                       <div className="flex items-center justify-center gap-2 animate-in fade-in zoom-in duration-200">
@@ -517,14 +615,36 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={() => handleEditStart(row)}
-                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all active:scale-90"
-                          title="데이터 수정"
+                          onClick={() => setHistoryRowId(row.id)}
+                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"
+                          title={row.updatedAt ? `최종 수정: ${new Date(row.updatedAt).toLocaleString()}` : '변경 이력 보기'}
                         >
-                          <Edit3 size={16} />
+                          <HistoryIcon size={16} />
                         </button>
+                        {row.isDeleted ? (
+                            isRowManager(row) && (
+                                <button
+                                    onClick={() => handleSingleRestore(row.id)}
+                                    disabled={isRestoring}
+                                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all active:scale-90"
+                                    title="데이터 복구"
+                                >
+                                    <RotateCcw size={16} />
+                                </button>
+                            )
+                        ) : (
+                            isRowManager(row) && (
+                                <button
+                                    onClick={() => handleEditStart(row)}
+                                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all active:scale-90"
+                                    title="데이터 수정"
+                                >
+                                    <Edit3 size={16} />
+                                </button>
+                            )
+                        )}
                       </div>
                     )}
                   </td>
@@ -538,7 +658,7 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
                     <FilterX className="text-gray-200" size={48} />
                     <p className="text-gray-300 font-bold uppercase tracking-widest text-xs">
                        {searchTerm ? '검색 결과가 없습니다' : '표시할 데이터가 없습니다'}
-                    </p>
+                     </p>
                   </div>
                 </td>
               </tr>
@@ -547,7 +667,7 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
         </table>
       </div>
 
-      {/* 페이지네이션 UI */}
+      {/* Pagination */}
       {processedData.length > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-[24px] border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center gap-3">
@@ -626,14 +746,21 @@ export default function DynamicTable({ reportId, columns, data, isOwner = false,
         />
       )}
 
-      {/* 로컬 상태 알림 모달 */}
       <StatusModal 
         isOpen={localModalStatus.isOpen}
         onClose={() => setLocalModalStatus(prev => ({ ...prev, isOpen: false }))}
         title={localModalStatus.title}
         message={localModalStatus.message}
-        type={localModalStatus.type}
+        type={localModalStatus.type} 
       />
+
+      {historyRowId && (
+        <AuditHistoryModal 
+          rowId={historyRowId}
+          columns={columns}
+          onClose={() => setHistoryRowId(null)}
+        />
+      )}
     </div>
   );
 }

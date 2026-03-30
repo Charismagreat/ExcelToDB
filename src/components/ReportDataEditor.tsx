@@ -1,11 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Plus, Sparkles } from 'lucide-react';
+import React from 'react';
+import { Plus, LayoutDashboard } from 'lucide-react';
 import DynamicForm from './DynamicForm';
-import BulkUpload from './BulkUpload';
-import AIPhotoImportSection from './AIPhotoImportSection';
-import StatusModal from './StatusModal';
 import { addRowAction } from '@/app/actions';
 
 interface Column {
@@ -18,103 +15,64 @@ interface Column {
 interface ReportDataEditorProps {
   reportId: string;
   columns: Column[];
+  onStatusShow: (title: string, message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-export default function ReportDataEditor({ reportId, columns }: ReportDataEditorProps) {
-  const [showAIModal, setShowAIModal] = useState(false);
-  
-  // 상태 모달 관리
-  const [modalStatus, setModalStatus] = useState<{
-      isOpen: boolean;
-      title: string;
-      message: string;
-      type: 'success' | 'error' | 'info';
-  }>({
-      isOpen: false,
-      title: '',
-      message: '',
-      type: 'info'
-  });
-
-  const showStatus = (title: string, message: string, type: 'success' | 'error' | 'info') => {
-      setModalStatus({ isOpen: true, title, message, type });
-  };
-
+export default function ReportDataEditor({ reportId, columns, onStatusShow }: ReportDataEditorProps) {
   return (
-    <section className="space-y-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-            <Plus size={20} className="text-blue-600" />
-            <h2 className="text-lg font-bold text-gray-800">새로운 데이터 추가</h2>
+    <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-6">
+            <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-500/20">
+                    <Plus size={28} strokeWidth={3} />
+                </div>
+                <div>
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">새로운 데이터 추가</h2>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Direct Entry Terminal</p>
+                </div>
+            </div>
         </div>
-        <button 
-          onClick={() => setShowAIModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all text-xs tracking-widest uppercase active:scale-95"
-        >
-            <Sparkles size={16} />
-            AI 사진으로 일괄 등록
-        </button>
+
+        {/* Manual Entry Focused Card */}
+        <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-gray-900/5 overflow-hidden group">
+            <div className="bg-blue-600 px-10 py-6 text-white flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
+                    <h3 className="text-sm font-black uppercase tracking-widest">방법 1. 직접 하나씩 입력하기</h3>
+                </div>
+                <div className="flex items-center gap-2 opacity-60">
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Manual Entry Terminal</span>
+                    <div className="h-3 w-px bg-white/30" />
+                    <div className="px-2 py-0.5 bg-white/10 rounded text-[8px] font-black tracking-tighter uppercase whitespace-nowrap">Live Auth</div>
+                </div>
+            </div>
+            
+            <div className="p-10 md:p-14">
+                <DynamicForm 
+                    columns={columns} 
+                    onStatusShow={onStatusShow}
+                    onSubmit={async (data: any) => {
+                        try {
+                            await addRowAction(reportId, data);
+                            onStatusShow('저장 완료', '데이터가 성공적으로 추가되었습니다.', 'success');
+                        } catch (error: any) {
+                            onStatusShow('저장 실패', error.message || '데이터 저장 중 오류가 발생했습니다.', 'error');
+                        }
+                    }} 
+                />
+            </div>
+        </div>
+
+        {/* Floating Info Pill */}
+        <div className="flex items-center justify-center">
+            <div className="flex items-center gap-4 px-6 py-2.5 bg-white border border-gray-100 rounded-2xl shadow-sm text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                <LayoutDashboard size={14} className="text-blue-500" />
+                <span>대량의 데이터는 상단의 <span className="text-green-600">BULK UPLOAD</span> 또는 <span className="text-indigo-600">AI 사진 등록</span> 기능을 이용하세요</span>
+            </div>
+        </div>
       </div>
-                
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-          {/* 데이터 직접 추가 섹션 */}
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full">
-              <div className="bg-blue-50/50 px-6 py-3 border-b border-blue-100 flex items-center justify-between shrink-0">
-                  <h3 className="text-sm font-black text-blue-700 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                      방법 1. 직접 하나씩 입력하기
-                  </h3>
-                  <span className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter">Manual Entry</span>
-              </div>
-              <div className="p-6 flex-1">
-                  <DynamicForm 
-                      columns={columns} 
-                      onStatusShow={showStatus}
-                      onSubmit={async (data: any) => {
-                          try {
-                              await addRowAction(reportId, data);
-                              showStatus('저장 완료', '데이터가 성공적으로 추가되었습니다.', 'success');
-                          } catch (error: any) {
-                              showStatus('저장 실패', error.message || '데이터 저장 중 오류가 발생했습니다.', 'error');
-                              // throw error; // Next.js 에러 화면을 방지하기 위해 주석 처리
-                          }
-                      }} 
-                  />
-              </div>
-          </div>
-
-          {/* 엑셀 일괄 추가 섹션 */}
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full">
-              <div className="bg-green-50/50 px-6 py-3 border-b border-green-100 flex items-center justify-between shrink-0">
-                  <h3 className="text-sm font-black text-green-700 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                      방법 2. 엑셀 파일로 한꺼번에 올리기
-                  </h3>
-                  <span className="text-[10px] font-bold text-green-400 uppercase tracking-tighter">Bulk Excel Upload</span>
-              </div>
-              <div className="p-6 flex-1 flex flex-col justify-center">
-                  <BulkUpload reportId={reportId} columns={columns} onStatusShow={showStatus} />
-              </div>
-          </div>
-      </div>
-
-      {showAIModal && (
-          <AIPhotoImportSection 
-            reportId={reportId} 
-            columns={columns} 
-            onClose={() => setShowAIModal(false)} 
-            onStatusShow={showStatus}
-          />
-      )}
-
-      {/* 상태 알림 모달 */}
-      <StatusModal 
-        isOpen={modalStatus.isOpen}
-        onClose={() => setModalStatus(prev => ({ ...prev, isOpen: false }))}
-        title={modalStatus.title}
-        message={modalStatus.message}
-        type={modalStatus.type}
-      />
     </section>
   );
 }

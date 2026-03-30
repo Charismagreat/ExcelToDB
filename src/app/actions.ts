@@ -2,12 +2,54 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { parseExcelWorkbook } from '@/lib/excel-parser';
 import { analyzeExcelImage, extractDataFromImage, recommendSchemaFromSample } from '@/lib/ai-vision';
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
+
+// Password Security Utilities
+const SALT_SIZE = 16;
+const KEY_LEN = 64;
+
+function hashPassword(password: string): string {
+    const salt = crypto.randomBytes(SALT_SIZE).toString('hex');
+    const derivedKey = crypto.scryptSync(password, salt, KEY_LEN);
+    return `${salt}:${derivedKey.toString('hex')}`;
+}
+
+function verifyPassword(password: string, storedHash: string): boolean {
+    if (!storedHash) return false;
+    const parts = storedHash.split(':');
+    if (parts.length !== 2) return false;
+    const [salt, hash] = parts;
+    const derivedKey = crypto.scryptSync(password, salt, KEY_LEN);
+    return derivedKey.toString('hex') === hash;
+}
+
+/**
+ * 보고서에 대한 사용자의 접근 권한을 확인합니다.
+ * ADMIN, EDITOR는 모든 권한을 가지며, VIEWER는 명시적으로 권한이 부여되었거나 소유자인 경우에만 허용합니다.
+ */
+async function checkReportAuthorization(reportId: string, userId: string, role: string) {
+    if (role === 'ADMIN' || role === 'EDITOR') return true;
+    
+    const report = await prisma.report.findUnique({
+        where: { id: reportId },
+        select: { 
+            ownerId: true,
+            authorizedUsers: { where: { id: userId }, select: { id: true } }
+        }
+    });
+    
+    if (!report) return false;
+    if (report.ownerId === userId) return true;
+    if (report.authorizedUsers.length > 0) return true;
+    
+    return false;
+}
 
 export async function uploadFileAction(formData: FormData) {
     const file = formData.get('file') as File;
@@ -99,6 +141,13 @@ export async function uploadExcelAction(formData: FormData, userId: string) {
 }
 
 export async function addRowAction(reportId: string, rowData: any) {
+  // 4. 세션 사용자 확인 및 권한 체크
+  const user = await getSessionAction();
+  if (!user) throw new Error('인증이 필요합니다.');
+  
+  const isAuthorized = await checkReportAuthorization(reportId, user.id, user.role);
+  if (!isAuthorized) throw new Error('해당 보고서에 대한 접근 권한이 없습니다.');
+
   const report = await prisma.report.findUnique({ where: { id: reportId } });
   if (!report) throw new Error('보고서를 찾을 수 없습니다.');
 
@@ -144,15 +193,61 @@ export async function addRowAction(reportId: string, rowData: any) {
     }
   }
 
-  // 4. 저장
+  const creatorId = user.id;
+
+  // 5. 저장
   await prisma.reportRow.create({
       data: {
         reportId,
         data: JSON.stringify(finalData),
-        contentHash: hash
+        contentHash: hash,
+        creatorId: creatorId
       } as any
     });
+    
   revalidatePath(`/report/${reportId}`);
+  return { success: true };
+}
+
+/**
+ * 특정 행의 상세 감사 정보(생성/수정/이력)를 조회합니다.
+ */
+export async function getRowHistoryAction(rowId: string) {
+    const row = await prisma.reportRow.findUnique({
+        where: { id: rowId },
+        include: {
+            creator: { select: { id: true, username: true, fullName: true } },
+            updater: { select: { id: true, username: true, fullName: true } },
+            histories: {
+                orderBy: { changedAt: 'desc' },
+                include: {
+                    // changedBy relation might not exist in schema, checking...
+                }
+            }
+        }
+    });
+
+    if (!row) throw new Error('데이터를 찾을 수 없습니다.');
+
+    // 히스토리 작성자 정보를 위해 모든 history에 대해 사용자 정보 추가 조회
+    const historyWithUsers = await Promise.all(
+        row.histories.map(async (h) => {
+            const user = await prisma.user.findUnique({
+                where: { id: h.changedById },
+                select: { id: true, username: true, fullName: true }
+            });
+            return { ...h, changedBy: user };
+        })
+    );
+
+    return {
+        id: row.id,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        creator: row.creator,
+        updater: row.updater,
+        histories: historyWithUsers
+    };
 }
 
 export async function deleteReportAction(reportId: string) {
@@ -190,10 +285,49 @@ export async function permanentDeleteReportAction(reportId: string) {
 }
 
 export async function deleteRowsAction(reportId: string, rowIds: string[]) {
-    await prisma.reportRow.deleteMany({
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+    const updaterId = user.id;
+
+    const isAuthorized = await checkReportAuthorization(reportId, user.id, user.role);
+    if (!isAuthorized) throw new Error('해당 보고서에 대한 접근 권한이 없습니다.');
+
+    const rows = await prisma.reportRow.findMany({
         where: { id: { in: rowIds } }
     });
+
+    // 일반 사용자(VIEWER) 권한 일 때 타인의 데이터 삭제 시도 차단
+    if (user.role === 'VIEWER') {
+        const hasUnauthorized = rows.some(r => r.creatorId !== user.id);
+        if (hasUnauthorized) {
+            throw new Error('본인이 작성하지 않은 데이터는 삭제할 수 없습니다.');
+        }
+    }
+
+    // 2. 논리적 삭제 및 이력 생성 (트랜잭션 권장하나 여기서는 순차 처리)
+    for (const row of rows) {
+        await prisma.reportRow.update({
+            where: { id: row.id },
+            data: {
+                isDeleted: true,
+                deletedAt: new Date(),
+                updaterId: updaterId
+            } as any
+        });
+
+        await prisma.reportRowHistory.create({
+            data: {
+                rowId: row.id,
+                oldData: row.data,
+                newData: JSON.stringify({ ...JSON.parse(row.data), _deleted: true }),
+                changeType: 'DELETE',
+                changedById: updaterId || 'system'
+            }
+        });
+    }
+
     revalidatePath(`/report/${reportId}`);
+    revalidatePath('/archive');
 }
 
 export async function bulkUpdateRowsAction(
@@ -203,6 +337,12 @@ export async function bulkUpdateRowsAction(
     actionType: 'OVERWRITE' | 'FIND_REPLACE', 
     params: { value?: any; find?: string; replace?: string }
 ) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+    
+    const isAuthorized = await checkReportAuthorization(reportId, user.id, user.role);
+    if (!isAuthorized) throw new Error('해당 보고서에 대한 접근 권한이 없습니다.');
+
     const report = await prisma.report.findUnique({ where: { id: reportId } });
     if (!report) throw new Error('보고서를 찾을 수 없습니다.');
 
@@ -217,8 +357,19 @@ export async function bulkUpdateRowsAction(
 
     if (rows.length === 0) throw new Error('수정할 데이터가 없습니다.');
 
+    const updaterId = user.id;
+
+    // 일반 사용자(VIEWER) 권한 일 때 타인의 데이터 수정 시도 차단
+    if (user.role === 'VIEWER') {
+        const hasUnauthorized = rows.some(r => r.creatorId !== user.id);
+        if (hasUnauthorized) {
+            throw new Error('본인이 작성하지 않은 데이터는 일괄 수정할 수 없습니다.');
+        }
+    }
+
     // 2. 일괄 업데이트 처리
     for (const row of rows) {
+        const oldData = row.data;
         const rowData = JSON.parse(row.data);
         let newValue = params.value;
 
@@ -248,14 +399,26 @@ export async function bulkUpdateRowsAction(
         // 중복 체크용 해시 재생성
         const newHash = await generateContentHash(rowData, columns);
         
-        // 3. 개별 업데이트 (간단한 구현을 위해 순차 처리)
-        await prisma.reportRow.update({
+        // 3. 개별 업데이트 및 이력 생성
+        const updatedRow = await prisma.reportRow.update({
             where: { id: row.id },
             data: {
-            data: JSON.stringify(rowData),
-            contentHash: newHash
-        } as any
-    });
+                data: JSON.stringify(rowData),
+                contentHash: newHash,
+                updaterId: updaterId,
+                updatedAt: new Date()
+            } as any
+        });
+
+        await prisma.reportRowHistory.create({
+            data: {
+                rowId: row.id,
+                oldData: oldData,
+                newData: updatedRow.data,
+                changeType: 'UPDATE',
+                changedById: updaterId || 'system'
+            }
+        });
     }
 
     revalidatePath(`/report/${reportId}`);
@@ -268,6 +431,12 @@ export async function updateSingleRowAction(
     rowId: string, 
     newData: any
 ) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+    
+    const isAuthorized = await checkReportAuthorization(reportId, user.id, user.role);
+    if (!isAuthorized) throw new Error('해당 보고서에 대한 접근 권한이 없습니다.');
+
     const report = await prisma.report.findUnique({ where: { id: reportId } });
     if (!report) throw new Error('보고서를 찾을 수 없습니다.');
 
@@ -307,14 +476,38 @@ export async function updateSingleRowAction(
         }
     }
 
-    // 3. 업데이트
-    await prisma.reportRow.update({
+    // 3. 업데이트 및 이력 생성
+    const updaterId = user.id;
+    const oldRow = await prisma.reportRow.findUnique({ where: { id: rowId } });
+    
+    if (!oldRow) throw new Error('기존 데이터를 찾을 수 없습니다.');
+
+    // 일반 사용자(VIEWER) 권한 일 때 타인의 데이터 수정 시도 차단
+    if (user.role === 'VIEWER' && oldRow.creatorId !== user.id) {
+        throw new Error('본인이 작성하지 않은 데이터는 수정할 수 없습니다.');
+    }
+
+    const updatedRow = await prisma.reportRow.update({
         where: { id: rowId },
         data: {
             data: JSON.stringify(finalData),
-            contentHash: hash
+            contentHash: hash,
+            updaterId: updaterId,
+            updatedAt: new Date()
         } as any
     });
+
+    if (oldRow) {
+        await prisma.reportRowHistory.create({
+            data: {
+                rowId: rowId,
+                oldData: oldRow.data,
+                newData: updatedRow.data,
+                changeType: 'UPDATE',
+                changedById: updaterId || 'system'
+            }
+        });
+    }
 
     revalidatePath(`/report/${reportId}`);
     return { success: true };
@@ -351,6 +544,14 @@ export async function analyzeExcelScreenshotAction(formData: FormData) {
 }
 
 export async function addRowsAction(reportId: string, rows: any[]) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+
+    const isAuthorized = await checkReportAuthorization(reportId, user.id, user.role);
+    if (!isAuthorized) throw new Error('해당 보고서에 대한 접근 권한이 없습니다.');
+
+    const creatorId = user.id;
+
     const report = await prisma.report.findUnique({ where: { id: reportId } });
     if (!report) throw new Error('보고서를 찾을 수 없습니다.');
   
@@ -418,7 +619,8 @@ export async function addRowsAction(reportId: string, rows: any[]) {
         cleanedRowsToInsert.push({
             data: JSON.stringify(rowWithMetadata),
             contentHash: hash,
-            reportId: reportId
+            reportId: reportId,
+            creatorId: creatorId
         });
         
         existingHashes.add(hash);
@@ -496,4 +698,303 @@ export async function analyzeImageAndExtractDataAction(formData: FormData, colum
         }
         return { success: false, error: errorMessage };
     }
+}
+
+
+export async function loginAction(username: string, password?: string) {
+    const trimmedUsername = username.trim();
+
+    // Check if admin_user exists, create if not
+    const existingAdmin = await prisma.user.findUnique({ where: { username: 'admin_user' } });
+    if (!existingAdmin) {
+        await prisma.user.create({
+            data: { 
+                username: 'admin_user', 
+                role: 'ADMIN', 
+                fullName: '초기 관리자', 
+                isActive: true,
+                password: hashPassword('admin123!') // 기본 비밀번호 설정
+            }
+        });
+    } else if (!existingAdmin.isActive && trimmedUsername === 'admin_user') {
+        // Emergency reactivate admin_user if it's the target login and is deactivated
+        await prisma.user.update({
+            where: { username: 'admin_user' },
+            data: { isActive: true }
+        });
+    }
+
+    const user = await prisma.user.findUnique({ where: { username: trimmedUsername } });
+    
+    if (!user || !user.isActive) {
+        throw new Error('존재하지 않거나 비활성화된 계정입니다.');
+    }
+
+    // 비밀번호 검증 (이미 설정된 비밀번호가 있는 경우)
+    if (user.password && password) {
+        const isValid = verifyPassword(password, user.password);
+        if (!isValid) {
+            throw new Error('비밀번호가 일치하지 않습니다.');
+        }
+    } else if (user.password && !password) {
+        throw new Error('비밀번호를 입력해 주세요.');
+    }
+    // 레거시 대응: 비밀번호가 없는 계정은 아이디만으로 로그인 허용 가능하나 보안상 권장 안 함.
+    // 여기서는 비밀번호가 있는 경우만 검증하도록 함.
+
+    const cookieStore = await cookies();
+    cookieStore.set('session_user_id', user.id, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+        path: '/'
+    });
+
+    return { success: true, user };
+}
+
+export async function logoutAction() {
+    const cookieStore = await cookies();
+    cookieStore.delete('session_user_id');
+    return { success: true };
+}
+
+export async function getSessionAction() {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('session_user_id')?.value;
+    
+    if (!userId) return null;
+
+    const user = await prisma.user.findUnique({ 
+        where: { id: userId },
+        select: { id: true, username: true, role: true, fullName: true, isActive: true }
+    });
+
+    if (!user || !user.isActive) {
+        cookieStore.delete('session_user_id');
+        return null;
+    }
+
+    return user;
+}
+
+
+export async function getUsersAction() {
+    const session = await getSessionAction();
+    if (!session || (session.role !== 'ADMIN' && session.role !== 'EDITOR')) {
+        throw new Error('접근 권한이 없습니다.');
+    }
+
+    const users = await prisma.user.findMany({
+        select: { 
+            id: true, 
+            username: true, 
+            role: true, 
+            fullName: true, 
+            employeeId: true, 
+            isActive: true, 
+            lastLoginAt: true,
+            password: true
+        },
+        orderBy: { username: 'asc' }
+    });
+
+    return users.map(user => ({
+        ...user,
+        hasPassword: !!user.password,
+        password: undefined
+    }));
+}
+
+export async function updateUserAction(userId: string, data: any) {
+    const session = await getSessionAction();
+    if (!session || (session.role !== 'ADMIN' && session.role !== 'EDITOR')) {
+        throw new Error('접근 권한이 없습니다.');
+    }
+
+    // admin_user 본인의 역할이나 활성화 상태 변경은 제한 (안전장치)
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (targetUser?.username === 'admin_user') {
+        if (data.role !== 'ADMIN' || data.isActive === false) {
+            throw new Error('기본 관리자 계정의 권한이나 활성 상태는 변경할 수 없습니다.');
+        }
+    }
+
+    const { username, role, fullName, employeeId, isActive, password } = data;
+    const finalEmployeeId = employeeId?.trim() || null;
+
+    // 아이디 중복 체크 (수정 시 본인 제외)
+    if (username) {
+        const trimmedUsername = username.trim();
+        const existingUsername = await prisma.user.findUnique({ where: { username: trimmedUsername } });
+        if (existingUsername && existingUsername.id !== userId) {
+            throw new Error('이미 사용 중인 아이디입니다.');
+        }
+    }
+
+    // 사번 중복 체크 (수정 시 본인 제외)
+    if (finalEmployeeId) {
+        const existingEmp = await prisma.user.findUnique({ where: { employeeId: finalEmployeeId } });
+        if (existingEmp && existingEmp.id !== userId) {
+            throw new Error('이미 다른 사용자가 사용 중인 사번입니다.');
+        }
+    }
+    
+    await prisma.user.update({
+        where: { id: userId },
+        data: { 
+            username: username?.trim(), 
+            role, 
+            fullName: fullName?.trim(), 
+            employeeId: finalEmployeeId, 
+            isActive: isActive === undefined ? true : isActive,
+            ...(password ? { password: hashPassword(password) } : {})
+        }
+    });
+
+    revalidatePath('/users');
+    revalidatePath('/');
+    return { success: true };
+}
+
+export async function createUserAction(data: any) {
+    const session = await getSessionAction();
+    if (!session || (session.role !== 'ADMIN' && session.role !== 'EDITOR')) {
+        throw new Error('접근 권한이 없습니다.');
+    }
+
+    const { username, role, fullName, employeeId, password } = data;
+    const trimmedUsername = username.trim();
+    const finalEmployeeId = employeeId?.trim() || null;
+    
+    // 아이디 중복 체크
+    const existing = await prisma.user.findUnique({ where: { username: trimmedUsername } });
+    if (existing) throw new Error('이미 존재하는 아이디입니다.');
+
+    // 사번 중복 체크
+    if (finalEmployeeId) {
+        const existingEmp = await prisma.user.findUnique({ where: { employeeId: finalEmployeeId } });
+        if (existingEmp) throw new Error('이미 존재하는 사번입니다.');
+    }
+
+    await prisma.user.create({
+        data: { 
+            username: trimmedUsername, 
+            role, 
+            fullName: fullName?.trim(), 
+            employeeId: finalEmployeeId, 
+            isActive: true,
+            password: password ? hashPassword(password) : undefined
+        }
+    });
+
+    revalidatePath('/users');
+    revalidatePath('/');
+    return { success: true };
+}
+
+export async function deleteUserAction(userId: string) {
+    const session = await getSessionAction();
+    if (!session || (session.role !== 'ADMIN' && session.role !== 'EDITOR')) {
+        throw new Error('접근 권한이 없습니다.');
+    }
+
+    // 자기 자신 삭제 방지
+    if (session.id === userId) {
+        throw new Error('본인의 계정은 삭제할 수 없습니다.');
+    }
+
+    // 기본 관리자 계정 삭제 방지
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (targetUser?.username === 'admin_user') {
+        throw new Error('기본 관리자 계정은 삭제할 수 없습니다.');
+    }
+
+    await prisma.user.delete({
+        where: { id: userId }
+    });
+
+    revalidatePath('/users');
+    revalidatePath('/');
+    return { success: true };
+}
+
+/**
+ * 보고서에 대한 사용자 접근 권한을 업데이트합니다.
+ */
+export async function updateReportAccessAction(reportId: string, userIds: string[]) {
+    const session = await getSessionAction();
+    if (!session || (session.role !== 'ADMIN' && session.role !== 'EDITOR')) {
+        throw new Error('접근 권한이 없습니다.');
+    }
+
+    await prisma.report.update({
+        where: { id: reportId },
+        data: {
+            authorizedUsers: {
+                set: userIds.map(id => ({ id }))
+            }
+        }
+    });
+
+    revalidatePath(`/report/${reportId}`);
+    revalidatePath(`/report/${reportId}/input`);
+    revalidatePath('/');
+    return { success: true };
+}
+
+/**
+ * 보고서에 접근 권한이 있는 사용자 목록을 가져옵니다.
+ */
+export async function getAuthorizedUsersForReportAction(reportId: string) {
+    const report = await prisma.report.findUnique({
+        where: { id: reportId },
+        select: { authorizedUsers: { select: { id: true, username: true, fullName: true, role: true } } }
+    });
+    return report?.authorizedUsers || [];
+}
+
+/**
+ * 삭제된 데이터 행들을 복구합니다.
+ */
+export async function restoreRowsAction(reportId: string, rowIds: string[]) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+    const updaterId = user.id;
+
+    const isAuthorized = await checkReportAuthorization(reportId, user.id, user.role);
+    if (!isAuthorized) throw new Error('해당 보고서에 대한 접근 권한이 없습니다.');
+
+    const rows = await prisma.reportRow.findMany({
+        where: { id: { in: rowIds } }
+    });
+
+    for (const row of rows) {
+        // 논리적 삭제 해제
+        const updatedRow = await prisma.reportRow.update({
+            where: { id: row.id },
+            data: {
+                isDeleted: false,
+                deletedAt: null,
+                updaterId: updaterId,
+                updatedAt: new Date()
+            } as any
+        });
+
+        // 복구 이력 생성
+        await prisma.reportRowHistory.create({
+            data: {
+                rowId: row.id,
+                oldData: row.data,
+                newData: updatedRow.data,
+                changeType: 'RESTORE',
+                changedById: updaterId || 'system'
+            }
+        });
+    }
+
+    revalidatePath(`/report/${reportId}`);
+    revalidatePath(`/report/${reportId}/input`);
+    return { success: true };
 }

@@ -1,25 +1,39 @@
 import React from 'react';
 import prisma from '@/lib/prisma';
-import { deleteReportAction } from './actions';
+import { getSessionAction } from '@/app/actions';
 import DeleteReportButton from '@/components/DeleteReportButton';
 import Link from 'next/link';
-import { FileSpreadsheet, User, LayoutDashboard, Trash2 } from 'lucide-react';
+import { FileSpreadsheet, User, LayoutDashboard, Trash2, ShieldCheck, ExternalLink } from 'lucide-react';
 import NewTableSection from '@/components/NewTableSection';
+import { redirect } from 'next/navigation';
+import LogoutButton from '@/components/LogoutButton';
 
 export default async function DashboardPage() {
-  // Simple internal simulation: Assume a default user for now
-  let user = await prisma.user.findUnique({ where: { username: 'admin_user' } });
+  // 실제 세션 사용자 정보 가져오기
+  const user = await getSessionAction();
+
   if (!user) {
-    user = await prisma.user.create({
-      data: { username: 'admin_user', role: 'ADMIN' }
-    });
+    redirect('/login');
   }
 
+  // 권한에 따른 보고서 필터링: 
+  // ADMIN/EDITOR는 모든 보고서 조회 가능
+  // VIEWER는 본인이 소유하거나 접근 권한이 부여된 보고서만 조회 가능
   const reports = await prisma.report.findMany({
-    where: { isDeleted: false },
+    where: { 
+        isDeleted: false,
+        ...(user.role === 'VIEWER' ? {
+            OR: [
+                { ownerId: user.id },
+                { authorizedUsers: { some: { id: user.id } } }
+            ]
+        } : {})
+    },
     include: { _count: { select: { rows: true } } },
     orderBy: { createdAt: 'desc' }
   });
+
+  const isStaff = user.role === 'VIEWER';
 
   return (
     <div className="min-h-screen bg-gray-50 p-8 font-[family-name:var(--font-geist-sans)]">
@@ -29,44 +43,80 @@ export default async function DashboardPage() {
             <div className="bg-blue-600 p-2 rounded-lg text-white">
               <LayoutDashboard size={24} />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">My DB</h1>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Excel to DB</h1>
           </div>
-          <Link 
-            href="/archive" 
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-100 rounded-full text-xs font-black text-gray-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm"
-          >
-            <Trash2 size={14} />
-            DELETED TABLES
-          </Link>
+          {!isStaff && (
+            <Link 
+              href="/archive" 
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-100 rounded-full text-xs font-black text-gray-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm"
+            >
+              <Trash2 size={14} />
+              DELETED TABLES
+            </Link>
+          )}
         </div>
-        <div className="flex items-center gap-4 bg-white px-4 py-2 border rounded-full shadow-sm text-sm font-medium text-gray-700">
-          <User size={18} className="text-blue-500" />
-          <span>{user.username} (관리자)</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 bg-white px-4 py-2 border rounded-full shadow-sm text-sm font-medium text-gray-700">
+            <User size={18} className="text-blue-500" />
+            <span>{user.username} ({user.role})</span>
+          </div>
+          <LogoutButton />
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto space-y-16">
-        <NewTableSection userId={user.id} />
+        {!isStaff && <NewTableSection userId={user.id} />}
 
         {/* Reports List */}
         <section>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <FileSpreadsheet size={20} className="text-blue-600" />
-              <h2 className="text-lg font-bold text-gray-800">My Tables</h2>
+              <h2 className="text-lg font-bold text-gray-800">{isStaff ? '나의 업무 테이블' : 'My Tables'}</h2>
             </div>
             <span className="text-sm text-gray-500">총 {reports.length}개</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* System Users Table (Admin/Editor only) */}
+            {(user.role === 'ADMIN' || user.role === 'EDITOR') && (
+              <div className="relative group bg-indigo-600 border border-indigo-500 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-indigo-200 transition-all duration-300">
+                <div className="p-6 text-white">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="bg-white/20 text-white p-2.5 rounded-xl backdrop-blur-md group-hover:scale-110 transition-transform">
+                      <User size={20} strokeWidth={2.5} />
+                    </div>
+                    <span className="px-2 py-0.5 bg-white/20 rounded text-[9px] font-black uppercase tracking-widest border border-white/10">System Table</span>
+                  </div>
+                  <h3 className="text-lg font-black mb-1 truncate">시스템 사용자 관리</h3>
+                  <div className="flex items-center gap-2 text-sm text-indigo-100 mb-4 opacity-80 font-semibold">
+                    <span>직원 계정 보관소</span>
+                    <span>•</span>
+                    <span>관리자 전용</span>
+                  </div>
+                  <Link 
+                    href="/users"
+                    className="block w-full text-center py-2.5 px-4 bg-white text-indigo-600 font-black rounded-xl hover:bg-indigo-50 transition-all text-xs uppercase tracking-widest"
+                  >
+                    Open Management
+                  </Link>
+                </div>
+              </div>
+            )}
+
             {reports.map((report: any) => (
               <div key={report.id} className="relative group bg-white border rounded-2xl overflow-hidden hover:border-blue-300 hover:shadow-xl transition-all duration-300">
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-4">
-                    <div className="bg-blue-50 text-blue-700 p-2.5 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                      <FileSpreadsheet size={20} />
+                    <div className={`p-2.5 rounded-xl transition-colors ${isStaff ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-700 group-hover:bg-blue-600 group-hover:text-white'}`}>
+                      {isStaff ? <ShieldCheck size={20} /> : <FileSpreadsheet size={20} />}
                     </div>
-                    <DeleteReportButton reportId={report.id} reportName={report.name} />
+                    {!isStaff && <DeleteReportButton reportId={report.id} reportName={report.name} />}
+                    {isStaff && (
+                      <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-black rounded uppercase tracking-widest border border-amber-100">
+                        Authorized
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">{report.name}</h3>
                   <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
@@ -75,18 +125,35 @@ export default async function DashboardPage() {
                     <span>{report._count.rows}개의 데이터</span>
                   </div>
                   <Link 
-                    href={`/report/${report.id}`}
-                    className="block w-full text-center py-2.5 px-4 bg-gray-50 text-blue-600 font-semibold rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all border border-blue-50"
+                    href={isStaff ? `/report/${report.id}/input` : `/report/${report.id}`}
+                    className={`block w-full text-center py-2.5 px-4 font-black rounded-xl transition-all text-xs uppercase tracking-[0.1em] border ${
+                        isStaff 
+                        ? 'bg-amber-600 text-white hover:bg-amber-700 border-amber-600 shadow-lg shadow-amber-500/20' 
+                        : 'bg-gray-50 text-blue-600 border-blue-50 group-hover:bg-blue-600 group-hover:text-white'
+                    }`}
                   >
-                    View Table
+                    {isStaff ? (
+                        <span className="flex items-center justify-center gap-2">
+                           Open Data Entry <ExternalLink size={14} />
+                        </span>
+                    ) : 'View Table'}
                   </Link>
                 </div>
               </div>
             ))}
             {reports.length === 0 && (
               <div className="col-span-full py-20 bg-white border border-dashed rounded-3xl flex flex-col items-center justify-center text-gray-400">
-                <FileSpreadsheet size={48} className="mb-4 opacity-20" />
-                <p className="text-sm font-medium">관리 중인 보고서가 없습니다. 엑셀 파일을 업로드해 보세요.</p>
+                {isStaff ? (
+                    <>
+                        <ShieldCheck size={48} className="mb-4 opacity-20" />
+                        <p className="text-sm font-medium">배정된 업무 테이블이 없습니다. 관리자에게 문의해 주세요.</p>
+                    </>
+                ) : (
+                    <>
+                        <FileSpreadsheet size={48} className="mb-4 opacity-20" />
+                        <p className="text-sm font-medium">관리 중인 보고서가 없습니다. 엑셀 파일을 업로드해 보세요.</p>
+                    </>
+                )}
               </div>
             )}
           </div>

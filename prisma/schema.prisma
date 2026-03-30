@@ -8,10 +8,18 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  role      String   @default("VIEWER") // ADMIN, VIEWER
-  reports   Report[]
+  id          String   @id @default(cuid())
+  username    String   @unique
+  password    String?  // Hashed password
+  fullName    String?
+  employeeId  String?  @unique
+  role        String   @default("VIEWER") // ADMIN, EDITOR, VIEWER
+  isActive    Boolean  @default(true)
+  lastLoginAt DateTime?
+  reports     Report[]
+  createdRows ReportRow[] @relation("CreatedBy")
+  updatedRows ReportRow[] @relation("UpdatedBy")
+  authorizedReports Report[] @relation("AuthorizedReports")
 }
 
 model Report {
@@ -25,6 +33,7 @@ model Report {
   createdAt   DateTime @default(now())
   isDeleted   Boolean  @default(false)
   deletedAt   DateTime?
+  authorizedUsers User[]   @relation("AuthorizedReports")
 }
 
 model ReportRow {
@@ -33,6 +42,31 @@ model ReportRow {
   contentHash String?  // 추가: 데이터 중복 감지를 위한 해시값
   reportId    String
   report      Report   @relation(fields: [reportId], references: [id])
+  
+  // Auditing
+  creatorId   String?
+  creator     User?    @relation("CreatedBy", fields: [creatorId], references: [id])
+  createdAt   DateTime @default(now())
+  updaterId   String?
+  updater     User?    @relation("UpdatedBy", fields: [updaterId], references: [id])
+  updatedAt   DateTime @default(now()) @updatedAt
+  
+  // Logical Delete
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  histories   ReportRowHistory[]
 
   @@index([reportId, contentHash])
+}
+
+model ReportRowHistory {
+  id          String   @id @default(cuid())
+  rowId       String
+  row         ReportRow @relation(fields: [rowId], references: [id])
+  oldData     String   // JSON
+  newData     String   // JSON
+  changeType  String   // UPDATE, DELETE
+  changedById String
+  changedAt   DateTime @default(now())
 }
