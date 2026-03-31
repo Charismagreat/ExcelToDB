@@ -1,34 +1,24 @@
 'use client';
 
-import React from 'react';
-import Link from 'next/link';
+import React, { useState, useMemo } from 'react';
 import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area,
-  LineChart,
-  Line
-} from 'recharts';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  CreditCard, 
+  Search,
+  Filter,
+  ArrowUpRight, 
+  ArrowDownRight, 
+  Wallet, 
   Landmark, 
-  Calendar, 
-  ArrowRight,
-  MoreVertical,
-  Activity,
+  Download,
+  Calendar,
+  History,
   CheckCircle2,
-  Clock,
-  ExternalLink,
-  History as HistoryIcon
+  AlertCircle,
+  Tag,
+  CreditCard,
+  ChevronRight
 } from 'lucide-react';
+
+import { useRouter } from 'next/navigation';
 
 interface DashboardClientProps {
   stats: any;
@@ -36,17 +26,29 @@ interface DashboardClientProps {
   transactions: any;
   monthlyData: any;
   syncHistory: any;
+  currentPage: number;
 }
 
-const formatCurrency = (val: number) => {
+const formatCurrency = (val: number | string) => {
+  if (val === undefined || val === null) return '₩0';
+  const num = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.-]/g, ''));
+  if (isNaN(num)) return '₩0';
   return new Intl.NumberFormat('ko-KR', {
     style: 'currency',
     currency: 'KRW',
-  }).format(val);
+  }).format(num);
 };
 
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const formatDateTime = (dateStr: string) => {
+  return new Date(dateStr).toLocaleString('ko-KR', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -59,266 +61,315 @@ export default function DashboardClient({
   accounts, 
   transactions, 
   monthlyData,
-  syncHistory
+  syncHistory,
+  currentPage = 1
 }: DashboardClientProps) {
+  const router = useRouter();
+  
+  // Debug log to trace data structure
+  console.log('DEBUG: FinanceHub Input Data', { stats, accounts, transactions, monthlyData, syncHistory });
 
-  // Safely extract arrays from potential object responses
-  const monthlySummaryArray = Array.isArray(monthlyData) ? monthlyData : (monthlyData?.summary || []);
-  const accountsArray = Array.isArray(accounts) ? accounts : (accounts?.accounts || []);
-  const transactionsArray = Array.isArray(transactions) ? transactions : (transactions?.transactions || []);
-  const syncHistoryArray = Array.isArray(syncHistory) ? syncHistory : (syncHistory?.syncOperations || []);
+  // Handle Pagination
+  const handlePageChange = (newPage: number) => {
+    router.push(`/dashboard?page=${newPage}`);
+  };
 
-  const chartData = [...monthlySummaryArray].reverse().map((d: any) => ({
-    name: d.month,
-    in: d.totalDeposits,
-    out: d.totalWithdrawals,
-    net: d.netChange
-  }));
+  // Determine total count from stats
+  const totalCount = stats?.totalTransactions || stats?.counts?.transactions || stats?.transactionCount || 1000;
+  const pageSize = 10;
+  const totalPages = Math.ceil(totalCount / pageSize);
 
-  const totalBalance = accountsArray.reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0);
-  const recentSync = syncHistoryArray[0];
+  // Filters State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+
+  // Safely extract arrays and normalize numbers
+  const accountsArray = useMemo(() => {
+    const raw = Array.isArray(accounts) ? accounts : (accounts?.accounts || []);
+    return raw.map((acc: any) => ({
+      ...acc,
+      balance: typeof acc.balance === 'number' ? acc.balance : Number(String(acc.balance || '0').replace(/[^0-9.-]/g, ''))
+    }));
+  }, [accounts]);
+
+  const transactionsArray = useMemo(() => {
+    const raw = Array.isArray(transactions) ? transactions : (transactions?.transactions || []);
+    return raw.map((tx: any) => {
+      // Calculate virtual amount: deposit is positive, withdrawal is negative
+      const deposit = typeof tx.deposit === 'number' ? tx.deposit : Number(String(tx.deposit || '0').replace(/[^0-9.-]/g, ''));
+      const withdrawal = typeof tx.withdrawal === 'number' ? tx.withdrawal : Number(String(tx.withdrawal || '0').replace(/[^0-9.-]/g, ''));
+      
+      return {
+        ...tx,
+        amount: deposit - withdrawal,
+        // Ensure other fields are present
+        description: tx.description || tx.counterparty || tx.memo || 'Untitled Transaction'
+      };
+    });
+  }, [transactions]);
+
+  const syncHistoryArray = useMemo(() => Array.isArray(syncHistory) ? syncHistory : (syncHistory?.syncOperations || []), [syncHistory]);
+
+  // Derived Values
+  const totalBalance = accountsArray.reduce((sum: number, acc: any) => sum + acc.balance, 0);
+  
+  // Unique Categories for filter
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    transactionsArray.forEach((tx: any) => {
+      if (tx.category) cats.add(tx.category);
+    });
+    return Array.from(cats);
+  }, [transactionsArray]);
+
+  // Filtered Transactions
+  const filteredTransactions = useMemo(() => {
+    return transactionsArray.filter((tx: any) => {
+      const matchesSearch = (tx.description || tx.memo || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesAccount = selectedAccount === 'all' || tx.accountId === selectedAccount || tx.bankId === selectedAccount;
+      const matchesCategory = selectedCategory === 'all' || tx.category === selectedCategory;
+      return matchesSearch && matchesAccount && matchesCategory;
+    });
+  }, [transactionsArray, searchTerm, selectedAccount, selectedCategory]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
       
-      {/* Overview Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        
-        {/* Total Balance Card */}
-        <div className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-             <Landmark size={64} className="text-indigo-600 dark:text-indigo-400" />
-          </div>
-          <div className="flex flex-col h-full justify-between">
-            <div>
-              <span className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1 block">Total Combined Balance</span>
-              <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
+      {/* Top Summary Stats - Compact */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex items-center gap-5">
+           <div className="bg-indigo-50 dark:bg-indigo-900/40 p-4 rounded-2xl text-indigo-600 dark:text-indigo-400">
+              <Landmark size={28} />
+           </div>
+           <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Total Combined Balance</p>
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                 {formatCurrency(totalBalance)}
               </h2>
-            </div>
-            <div className="mt-4 flex items-center gap-2 text-sm">
-               <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-lg font-bold">
-                 {accountsArray.length} Accounts
-               </span>
-               <span className="text-slate-400">across {stats?.bankCount || 0} Banks</span>
-            </div>
-          </div>
+           </div>
         </div>
 
-        {/* Recent Monthly Summary Stats */}
-        {chartData.length > 0 && (
-          <>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all">
-              <div className="flex justify-between items-start mb-4">
-                <div className="bg-emerald-50 dark:bg-emerald-900/30 p-3 rounded-2xl text-emerald-600 dark:text-emerald-400">
-                   <TrendingUp size={24} />
-                </div>
-                <span className="text-xs font-black bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-full">+8.2%</span>
-              </div>
-              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block mb-1">Monthly Income</span>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white">
-                 {formatCurrency(chartData[chartData.length-1].in)}
-              </h2>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all">
-              <div className="flex justify-between items-start mb-4">
-                <div className="bg-rose-50 dark:bg-rose-900/30 p-3 rounded-2xl text-rose-600 dark:text-rose-400">
-                   <TrendingDown size={24} />
-                </div>
-                <span className="text-xs font-black bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 px-2.5 py-1 rounded-full">-3.4%</span>
-              </div>
-              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block mb-1">Monthly Expense</span>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white">
-                 {formatCurrency(chartData[chartData.length-1].out)}
-              </h2>
-            </div>
-          </>
-        )}
-
-        {/* Sync Status Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all">
-           <div className="flex items-center gap-4 mb-4">
-              <div className={`p-3 rounded-2xl ${recentSync?.status === 'SUCCESS' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30' : 'bg-amber-50 text-amber-600'}`}>
-                 <Activity size={24} />
-              </div>
-              <div>
-                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Connection Status</p>
-                <div className="flex items-center gap-1.5">
-                   <div className={`w-2 h-2 rounded-full ${recentSync?.status === 'SUCCESS' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                   <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Live Services</p>
-                </div>
-              </div>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex items-center gap-5">
+           <div className="bg-emerald-50 dark:bg-emerald-900/40 p-4 rounded-2xl text-emerald-600 dark:text-emerald-400">
+              <ArrowUpRight size={28} />
            </div>
-           <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
-              <Clock size={12} />
-              Synced {recentSync ? formatDate(recentSync.startTime) : 'Recently'}
-           </p>
-           <button className="mt-4 w-full py-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors">
-             Sync Now
-           </button>
+           <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Active Accounts</p>
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                {accountsArray.length} <span className="text-sm font-bold text-slate-400">Connected</span>
+              </h2>
+           </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex items-center gap-5">
+           <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-slate-600 dark:text-slate-400">
+              <History size={28} />
+           </div>
+           <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Last Synchronized</p>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                {syncHistoryArray[0] ? formatDateTime(syncHistoryArray[0].startTime) : 'No data'}
+              </h2>
+           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Main Table Section */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[32px] overflow-hidden shadow-xl shadow-slate-200/20 dark:shadow-none">
         
-        {/* Main Chart Section */}
-        <div className="lg:col-span-2 space-y-6">
-           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[32px] p-8 shadow-sm">
-              <div className="flex items-center justify-between mb-8">
-                 <div>
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white">Cash Flow Trends</h3>
-                    <p className="text-sm text-slate-400 font-medium">Income and expenses over the last 6 months</p>
-                 </div>
-                 <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest">
-                    <div className="flex items-center gap-2">
-                       <div className="w-3 h-3 rounded-full bg-indigo-500" />
-                       <span className="text-slate-500">Income</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <div className="w-3 h-3 rounded-full bg-rose-400" />
-                       <span className="text-slate-500">Expense</span>
-                    </div>
-                 </div>
+        {/* Table Header & Filters */}
+        <div className="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div>
+              <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Transaction Ledger</h3>
+              <p className="text-sm text-slate-500 font-medium">Viewing {filteredTransactions.length} of {transactionsArray.length} total entries</p>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Search */}
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Search transactions..."
+                  className="pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-64 transition-all"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
 
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorIn" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
-                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="colorOut" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1}/>
-                          <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#CBD5E1" opacity={0.3} />
-                      <XAxis 
-                        dataKey="name" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{fontSize: 12, fill: '#94a3b8', fontWeight: 600}}
-                        dy={10} 
-                      />
-                      <YAxis 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{fontSize: 12, fill: '#94a3b8', fontWeight: 600}}
-                        tickFormatter={(value) => `${value / 10000}만`}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          borderRadius: '16px', 
-                          border: 'none', 
-                          boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
-                          backgroundColor: '#0f172a',
-                          color: '#fff'
-                        }} 
-                        itemStyle={{ color: '#fff' }}
-                      />
-                      <Area type="monotone" dataKey="in" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorIn)" />
-                      <Area type="monotone" dataKey="out" stroke="#f43f5e" strokeWidth={3} fillOpacity={1} fill="url(#colorOut)" />
-                   </AreaChart>
-                </ResponsiveContainer>
-              </div>
-           </div>
+              {/* Account Filter */}
+              <select 
+                className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                value={selectedAccount}
+                onChange={(e) => setSelectedAccount(e.target.value)}
+              >
+                <option value="all">All Accounts</option>
+                {accountsArray.map((acc: any) => (
+                  <option key={acc.accountId} value={acc.accountId}>{acc.accountName || acc.accountNumber}</option>
+                ))}
+              </select>
 
-           {/* Recent Transactions List */}
-           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[32px] overflow-hidden shadow-sm">
-             <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                <h3 className="text-xl font-black text-slate-900 dark:text-white">Recent Activity</h3>
-                <Link href="#" className="text-indigo-600 dark:text-indigo-400 text-xs font-black uppercase tracking-widest hover:underline flex items-center gap-1">
-                  View Full History <ArrowRight size={14} />
-                </Link>
-             </div>
-             <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-               {transactionsArray.map((tx: any, idx: number) => (
-                 <div key={idx} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between group">
-                   <div className="flex items-center gap-4">
-                     <div className={`p-3 rounded-2xl ${tx.amount < 0 ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20'} group-hover:scale-110 transition-transform`}>
-                        {tx.amount < 0 ? <TrendingDown size={20} /> : <TrendingUp size={20} />}
-                     </div>
-                     <div>
-                       <p className="font-bold text-slate-900 dark:text-white tracking-tight">{tx.description || tx.memo}</p>
-                       <p className="text-xs text-slate-400 font-semibold">{formatDate(tx.date)} &bull; {tx.bankId}</p>
-                     </div>
-                   </div>
-                   <div className="text-right">
-                     <p className={`font-black tracking-tighter ${tx.amount < 0 ? 'text-slate-900 dark:text-white' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                        {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
-                     </p>
-                     <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">{tx.category || 'Lifestyle'}</p>
-                   </div>
-                 </div>
-               ))}
-             </div>
-           </div>
+              {/* Category Filter */}
+              <select 
+                className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
+                <option value="all">All Categories</option>
+                {categories.map((cat: string) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+
+              <button className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-all">
+                <Download size={20} />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Sidebar: Account List & Sync History */}
-        <div className="space-y-8">
-           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[32px] p-8 shadow-sm">
-             <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">Your Accounts</h3>
-             <div className="space-y-4">
-                {accountsArray.map((acc: any, idx: number) => (
-                  <div key={idx} className="relative group p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-transparent hover:border-indigo-200 dark:hover:border-indigo-900 transition-all cursor-pointer">
-                    <div className="flex justify-between items-center">
-                       <div>
-                         <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{acc.accountName || acc.accountNumber}</p>
-                         <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{acc.bankId}</p>
-                       </div>
-                       <p className="font-black text-slate-700 dark:text-slate-300 text-sm">
-                         {formatCurrency(acc.balance)}
-                       </p>
+        {/* The Data Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[1000px]">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                <th className="px-8 py-5">Date</th>
+                <th className="px-8 py-5">Description</th>
+                <th className="px-8 py-5 text-right">Amount</th>
+                <th className="px-8 py-5">Account</th>
+                <th className="px-8 py-5">Category</th>
+                <th className="px-8 py-5">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+              {filteredTransactions.length > 0 ? (
+                filteredTransactions.map((tx: any, idx: number) => (
+                  <tr key={idx} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="px-8 py-5">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(tx.date)}</span>
+                        <span className="text-[10px] font-bold text-slate-400">{tx.time || '12:00'}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className={`shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center ${
+                          tx.amount < 0 ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20'
+                        }`}>
+                          {tx.amount < 0 ? <ArrowDownRight size={20} /> : <ArrowUpRight size={20} />}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-slate-900 dark:text-white tracking-tight">{tx.description || tx.memo}</p>
+                          <p className="text-xs text-slate-400 font-semibold">{tx.branchName || 'Online Transaction'}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <span className={`text-base font-black tracking-tighter ${
+                        tx.amount < 0 ? 'text-slate-900 dark:text-white' : 'text-emerald-600 dark:text-emerald-400'
+                      }`}>
+                        {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5 text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest text-[11px]">
+                      <div className="flex items-center gap-2">
+                        <CreditCard size={14} className="text-slate-300" />
+                        {tx.bankId}
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-full border border-slate-200 dark:border-slate-700/50">
+                        {tx.category || 'Uncategorized'}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${tx.status === 'COMPLETED' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight">{tx.status || 'Pending'}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-8 py-20 text-center">
+                    <div className="flex flex-col items-center justify-center text-slate-300">
+                      <AlertCircle size={48} className="mb-4 opacity-20" />
+                      <p className="text-sm font-bold">Matching transactions not found</p>
+                      <button 
+                        onClick={() => {setSearchTerm(''); setSelectedAccount('all'); setSelectedCategory('all');}}
+                        className="mt-4 text-indigo-500 text-xs font-black uppercase hover:underline"
+                      >
+                        Clear all filters
+                      </button>
                     </div>
-                  </div>
-                ))}
-             </div>
-             <button className="w-full mt-6 py-4 flex items-center justify-center gap-2 border-2 border-dashed border-slate-200 dark:border-slate-700 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 rounded-2xl transition-all text-xs font-black uppercase tracking-widest">
-                <CreditCard size={18} /> Add New Account
-             </button>
-           </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
-           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[32px] p-8 shadow-sm">
-             <div className="flex items-center gap-2 text-xl font-black text-slate-900 dark:text-white mb-6">
-                <HistoryIcon className="text-slate-400" size={24} />
-                <h3>Sync History</h3>
-             </div>
-             <div className="space-y-6">
-                {syncHistoryArray.map((h: any, idx: number) => (
-                  <div key={idx} className="flex gap-4 relative">
-                    {idx !== syncHistory.length - 1 && (
-                      <div className="absolute top-8 left-4 w-px h-8 bg-slate-100 dark:bg-slate-800" />
-                    )}
-                    <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${h.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                       <CheckCircle2 size={16} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">
-                         {h.message || (h.status === 'SUCCESS' ? 'Successfully Synchronized' : 'Sync Partial Failure')}
-                      </p>
-                      <p className="text-xs text-slate-400 font-semibold">{formatDate(h.startTime)}</p>
-                    </div>
-                  </div>
-                ))}
-             </div>
-           </div>
-
-           <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-[32px] p-8 text-white shadow-xl shadow-indigo-500/20 overflow-hidden relative group">
-              <div className="absolute -right-8 -bottom-8 opacity-20 transform group-hover:scale-110 transition-transform duration-500">
-                 <Landmark size={180} />
+        {/* Table Footer / Summary & Pagination */}
+        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-6">
+           <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
+                 <div className="w-3 h-3 rounded-full bg-emerald-500" /> Income
               </div>
-              <h3 className="text-xl font-black mb-2 relative z-10">Advanced Analytics</h3>
-              <p className="text-indigo-100 text-sm font-medium mb-6 relative z-10 leading-relaxed uppercase tracking-wider text-xs opacity-80">
-                Unlock deeper insights with AI-powered forecasting and categorisation.
-              </p>
-              <button className="bg-white text-indigo-600 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-50 transition-colors relative z-10 shadow-lg">
-                 Learn More
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
+                 <div className="w-3 h-3 rounded-full bg-rose-500" /> Expenses
+              </div>
+           </div>
+
+           {/* Pagination Controls */}
+           <div className="flex items-center gap-3">
+              <button 
+                onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronRight className="rotate-180" size={18} />
+              </button>
+              
+              <div className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Page <span className="text-indigo-600">{currentPage}</span> of {totalPages}
+              </div>
+
+              <button 
+                onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage >= totalPages}
+                className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronRight size={18} />
               </button>
            </div>
+
+           <p className="text-xs font-bold text-slate-400 italic">
+              Showing source data from FinanceHub total of {totalCount.toLocaleString()} records.
+           </p>
+        </div>
+      </div>
+
+      {/* Account Cards - Compact Grid at the bottom */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 px-2">
+           <Tag size={18} className="text-indigo-500" />
+           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500">Connected Accounts</h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {accountsArray.map((acc: any, idx: number) => (
+            <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-all flex justify-between items-center group cursor-default">
+               <div>
+                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-0.5">{acc.bankId}</p>
+                 <p className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors uppercase">{acc.accountName || acc.accountNumber}</p>
+               </div>
+               <p className="text-sm font-black text-slate-700 dark:text-slate-300">
+                 {formatCurrency(acc.balance)}
+               </p>
+            </div>
+          ))}
         </div>
       </div>
     </div>

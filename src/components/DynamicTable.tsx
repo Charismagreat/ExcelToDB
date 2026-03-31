@@ -41,6 +41,17 @@ export default function DynamicTable({
     onToggleBulkUpload,
     onToggleAIImport
 }: DynamicTableProps) {
+  // Global window debugging
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+       (window as any).DEBUG_FINANCE_ROWS = data;
+       console.log('>>> [CLIENT DEBUG] Data set to window.DEBUG_FINANCE_ROWS', data);
+    }
+  }, [data]);
+
+  // Debug log to trace row data and field names
+  console.log('DEBUG: DynamicTable Input Data', { reportId, columns, dataCount: data.length, firstRow: data[0] });
+
   // 전체 테이블 수준에서의 권한 (UI 노출 여부 결정)
   const hasBaseEditAuth = isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER';
   const hasBaseDeleteAuth = isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER';
@@ -567,7 +578,9 @@ export default function DynamicTable({
                         </td>
                       );
                   } else if (col.type === 'currency' || col.type === 'number') {
-                    const displayVal = val !== null && val !== undefined ? val.toLocaleString() : '-';
+                    // Robust parsing for string numbers (remove commas, etc.)
+                    const numericVal = typeof val === 'number' ? val : Number(String(val || '').replace(/[^0-9.-]/g, ''));
+                    const displayVal = !isNaN(numericVal) ? numericVal.toLocaleString() : (val || '-');
                     return (
                         <td key={col.name} className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-900 text-right font-mono tracking-tight">
                         {displayVal}
@@ -627,6 +640,7 @@ export default function DynamicTable({
                           onClick={() => setHistoryRowId(row.id)}
                           className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"
                           title={row.updatedAt ? `최종 수정: ${new Date(row.updatedAt).toLocaleString()}` : '변경 이력 보기'}
+                          suppressHydrationWarning
                         >
                           <HistoryIcon size={16} />
                         </button>

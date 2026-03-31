@@ -44,15 +44,15 @@ export default async function DashboardPage() {
     };
   }));
 
-  // FinanceHub 대시보드만 수기 추가
+  // FinanceHub 테이블만 수기 추가
   reports = [
     {
-      id: 'finance-dashboard',
-      name: '금융 통합 대시보드',
-      sheetName: 'FinanceHub',
+      id: 'finance-hub-table',
+      name: '금융거래 통합 내역 (FinanceHub)',
+      sheetName: 'Transactions',
       columns: '[]',
       _count: { rows: '연동 중' },
-      isFinance: true
+      isFinanceTable: true
     },
     ...reports
   ];

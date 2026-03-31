@@ -1,5 +1,6 @@
 import { getSessionAction } from '@/app/actions';
 import { queryTable } from '@/egdesk-helpers';
+import { queryTransactions } from '@/financehub-helpers';
 import ReportDetailClient from '@/components/ReportDetailClient';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -8,8 +9,10 @@ import LogoutButton from '@/components/LogoutButton';
 
 export default async function ReportDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   const { id } = await params;
 
@@ -32,6 +35,48 @@ export default async function ReportDetailPage({
     };
     const rowsData = await queryTable(tableDef.name, { limit: 100 });
     rows = rowsData.map((r: any, idx: number) => ({ ...r, id: String(idx), updatedAt: new Date().toISOString() }));
+    columns = JSON.parse(report.columns);
+  } else if (id === 'finance-hub-table') {
+    const { page: pageStr } = await searchParams;
+    const page = parseInt(pageStr || '1', 10);
+    const pageSize = 10;
+    
+    const txData = await queryTransactions({ 
+      limit: pageSize, 
+      offset: (page - 1) * pageSize,
+      orderBy: 'date',
+      orderDir: 'desc'
+    });
+    const transactions = Array.isArray(txData) ? txData : (txData?.transactions || []);
+    
+    report = {
+      id: 'finance-hub-table',
+      name: '금융거래 통합 내역 (FinanceHub)',
+      sheetName: 'Transactions',
+      columns: JSON.stringify([
+        { name: 'date', type: 'string' },
+        { name: 'time', type: 'string' },
+        { name: 'description', type: 'string' },
+        { name: 'withdrawal', type: 'currency' },
+        { name: 'deposit', type: 'currency' },
+        { name: 'balance', type: 'currency' },
+        { name: 'bankId', type: 'string' },
+        { name: 'category', type: 'string' },
+        { name: 'counterparty', type: 'string' },
+        { name: 'transactionId', type: 'string' },
+      ]),
+      ownerId: 'system',
+    };
+    
+    rows = transactions.map((t: any, idx: number) => ({
+      ...t,
+      id: t.id || `tx-${idx}`,
+      updatedAt: new Date().toISOString(),
+    }));
+
+    // SERVER DEBUG LOG (Shows in Terminal)
+    console.log('>>> [SERVER DEBUG] FinanceHub Transactions count:', rows.length);
+    if (rows.length > 0) console.log('>>> [SERVER DEBUG] First Transaction sample:', JSON.stringify(rows[0]).substring(0, 500));
     columns = JSON.parse(report.columns);
   } else {
     const reports = await queryTable('report', { filters: { id } });

@@ -9,11 +9,19 @@ import {
   getSyncHistory 
 } from '@/financehub-helpers';
 import DashboardClient from './DashboardClient';
-import { LayoutDashboard, Wallet, ArrowUpRight, ArrowDownRight, RefreshCw, Landmark, History } from 'lucide-react';
+import { LayoutDashboard, Wallet, ArrowUpRight, ArrowDownRight, RefreshCw, Landmark, History, Table as TableIcon } from 'lucide-react';
 import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
 
-export default async function FinanceDashboardPage() {
+export default async function FinanceDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageStr } = await searchParams;
+  const page = parseInt(pageStr || '1', 10);
+  const pageSize = 10;
+  
   const user = await getSessionAction();
   if (!user) {
     redirect('/login');
@@ -29,7 +37,12 @@ export default async function FinanceDashboardPage() {
   ] = await Promise.all([
     getOverallStats(),
     listAccounts(),
-    queryTransactions({ limit: 10 }),
+    queryTransactions({ 
+      limit: pageSize, 
+      offset: (page - 1) * pageSize,
+      orderBy: 'date',
+      orderDir: 'desc'
+    }),
     getMonthlySummary({ months: 6 }),
     getSyncHistory(5)
   ]);
@@ -50,8 +63,8 @@ export default async function FinanceDashboardPage() {
             </Link>
             
             <nav className="hidden md:flex gap-1">
-              <Link href="/dashboard" className="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 transition-colors">
-                Overview
+              <Link href="/dashboard" className="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 transition-colors flex items-center gap-2">
+                <TableIcon size={16} /> Finance Transactions
               </Link>
               <Link href="/" className="px-4 py-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
                 Excel Tables
@@ -76,6 +89,7 @@ export default async function FinanceDashboardPage() {
           transactions={recentTransactions} 
           monthlyData={monthlySummary}
           syncHistory={syncHistory}
+          currentPage={page}
         />
       </main>
       

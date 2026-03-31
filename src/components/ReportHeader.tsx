@@ -71,7 +71,8 @@ export default function ReportHeader({
   };
 
   const handleShare = async () => {
-    const shareUrl = `${window.location.origin}/report/${reportId}/input`;
+    const basePath = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_EGDESK_BASE_PATH) || '';
+    const shareUrl = `${window.location.origin}${basePath}/report/${reportId}/input`;
     const shareData = {
       title: `${name} - 데이터 입력`,
       text: `${name} 보고서의 데이터 입력을 위한 전용 페이지 링크입니다.`,
