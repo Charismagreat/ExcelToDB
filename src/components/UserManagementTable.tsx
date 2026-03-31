@@ -18,8 +18,10 @@ import {
   Trash2,
   Loader2
 } from 'lucide-react';
-import { updateUserAction, createUserAction, deleteUserAction } from '@/app/actions';
+import { updateUserAction, createUserAction, deleteUserAction, getUsersAction } from '@/app/actions';
 import StatusModal from './StatusModal';
+import UserBulkUploadModal from './UserBulkUploadModal';
+import { FileSpreadsheet } from 'lucide-react';
 
 interface User {
   id: string;
@@ -51,6 +53,7 @@ export default function UserManagementTable({ users: initialUsers }: UserManagem
     employeeId: '',
     password: ''
   });
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   const [modal, setModal] = useState({
     isOpen: false,
@@ -169,6 +172,14 @@ export default function UserManagementTable({ users: initialUsers }: UserManagem
         >
           {isAdding ? <X size={16} /> : <UserPlus size={16} />}
           {isAdding ? '취소' : '신규 사용자 등록'}
+        </button>
+        
+        <button 
+          onClick={() => setShowBulkUpload(true)}
+          className="flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-700 font-black rounded-2xl hover:bg-indigo-100 transition-all active:scale-95 text-xs uppercase tracking-widest border border-indigo-100"
+        >
+          <FileSpreadsheet size={16} />
+          엑셀 일괄 등록
         </button>
       </div>
 
@@ -402,13 +413,29 @@ export default function UserManagementTable({ users: initialUsers }: UserManagem
         </table>
       </div>
 
-      <StatusModal 
-        isOpen={modal.isOpen}
-        onClose={() => setModal({...modal, isOpen: false})}
-        title={modal.title}
-        message={modal.message}
-        type={modal.type}
-      />
+      {modal.isOpen && (
+        <StatusModal
+          isOpen={modal.isOpen}
+          title={modal.title}
+          message={modal.message}
+          type={modal.type}
+          onClose={() => setModal(prev => ({ ...prev, isOpen: false }))}
+        />
+      )}
+
+      {showBulkUpload && (
+        <UserBulkUploadModal 
+          onClose={() => setShowBulkUpload(false)}
+          onSuccess={async () => {
+             try {
+                const updatedUsers = await getUsersAction();
+                setUsers(updatedUsers);
+             } catch (err) {
+                console.error('Failed to refresh users:', err);
+             }
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -44,7 +44,7 @@ export default async function UsersPage() {
                                 <Users size={24} className="text-indigo-600" />
                             </div>
                             <div>
-                                <h1 className="text-3xl font-black text-gray-900 tracking-tighter">직원 계정 관리</h1>
+                                <h1 className="text-3xl font-black text-gray-900 tracking-tighter">사용자 계정 관리</h1>
                                 <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest mt-1">System User Registry & Control</p>
                             </div>
                         </div>

@@ -54,7 +54,7 @@ export default function NewTableSection({ userId }: { userId: string }) {
                 onClick={() => setShowManualModal(true)}
                 className="px-8 py-3 bg-white text-indigo-700 font-black rounded-xl hover:bg-indigo-50 transition-all active:scale-95 shadow-lg text-[10px] tracking-widest uppercase"
               >
-                설계 시작하기
+                [ START ]
               </button>
            </div>
         </div>

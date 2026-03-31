@@ -112,15 +112,22 @@ export default function DynamicTable({
     // 정렬 처리
     if (sortConfig.key && sortConfig.direction) {
         filtered.sort((a, b) => {
-            const aVal = a[sortConfig.key];
-            const bVal = b[sortConfig.key];
+            let aVal = a[sortConfig.key];
+            let bVal = b[sortConfig.key];
             
-            if (aVal === bVal) return 0;
-            if (aVal === null || aVal === undefined) return 1;
-            if (bVal === null || bVal === undefined) return -1;
+            if (aVal === bVal) {
+                // Secondary sort: Newest first by updatedAt if keys are equal
+                const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+                const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+                return timeB - timeA;
+            }
+
+            if (aVal === null || aVal === undefined || aVal === '') return 1;
+            if (bVal === null || bVal === undefined || bVal === '') return -1;
             
             // 데이터ID의 경우 문자열 내림차순 정렬이 의도한 대로 동작함 (DID-000123 > DID-000001)
-            const result = aVal > bVal ? 1 : -1;
+            // 더 정교한 비교를 위해 localeCompare 사용 (숫자 포함 시 자연 정렬 옵션 고려 가능)
+            const result = String(aVal).localeCompare(String(bVal), undefined, { numeric: true, sensitivity: 'base' });
             return sortConfig.direction === 'asc' ? result : -result;
         });
     }

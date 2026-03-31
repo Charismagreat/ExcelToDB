@@ -34,6 +34,7 @@ model Report {
   isDeleted   Boolean  @default(false)
   deletedAt   DateTime?
   authorizedUsers User[]   @relation("AuthorizedReports")
+  slackWebhookUrl String?
 }
 
 model ReportRow {

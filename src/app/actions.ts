@@ -9,6 +9,7 @@ import { analyzeExcelImage, extractDataFromImage, recommendSchemaFromSample } fr
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
+import { notifyNewDataRow, notifyBulkUpload } from '@/lib/notifications';
 
 // Password Security Utilities
 const SALT_SIZE = 16;
@@ -106,6 +107,9 @@ export async function generateContentHash(rowData: any, columns: any[]) {
 }
 
 export async function uploadExcelAction(formData: FormData, userId: string) {
+  const user = await getSessionAction();
+  if (!user) throw new Error('인증이 필요합니다.');
+
   const file = formData.get('file') as File;
   const configsJson = formData.get('configsJson') as string;
   if (!file) throw new Error('파일이 없습니다.');
@@ -121,7 +125,7 @@ export async function uploadExcelAction(formData: FormData, userId: string) {
     for (const table of sheet.tables) {
       if (table.columns.length === 0) continue; // Skip if no columns selected
 
-      await prisma.report.create({
+      const newReport = await prisma.report.create({
         data: {
           name: table.name,
           sheetName: sheet.sheetName,
@@ -134,6 +138,11 @@ export async function uploadExcelAction(formData: FormData, userId: string) {
           }
         }
       });
+
+      // 슬랙 알림 발송 - 신규 보고서 생성 및 초기 데이터 알림
+      if (table.rows.length > 0) {
+        notifyBulkUpload(table.name, user.fullName || user.username, table.rows.length, table.rows[0], table.columns, null).catch(console.error);
+      }
     }
   }
 
@@ -156,7 +165,7 @@ export async function addRowAction(reportId: string, rowData: any) {
   // 1. 중복 체크
   const hash = await generateContentHash(rowData, columns);
   const existing = await prisma.reportRow.findFirst({
-      where: { reportId, contentHash: hash } as any
+      where: { reportId, contentHash: hash, isDeleted: false } as any
   });
   
   if (existing) {
@@ -205,6 +214,9 @@ export async function addRowAction(reportId: string, rowData: any) {
       } as any
     });
     
+  // 슬랙 알림 발송 - 비동기로 처리하여 사용자 응답 속도에 영향을 주지 않음
+  notifyNewDataRow(report.name, user.fullName || user.username, finalData, columns, report.slackWebhookUrl).catch(console.error);
+
   revalidatePath(`/report/${reportId}`);
   return { success: true };
 }
@@ -514,13 +526,28 @@ export async function updateSingleRowAction(
 }
 
 export async function renameReportAction(reportId: string, newName: string) {
-
     await prisma.report.update({
         where: { id: reportId },
         data: { name: newName }
     });
-    revalidatePath('/');
     revalidatePath(`/report/${reportId}`);
+    revalidatePath('/');
+}
+
+export async function updateReportWebhookAction(reportId: string, webhookUrl: string | null) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+
+    const isAuthorized = await checkReportAuthorization(reportId, user.id, user.role);
+    if (!isAuthorized) throw new Error('해당 보고서에 대한 접근 권한이 없습니다.');
+
+    await prisma.report.update({
+        where: { id: reportId },
+        data: { slackWebhookUrl: webhookUrl }
+    });
+    
+    revalidatePath(`/report/${reportId}`);
+    return { success: true };
 }
 
 export async function updateReportSchemaAction(reportId: string, columns: any[]) {
@@ -559,9 +586,9 @@ export async function addRowsAction(reportId: string, rows: any[]) {
     const initialRowCount = await prisma.reportRow.count({ where: { reportId } });
     let skippedCount = 0;
     
-    // 1. 기존 데이터의 해시값 로드 (중복 체크용)
+    // 1. 기존 데이터의 해시값 로드 (중복 체크용) - 삭제되지 않은 행만 대상
     const existingRows = await prisma.reportRow.findMany({
-        where: { reportId, contentHash: { not: null } } as any,
+        where: { reportId, contentHash: { not: null }, isDeleted: false } as any,
         select: { contentHash: true } as any
     });
     const existingHashes = new Set(existingRows.map(function(r: any) { return r.contentHash; }));
@@ -632,6 +659,12 @@ export async function addRowsAction(reportId: string, rows: any[]) {
         });
     }
   
+    if (cleanedRowsToInsert.length > 0) {
+        // 슬랙 알림 발송 - 첫 번째 행을 대표 데이터로 사용
+        const firstRowData = JSON.parse(cleanedRowsToInsert[0].data);
+        notifyBulkUpload(report.name, user.fullName || user.username, cleanedRowsToInsert.length, firstRowData, columns, report.slackWebhookUrl).catch(console.error);
+    }
+
     revalidatePath('/report/' + reportId);
     return { 
         success: true, 
@@ -772,7 +805,6 @@ export async function getSessionAction() {
     });
 
     if (!user || !user.isActive) {
-        cookieStore.delete('session_user_id');
         return null;
     }
 
@@ -892,6 +924,85 @@ export async function createUserAction(data: any) {
     revalidatePath('/users');
     revalidatePath('/');
     return { success: true };
+}
+
+/**
+ * 엑셀 데이터를 통해 다수의 사용자를 일괄 등록합니다.
+ * @param usersData 사용자 데이터 배열
+ */
+export async function bulkCreateUsersAction(usersData: any[]) {
+    const session = await getSessionAction();
+    if (!session || (session.role !== 'ADMIN' && session.role !== 'EDITOR')) {
+        throw new Error('접근 권한이 없습니다.');
+    }
+
+    let createdCount = 0;
+    let skippedCount = 0;
+    const skippedItems: any[] = [];
+
+    for (const data of usersData) {
+        try {
+            const { username, role, fullName, employeeId, password } = data;
+            if (!username) {
+                skippedCount++;
+                skippedItems.push({ username: 'N/A', reason: '아이디 누락' });
+                continue;
+            }
+
+            const trimmedUsername = String(username).trim();
+            const finalEmployeeId = employeeId ? String(employeeId).trim() : null;
+            const finalRole = (role && ['ADMIN', 'EDITOR', 'VIEWER'].includes(String(role).toUpperCase())) 
+                ? String(role).toUpperCase() 
+                : 'VIEWER';
+            
+            // 아이디 중복 체크
+            const existing = await prisma.user.findUnique({ where: { username: trimmedUsername } });
+            if (existing) {
+                skippedCount++;
+                skippedItems.push({ username: trimmedUsername, reason: '아이디 중복' });
+                continue;
+            }
+
+            // 사번 중복 체크
+            if (finalEmployeeId) {
+                const existingEmp = await prisma.user.findUnique({ where: { employeeId: finalEmployeeId } });
+                if (existingEmp) {
+                    skippedCount++;
+                    skippedItems.push({ username: trimmedUsername, reason: '사번 중복' });
+                    continue;
+                }
+            }
+
+            // 비밀번호 설정 (비어있으면 123456)
+            const finalPassword = (password && String(password).trim()) ? String(password).trim() : '123456';
+
+            await prisma.user.create({
+                data: { 
+                    username: trimmedUsername, 
+                    role: finalRole, 
+                    fullName: fullName ? String(fullName).trim() : null, 
+                    employeeId: finalEmployeeId, 
+                    isActive: true,
+                    password: hashPassword(finalPassword)
+                }
+            });
+            createdCount++;
+        } catch (err) {
+            console.error('Bulk upload error for item:', data, err);
+            skippedCount++;
+            skippedItems.push({ username: data.username || 'Unknown', reason: '알 수 없는 오류' });
+        }
+    }
+
+    revalidatePath('/users');
+    revalidatePath('/');
+    
+    return { 
+        success: true, 
+        createdCount, 
+        skippedCount, 
+        skippedItems 
+    };
 }
 
 export async function deleteUserAction(userId: string) {

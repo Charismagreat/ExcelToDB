@@ -64,6 +64,7 @@ export default function ReportDetailClient({
                 isAdmin={isAdmin}
                 canEdit={canEdit}
                 initialColumns={columns}
+                initialSlackWebhookUrl={report.slackWebhookUrl}
                 onToggleAccessManager={() => setShowAccessManager(!showAccessManager)}
             />
 
@@ -77,7 +78,11 @@ export default function ReportDetailClient({
 
                 {showAddRecordForm && canEdit && (
                     <div className="animate-in fade-in slide-in-from-top-6 zoom-in-95 duration-700">
-                        <ReportDataEditor reportId={report.id} columns={columns} />
+                        <ReportDataEditor 
+                            reportId={report.id} 
+                            columns={columns} 
+                            onStatusShow={showStatus}
+                        />
                     </div>
                 )}
             </div>
@@ -151,6 +156,9 @@ export default function ReportDetailClient({
                                 reportId={report.id} 
                                 columns={columns} 
                                 onStatusShow={(title, message, type) => {
+                                    // 1. 상태 모달 표시
+                                    showStatus(title, message, type);
+                                    // 2. 성공 시에만 페이지 리로드
                                     if (type === 'success') {
                                         setTimeout(() => window.location.reload(), 1500);
                                     }
