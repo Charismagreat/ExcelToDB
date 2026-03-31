@@ -1,16 +1,25 @@
 import React from 'react';
-import prisma from '@/lib/prisma';
-import { restoreReportAction, permanentDeleteReportAction } from '@/app/actions';
+import { queryTable, aggregateTable } from '@/egdesk-helpers';
 import Link from 'next/link';
-import { FileSpreadsheet, RotateCcw, Trash2, ArrowLeft, Archive } from 'lucide-react';
+import { FileSpreadsheet, ArrowLeft, Archive } from 'lucide-react';
 import ArchiveActions from '@/components/ArchiveActions';
 
 export default async function ArchivePage() {
-  const deletedReports = await prisma.report.findMany({
-    where: { isDeleted: true },
-    include: { _count: { select: { rows: true } } },
-    orderBy: { deletedAt: 'desc' }
+  const allDeletedReports = await queryTable('report', {
+    filters: { isDeleted: '1' },
+    orderBy: 'deletedAt',
+    orderDirection: 'DESC'
   });
+
+  const deletedReports = await Promise.all(allDeletedReports.map(async (r: any) => {
+    const rowCountResult = await aggregateTable('report_row', 'id', 'COUNT', { 
+        filters: { reportId: r.id } 
+    });
+    return {
+        ...r,
+        _count: { rows: Number(rowCountResult) || 0 }
+    };
+  }));
 
   return (
     <div className="min-h-screen bg-gray-50 p-8 font-[family-name:var(--font-geist-sans)]">

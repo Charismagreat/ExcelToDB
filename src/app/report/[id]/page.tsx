@@ -1,11 +1,10 @@
-import prisma from '@/lib/prisma';
-import DynamicTable from '@/components/DynamicTable';
+import { getSessionAction } from '@/app/actions';
+import { queryTable } from '@/egdesk-helpers';
+import ReportDetailClient from '@/components/ReportDetailClient';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ArrowLeft, User, Trash2, Edit3, Search, ArrowUpDown, ArrowUp, ArrowDown, FilterX, FileDown, Table as TableIcon, FileText, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CheckCircle2, XCircle, ExternalLink, Eye, MoreHorizontal, Image, Mail, Phone, History as HistoryIcon } from 'lucide-react';
-import { getSessionAction } from '@/app/actions';
+import { ArrowLeft, User } from 'lucide-react';
 import LogoutButton from '@/components/LogoutButton';
-import ReportDetailClient from '@/components/ReportDetailClient';
 
 export default async function ReportDetailPage({
   params,
@@ -17,24 +16,48 @@ export default async function ReportDetailPage({
   // 실제 세션 사용자 정보 가져오기
   const user = await getSessionAction();
 
-  const report = await prisma.report.findUnique({
-    where: { id },
-    include: { rows: { orderBy: { updatedAt: 'desc' } } }
-  });
+  let report: any;
+  let rows: any[] = [];
+  let columns: any[] = [];
 
-  if (!report) {
-    return <div className="p-20 text-center text-gray-500 font-bold">보고서를 찾을 수 없거나 삭제되었습니다.</div>;
+  if (id === 'test-report-id') {
+    const { TABLES } = await import('@/egdesk.config');
+    const tableDef = TABLES.table1;
+    report = {
+      id: 'test-report-id',
+      name: tableDef.displayName,
+      sheetName: 'Main Database',
+      columns: JSON.stringify(tableDef.columns.map((c: string) => ({ name: c, type: 'string' }))),
+      ownerId: 'system',
+    };
+    const rowsData = await queryTable(tableDef.name, { limit: 100 });
+    rows = rowsData.map((r: any, idx: number) => ({ ...r, id: String(idx), updatedAt: new Date().toISOString() }));
+    columns = JSON.parse(report.columns);
+  } else {
+    const reports = await queryTable('report', { filters: { id } });
+    report = reports[0];
+
+    if (!report) {
+      return <div className="p-20 text-center text-gray-500 font-bold">보고서를 찾을 수 없거나 삭제되었습니다.</div>;
+    }
+
+    const rowsData = await queryTable('report_row', { 
+      filters: { reportId: id },
+      orderBy: 'updatedAt',
+      orderDirection: 'DESC'
+    });
+
+    columns = JSON.parse(report.columns);
+    rows = rowsData.map((r: any) => ({ 
+      ...JSON.parse(r.data), 
+      id: r.id, 
+      updatedAt: r.updatedAt,
+      isDeleted: r.isDeleted === 1,
+      creatorId: r.creatorId
+    }));
   }
 
-  const columns = JSON.parse(report.columns);
-  const rows = report.rows.map((r: any) => ({ 
-    ...JSON.parse(r.data), 
-    id: r.id, 
-    updatedAt: r.updatedAt,
-    isDeleted: r.isDeleted,
-    creatorId: r.creatorId
-  }));
-  const isOwner = report.ownerId === user?.id;
+  const isOwner = report.ownerId === user?.id || report.ownerId === 'system';
   const isAdmin = user?.role === 'ADMIN';
   const canEdit = isOwner || isAdmin || user?.role === 'EDITOR';
 

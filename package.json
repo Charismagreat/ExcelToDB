@@ -9,13 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@egdesk/next-api-plugin": "^1.1.0",
     "@google/generative-ai": "^0.24.1",
-    "@prisma/client": "^6.19.2",
     "clsx": "^2.1.1",
     "html-to-image": "^1.11.13",
     "lucide-react": "^1.7.0",
     "next": "16.2.1",
-    "prisma": "^6.19.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",

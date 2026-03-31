@@ -1,10 +1,10 @@
 import React from 'react';
-import prisma from '@/lib/prisma';
 import { getSessionAction } from '@/app/actions';
 import { redirect } from 'next/navigation';
 import DataInputClient from '@/components/DataInputClient';
 import { ShieldAlert, Home } from 'lucide-react';
 import Link from 'next/link';
+import { queryTable } from '@/egdesk-helpers';
 
 export default async function DataInputPage({
   params,
@@ -18,18 +18,19 @@ export default async function DataInputPage({
     redirect('/login');
   }
 
-  // 1단계: 보고서 기본 정보 및 권한 체크를 위해 보고서 로드
-  const report = await prisma.report.findUnique({
-    where: { id },
-    include: { 
-        owner: { select: { username: true, fullName: true, id: true } },
-        authorizedUsers: { select: { id: true } }
-    }
-  });
+  // 1단계: 보고서 기본 정보 로드
+  const reports = await queryTable('report', { filters: { id } });
+  const report = reports[0];
 
   if (!report) {
     redirect('/');
   }
+
+  // 권한 체크를 위한 별도 조회 (Many-to-Many 대응)
+  const accessList = await queryTable('report_access', { 
+    filters: { reportId: id, userId: session.id } 
+  });
+  const hasExplicitAccess = accessList.length > 0;
 
   // 권한 체크: ADMIN, EDITOR, 소유자(Owner) 또는 명시적으로 허용된 사용자만 접근 가능
   const isManagement = 
@@ -37,9 +38,7 @@ export default async function DataInputPage({
     session.role === 'EDITOR' || 
     report.ownerId === session.id;
 
-  const isAuthorized = 
-    isManagement || 
-    report.authorizedUsers.some((u: any) => u.id === session.id);
+  const isAuthorized = isManagement || hasExplicitAccess;
 
   if (!isAuthorized) {
     return (
@@ -66,12 +65,14 @@ export default async function DataInputPage({
   }
 
   // 2단계: 행 필터링 - 실무자(VIEWER)이고 소유자가 아닌 경우 본인이 작정한 행만 조회
-  const rowsData = await prisma.reportRow.findMany({
-    where: { 
+  const rowsData = await queryTable('report_row', {
+    filters: { 
         reportId: id,
-        ...(isManagement ? {} : { creatorId: session.id })
+        ...(isManagement ? {} : { creatorId: session.id }),
+        isDeleted: '0'
     },
-    orderBy: { updatedAt: 'desc' }
+    orderBy: 'updatedAt',
+    orderDirection: 'DESC'
   });
 
   const columns = JSON.parse(report.columns);

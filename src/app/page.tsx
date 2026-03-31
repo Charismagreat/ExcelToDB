@@ -1,12 +1,12 @@
 import React from 'react';
-import prisma from '@/lib/prisma';
 import { getSessionAction } from '@/app/actions';
 import DeleteReportButton from '@/components/DeleteReportButton';
 import Link from 'next/link';
-import { FileSpreadsheet, User, LayoutDashboard, Trash2, ShieldCheck, ExternalLink } from 'lucide-react';
+import { FileSpreadsheet, User, LayoutDashboard, Trash2, ShieldCheck, ExternalLink, Wallet, Database } from 'lucide-react';
 import NewTableSection from '@/components/NewTableSection';
 import { redirect } from 'next/navigation';
 import LogoutButton from '@/components/LogoutButton';
+import { queryTable, aggregateTable } from '@/egdesk-helpers';
 
 export default async function DashboardPage() {
   // 실제 세션 사용자 정보 가져오기
@@ -16,22 +16,46 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  // 권한에 따른 보고서 필터링: 
-  // ADMIN/EDITOR는 모든 보고서 조회 가능
-  // VIEWER는 본인이 소유하거나 접근 권한이 부여된 보고서만 조회 가능
-  const reports = await prisma.report.findMany({
-    where: { 
-        isDeleted: false,
-        ...(user.role === 'VIEWER' ? {
-            OR: [
-                { ownerId: user.id },
-                { authorizedUsers: { some: { id: user.id } } }
-            ]
-        } : {})
-    },
-    include: { _count: { select: { rows: true } } },
-    orderBy: { createdAt: 'desc' }
+  // 권한에 따른 보고서 필터링
+  let allReports = await queryTable('report', {
+    filters: { isDeleted: '0' },
+    orderBy: 'createdAt',
+    orderDirection: 'DESC'
   });
+
+  // VIEWER 필터링: 본인 소유이거나 접근 권한이 부여된 보고서만
+  if (user.role === 'VIEWER') {
+    const accessList = await queryTable('report_access', { filters: { userId: user.id } });
+    const authorizedIds = new Set(accessList.map((a: any) => a.reportId));
+    allReports = allReports.filter((r: any) => r.ownerId === user.id || authorizedIds.has(r.id));
+  }
+
+  // 보고서별 데이터 행 개수 추가
+  let reports = await Promise.all(allReports.map(async (r: any) => {
+    if (r.id === 'test-report-id') {
+      return { ...r, _count: { rows: 133 }, isDirectTable: true };
+    }
+    const rowCountResult = await aggregateTable('report_row', 'id', 'COUNT', { 
+        filters: { reportId: r.id, isDeleted: '0' } 
+    });
+    return {
+        ...r,
+        _count: { rows: Number(rowCountResult) || 0 }
+    };
+  }));
+
+  // FinanceHub 대시보드만 수기 추가
+  reports = [
+    {
+      id: 'finance-dashboard',
+      name: '금융 통합 대시보드',
+      sheetName: 'FinanceHub',
+      columns: '[]',
+      _count: { rows: '연동 중' },
+      isFinance: true
+    },
+    ...reports
+  ];
 
   const isStaff = user.role === 'VIEWER';
 
@@ -108,8 +132,14 @@ export default async function DashboardPage() {
               <div key={report.id} className="relative group bg-white border rounded-2xl overflow-hidden hover:border-blue-300 hover:shadow-xl transition-all duration-300">
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-4">
-                    <div className={`p-2.5 rounded-xl transition-colors ${isStaff ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-700 group-hover:bg-blue-600 group-hover:text-white'}`}>
-                      {isStaff ? <ShieldCheck size={20} /> : <FileSpreadsheet size={20} />}
+                    <div className={`p-2.5 rounded-xl transition-colors ${
+                      report.isFinance ? 'bg-indigo-50 text-indigo-600' :
+                      report.isDirectTable ? 'bg-slate-50 text-slate-600' :
+                      (isStaff ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-700 group-hover:bg-blue-600 group-hover:text-white')
+                    }`}>
+                      {report.isFinance ? <Wallet size={20} /> :
+                       report.isDirectTable ? <Database size={20} /> :
+                       (isStaff ? <ShieldCheck size={20} /> : <FileSpreadsheet size={20} />)}
                     </div>
                     {!isStaff && <DeleteReportButton reportId={report.id} reportName={report.name} />}
                     {isStaff && (
@@ -125,18 +155,24 @@ export default async function DashboardPage() {
                     <span>{report._count.rows}개의 데이터</span>
                   </div>
                   <Link 
-                    href={isStaff ? `/report/${report.id}/input` : `/report/${report.id}`}
+                    href={
+                      report.isFinance ? '/dashboard' : 
+                      report.isDirectTable ? `/report/${report.id}` :
+                      (isStaff ? `/report/${report.id}/input` : `/report/${report.id}`)
+                    }
                     className={`block w-full text-center py-2.5 px-4 font-black rounded-xl transition-all text-xs uppercase tracking-[0.1em] border ${
-                        isStaff 
-                        ? 'bg-amber-600 text-white hover:bg-amber-700 border-amber-600 shadow-lg shadow-amber-500/20' 
-                        : 'bg-gray-50 text-blue-600 border-blue-50 group-hover:bg-blue-600 group-hover:text-white'
+                        report.isFinance 
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600' 
+                        : (isStaff ? 'bg-amber-600 text-white hover:bg-amber-700 border-amber-600 shadow-lg shadow-amber-500/20' : 'bg-gray-50 text-blue-600 border-blue-50 group-hover:bg-blue-600 group-hover:text-white')
                     }`}
                   >
-                    {isStaff ? (
+                    {report.isFinance ? 'Open Finance Hub' : 
+                     report.isDirectTable ? 'View Raw Table' :
+                     (isStaff ? (
                         <span className="flex items-center justify-center gap-2">
                            Open Data Entry <ExternalLink size={14} />
                         </span>
-                    ) : 'View Table'}
+                    ) : 'View Table')}
                   </Link>
                 </div>
               </div>
