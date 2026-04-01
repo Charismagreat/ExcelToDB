@@ -4,7 +4,7 @@ const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
 
 // 사용자의 요청에 따라 최신 모델인 gemini-2.5-flash 사용 (v1 API 유지)
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }, { apiVersion: 'v1' });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }, { apiVersion: 'v1beta' });
 
 export interface ColumnRecommendation {
   name: string;

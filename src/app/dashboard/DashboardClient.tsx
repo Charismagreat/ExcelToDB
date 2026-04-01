@@ -1,376 +1,353 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { 
-  Search,
-  Filter,
-  ArrowUpRight, 
-  ArrowDownRight, 
-  Wallet, 
-  Landmark, 
-  Download,
-  Calendar,
-  History,
-  CheckCircle2,
-  AlertCircle,
-  Tag,
-  CreditCard,
-  ChevronRight
+  LayoutDashboard, 
+  Table as TableIcon, 
+  Search, 
+  ChevronRight, 
+  Sparkles, 
+  Send,
+  BarChart3,
+  PieChart,
+  LineChart,
+  Plus,
+  X,
+  Bot
 } from 'lucide-react';
-
-import { useRouter } from 'next/navigation';
+import { getVisualizationRecommendationAction } from '@/app/actions';
+import SmartChart from '@/components/SmartChart';
 
 interface DashboardClientProps {
-  stats: any;
-  accounts: any;
-  transactions: any;
-  monthlyData: any;
-  syncHistory: any;
-  currentPage: number;
+  allTables: any[];
+  user: any;
 }
 
-const formatCurrency = (val: number | string) => {
-  if (val === undefined || val === null) return '₩0';
-  const num = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.-]/g, ''));
-  if (isNaN(num)) return '₩0';
-  return new Intl.NumberFormat('ko-KR', {
-    style: 'currency',
-    currency: 'KRW',
-  }).format(num);
-};
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  type?: 'text' | 'suggestion' | 'chart';
+  chartConfig?: any;
+}
 
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-};
+export default function DashboardClient({ allTables, user }: DashboardClientProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
+    {
+      role: 'assistant',
+      content: '안녕하세요! 테이블 분석 AI 스튜디오에 오신 것을 환영합니다. 분석하고 싶은 테이블을 왼쪽 목록에서 선택해 주세요. 선택하신 데이터의 특성에 맞춰 최적의 시각화와 분석 방향을 제안해 드릴게요.',
+    }
+  ]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [charts, setCharts] = useState<any[]>([]);
+  const [selectedChartId, setSelectedChartId] = useState<string | null>(null);
 
-const formatDateTime = (dateStr: string) => {
-  return new Date(dateStr).toLocaleString('ko-KR', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-};
+  const filteredTables = allTables.filter(t => 
+    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.sheetName?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-export default function DashboardClient({ 
-  stats, 
-  accounts, 
-  transactions, 
-  monthlyData,
-  syncHistory,
-  currentPage = 1
-}: DashboardClientProps) {
-  const router = useRouter();
-  
-  // Debug log to trace data structure
-  console.log('DEBUG: FinanceHub Input Data', { stats, accounts, transactions, monthlyData, syncHistory });
-
-  // Handle Pagination
-  const handlePageChange = (newPage: number) => {
-    router.push(`/dashboard?page=${newPage}`);
+  const toggleTable = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
-  // Determine total count from stats
-  const totalCount = stats?.totalTransactions || stats?.counts?.transactions || stats?.transactionCount || 1000;
-  const pageSize = 10;
-  const totalPages = Math.ceil(totalCount / pageSize);
+  const handleSend = async (customPrompt?: string) => {
+    let textToSend = customPrompt || input;
+    if (!textToSend.trim() || selectedIds.length === 0) return;
+    
+    // 선택된 차트 정보를 프롬프트에 포함
+    const selectedChart = charts.find(c => c.id === selectedChartId);
+    if (selectedChartId && selectedChart) {
+      textToSend = `[대상 차트: "${selectedChart.title}"] ${textToSend}`;
+    }
+    
+    const userMsg: ChatMessage = { role: 'user', content: textToSend };
+    setChatHistory(prev => [...prev, userMsg]);
+    setInput('');
+    setIsTyping(true);
+    
+    // 메시지가 발송되면 선택은 해제
+    setSelectedChartId(null);
 
-  // Filters State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedAccount, setSelectedAccount] = useState('all');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-
-  // Safely extract arrays and normalize numbers
-  const accountsArray = useMemo(() => {
-    const raw = Array.isArray(accounts) ? accounts : (accounts?.accounts || []);
-    return raw.map((acc: any) => ({
-      ...acc,
-      balance: typeof acc.balance === 'number' ? acc.balance : Number(String(acc.balance || '0').replace(/[^0-9.-]/g, ''))
-    }));
-  }, [accounts]);
-
-  const transactionsArray = useMemo(() => {
-    const raw = Array.isArray(transactions) ? transactions : (transactions?.transactions || []);
-    return raw.map((tx: any) => {
-      // Calculate virtual amount: deposit is positive, withdrawal is negative
-      const deposit = typeof tx.deposit === 'number' ? tx.deposit : Number(String(tx.deposit || '0').replace(/[^0-9.-]/g, ''));
-      const withdrawal = typeof tx.withdrawal === 'number' ? tx.withdrawal : Number(String(tx.withdrawal || '0').replace(/[^0-9.-]/g, ''));
+    try {
+      const data = await getVisualizationRecommendationAction(
+        selectedIds, 
+        [...chatHistory, userMsg].map(m => ({ role: m.role, content: m.content }))
+      );
       
-      return {
-        ...tx,
-        amount: deposit - withdrawal,
-        // Ensure other fields are present
-        description: tx.description || tx.counterparty || tx.memo || 'Untitled Transaction'
-      };
-    });
-  }, [transactions]);
+      if (data.chartConfigs && data.chartConfigs.length > 0) {
+        // 기존 차트와 합치되, 고유 ID 부여 (최신이 위로)
+        const newConfigs = data.chartConfigs.map((c: any) => ({
+          ...c,
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        }));
+        setCharts(prev => [...newConfigs, ...prev]);
+      }
 
-  const syncHistoryArray = useMemo(() => Array.isArray(syncHistory) ? syncHistory : (syncHistory?.syncOperations || []), [syncHistory]);
+      setChatHistory(prev => [...prev, {
+        role: 'assistant',
+        content: data.content
+      }]);
+    } catch (error) {
+      console.error('AI Analysis Error:', error);
+      setChatHistory(prev => [...prev, {
+        role: 'assistant',
+        content: '죄송합니다. 분석 중 오류가 발생했습니다. 테이블 선택 상태를 확인하시고 다시 한 번 말씀해 주세요.'
+      }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
 
-  // Derived Values
-  const totalBalance = accountsArray.reduce((sum: number, acc: any) => sum + acc.balance, 0);
-  
-  // Unique Categories for filter
-  const categories = useMemo(() => {
-    const cats = new Set<string>();
-    transactionsArray.forEach((tx: any) => {
-      if (tx.category) cats.add(tx.category);
-    });
-    return Array.from(cats);
-  }, [transactionsArray]);
+  const handleDeleteChart = (id: string) => {
+    setCharts(prev => prev.filter(c => c.id !== id));
+    if (selectedChartId === id) {
+      setSelectedChartId(null);
+    }
+  };
 
-  // Filtered Transactions
-  const filteredTransactions = useMemo(() => {
-    return transactionsArray.filter((tx: any) => {
-      const matchesSearch = (tx.description || tx.memo || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesAccount = selectedAccount === 'all' || tx.accountId === selectedAccount || tx.bankId === selectedAccount;
-      const matchesCategory = selectedCategory === 'all' || tx.category === selectedCategory;
-      return matchesSearch && matchesAccount && matchesCategory;
-    });
-  }, [transactionsArray, searchTerm, selectedAccount, selectedCategory]);
+  const selectedTables = allTables.filter(t => selectedIds.includes(t.id));
+  const currentTargetedChart = charts.find(c => c.id === selectedChartId);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
-      
-      {/* Top Summary Stats - Compact */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex items-center gap-5">
-           <div className="bg-indigo-50 dark:bg-indigo-900/40 p-4 rounded-2xl text-indigo-600 dark:text-indigo-400">
-              <Landmark size={28} />
-           </div>
-           <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Total Combined Balance</p>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                {formatCurrency(totalBalance)}
-              </h2>
-           </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex items-center gap-5">
-           <div className="bg-emerald-50 dark:bg-emerald-900/40 p-4 rounded-2xl text-emerald-600 dark:text-emerald-400">
-              <ArrowUpRight size={28} />
-           </div>
-           <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Active Accounts</p>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                {accountsArray.length} <span className="text-sm font-bold text-slate-400">Connected</span>
-              </h2>
-           </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex items-center gap-5">
-           <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-slate-600 dark:text-slate-400">
-              <History size={28} />
-           </div>
-           <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Last Synchronized</p>
-              <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
-                {syncHistoryArray[0] ? formatDateTime(syncHistoryArray[0].startTime) : 'No data'}
-              </h2>
-           </div>
-        </div>
-      </div>
-
-      {/* Main Table Section */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[32px] overflow-hidden shadow-xl shadow-slate-200/20 dark:shadow-none">
-        
-        {/* Table Header & Filters */}
-        <div className="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div>
-              <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Transaction Ledger</h3>
-              <p className="text-sm text-slate-500 font-medium">Viewing {filteredTransactions.length} of {transactionsArray.length} total entries</p>
+    <div className="flex flex-col lg:flex-row gap-8 min-h-[calc(100vh-12rem)]">
+      {/* 1. Left Sidebar: Table Picker */}
+      <aside className="w-full lg:w-80 flex flex-col gap-6">
+        <div className="bg-white rounded-[32px] border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-slate-50">
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <TableIcon size={16} className="text-blue-600" />
+              Analyze Data Sources
+            </h3>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <input 
+                type="text" 
+                placeholder="Search tables..."
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-100 transition-all"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-            
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Search */}
-              <div className="relative group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Search transactions..."
-                  className="pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-64 transition-all"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-
-              {/* Account Filter */}
-              <select 
-                className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                value={selectedAccount}
-                onChange={(e) => setSelectedAccount(e.target.value)}
+          </div>
+          
+          <div className="flex-1 overflow-y-auto max-h-[500px] p-2 space-y-1">
+            {filteredTables.map(table => (
+              <button
+                key={table.id}
+                onClick={() => toggleTable(table.id)}
+                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all group ${
+                  selectedIds.includes(table.id) 
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
+                  : 'hover:bg-slate-50 text-slate-600'
+                }`}
               >
-                <option value="all">All Accounts</option>
-                {accountsArray.map((acc: any) => (
-                  <option key={acc.accountId} value={acc.accountId}>{acc.accountName || acc.accountNumber}</option>
-                ))}
-              </select>
-
-              {/* Category Filter */}
-              <select 
-                className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-              >
-                <option value="all">All Categories</option>
-                {categories.map((cat: string) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-
-              <button className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-all">
-                <Download size={20} />
+                <div className={`p-2 rounded-lg ${
+                  selectedIds.includes(table.id) ? 'bg-white/20' : 'bg-slate-100 group-hover:bg-white'
+                }`}>
+                  <BarChart3 size={14} />
+                </div>
+                <div className="flex-1 text-left overflow-hidden">
+                  <p className="text-xs font-black truncate">{table.name}</p>
+                  <p className={`text-[9px] uppercase tracking-tighter opacity-60 ${
+                    selectedIds.includes(table.id) ? 'text-blue-100' : 'text-slate-400'
+                  }`}>
+                    {table.sheetName || 'Workspace Table'}
+                  </p>
+                </div>
+                {selectedIds.includes(table.id) && <ChevronRight size={14} />}
               </button>
+            ))}
+          </div>
+          
+          <div className="p-6 bg-slate-50 border-t border-slate-100">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Selected Tables</p>
+            <div className="flex flex-wrap gap-2">
+              {selectedIds.length === 0 ? (
+                 <span className="text-[10px] font-medium text-slate-300 italic">No tables selected</span>
+              ) : (
+                selectedIds.map(id => {
+                  const table = allTables.find(t => t.id === id);
+                  return (
+                    <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-600 rounded-lg text-[9px] font-black uppercase">
+                      {table?.name.slice(0, 8)}...
+                      <X size={10} className="cursor-pointer" onClick={() => toggleTable(id)} />
+                    </span>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
+      </aside>
 
-        {/* The Data Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                <th className="px-8 py-5">Date</th>
-                <th className="px-8 py-5">Description</th>
-                <th className="px-8 py-5 text-right">Amount</th>
-                <th className="px-8 py-5">Account</th>
-                <th className="px-8 py-5">Category</th>
-                <th className="px-8 py-5">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-              {filteredTransactions.length > 0 ? (
-                filteredTransactions.map((tx: any, idx: number) => (
-                  <tr key={idx} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-8 py-5">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(tx.date)}</span>
-                        <span className="text-[10px] font-bold text-slate-400">{tx.time || '12:00'}</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-3">
-                        <div className={`shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center ${
-                          tx.amount < 0 ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20'
-                        }`}>
-                          {tx.amount < 0 ? <ArrowDownRight size={20} /> : <ArrowUpRight size={20} />}
-                        </div>
-                        <div>
-                          <p className="text-sm font-black text-slate-900 dark:text-white tracking-tight">{tx.description || tx.memo}</p>
-                          <p className="text-xs text-slate-400 font-semibold">{tx.branchName || 'Online Transaction'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                      <span className={`text-base font-black tracking-tighter ${
-                        tx.amount < 0 ? 'text-slate-900 dark:text-white' : 'text-emerald-600 dark:text-emerald-400'
-                      }`}>
-                        {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5 text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest text-[11px]">
-                      <div className="flex items-center gap-2">
-                        <CreditCard size={14} className="text-slate-300" />
-                        {tx.bankId}
-                      </div>
-                    </td>
-                    <td className="px-8 py-5">
-                      <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-full border border-slate-200 dark:border-slate-700/50">
-                        {tx.category || 'Uncategorized'}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-1.5">
-                        <div className={`w-1.5 h-1.5 rounded-full ${tx.status === 'COMPLETED' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight">{tx.status || 'Pending'}</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-8 py-20 text-center">
-                    <div className="flex flex-col items-center justify-center text-slate-300">
-                      <AlertCircle size={48} className="mb-4 opacity-20" />
-                      <p className="text-sm font-bold">Matching transactions not found</p>
-                      <button 
-                        onClick={() => {setSearchTerm(''); setSelectedAccount('all'); setSelectedCategory('all');}}
-                        className="mt-4 text-indigo-500 text-xs font-black uppercase hover:underline"
-                      >
-                        Clear all filters
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Table Footer / Summary & Pagination */}
-        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-6">
-           <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                 <div className="w-3 h-3 rounded-full bg-emerald-500" /> Income
+      {/* 2. Main Area: AI Analysis Studio */}
+      <div className="flex-1 flex flex-col gap-8">
+         {/* Top Promo/Status */}
+         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-[40px] p-8 text-white shadow-2xl shadow-blue-500/20 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none" />
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-3xl flex items-center justify-center animate-pulse">
+                <Sparkles size={32} className="text-blue-200" />
               </div>
-              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                 <div className="w-3 h-3 rounded-full bg-rose-500" /> Expenses
+              <div>
+                <h2 className="text-2xl font-black tracking-tight">AI Analysis Hub</h2>
+                <p className="text-blue-100/80 text-sm font-medium mt-1 uppercase tracking-widest text-[10px] font-black">
+                   Collaborate with AI to visualize your data
+                </p>
               </div>
-           </div>
-
-           {/* Pagination Controls */}
-           <div className="flex items-center gap-3">
-              <button 
-                onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-              >
-                <ChevronRight className="rotate-180" size={18} />
-              </button>
-              
-              <div className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500">
-                Page <span className="text-indigo-600">{currentPage}</span> of {totalPages}
-              </div>
-
-              <button 
-                onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage >= totalPages}
-                className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-              >
-                <ChevronRight size={18} />
-              </button>
-           </div>
-
-           <p className="text-xs font-bold text-slate-400 italic">
-              Showing source data from FinanceHub total of {totalCount.toLocaleString()} records.
-           </p>
-        </div>
-      </div>
-
-      {/* Account Cards - Compact Grid at the bottom */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 px-2">
-           <Tag size={18} className="text-indigo-500" />
-           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500">Connected Accounts</h3>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {accountsArray.map((acc: any, idx: number) => (
-            <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-all flex justify-between items-center group cursor-default">
-               <div>
-                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-0.5">{acc.bankId}</p>
-                 <p className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors uppercase">{acc.accountName || acc.accountNumber}</p>
-               </div>
-               <p className="text-sm font-black text-slate-700 dark:text-slate-300">
-                 {formatCurrency(acc.balance)}
-               </p>
             </div>
-          ))}
-        </div>
+            <div className="flex items-center gap-3">
+               <div className="px-5 py-2.5 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 text-xs font-bold text-blue-50">
+                  {selectedIds.length} Tables Active
+               </div>
+               {selectedIds.length > 0 && (
+                 <button 
+                  onClick={() => handleSend("현재 선택한 테이블들의 데이터를 분석해서 시각화 차트를 추천해줘.")}
+                  disabled={isTyping}
+                  className="px-5 py-2.5 bg-white text-blue-600 rounded-2xl font-black text-xs transition-all hover:scale-105 active:scale-95 shadow-lg disabled:opacity-50"
+                 >
+                    {isTyping ? '분석 중...' : '추천 분석 생성하기'}
+                 </button>
+               )}
+            </div>
+         </div>
+
+         {/* Content View */}
+         <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-8">
+            {/* 2a. Chat Interface */}
+            <div className="xl:col-span-1 bg-white rounded-[40px] border border-slate-100 shadow-xl shadow-slate-200/50 flex flex-col overflow-hidden max-h-[700px]">
+               <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
+                      <Bot size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">AI Assistant</h3>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Studio</span>
+                      </div>
+                    </div>
+                  </div>
+               </div>
+
+               <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
+                  {chatHistory.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                       <div className={`max-w-[85%] p-4 rounded-3xl text-sm leading-relaxed ${
+                         msg.role === 'user' 
+                         ? 'bg-blue-600 text-white rounded-tr-none shadow-lg shadow-blue-500/20' 
+                         : 'bg-slate-50 text-slate-700 rounded-tl-none border border-slate-100'
+                       }`}>
+                          {msg.content}
+                       </div>
+                    </div>
+                  ))}
+                  {isTyping && (
+                    <div className="flex justify-start">
+                      <div className="bg-slate-50 p-4 rounded-3xl rounded-tl-none border border-slate-100 flex gap-1">
+                        <span className="w-1 h-1 bg-slate-300 rounded-full animate-bounce" />
+                        <span className="w-1 h-1 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]" />
+                        <span className="w-1 h-1 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]" />
+                      </div>
+                    </div>
+                  )}
+               </div>
+
+               <div className="p-6 bg-slate-50 border-t border-slate-100">
+                  {/* Targeted Chart Indicator */}
+                  {selectedChartId && currentTargetedChart && (
+                    <div className="mb-3 px-4 py-2 bg-blue-600 rounded-xl flex items-center justify-between shadow-lg animate-in slide-in-from-bottom-2">
+                       <div className="flex items-center gap-2 overflow-hidden">
+                          <BarChart3 size={12} className="text-white shrink-0" />
+                          <span className="text-[10px] font-black text-white uppercase truncate">수정 중: {currentTargetedChart.title}</span>
+                       </div>
+                       <button onClick={() => setSelectedChartId(null)} className="p-1 hover:bg-white/20 rounded-full text-white transition-colors">
+                          <X size={12} />
+                       </button>
+                    </div>
+                  )}
+
+                  <div className="relative group">
+                    <textarea 
+                      placeholder={selectedIds.length === 0 ? "테이블을 먼저 선택해 주세요" : "AI에게 시각화 추천을 요청해 보세요..."}
+                      disabled={selectedIds.length === 0}
+                      rows={2}
+                      className="w-full p-4 pr-14 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:ring-2 focus:ring-blue-100 transition-all resize-none shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                    />
+                    <button 
+                      onClick={() => handleSend()}
+                      disabled={!input.trim() || selectedIds.length === 0}
+                      className="absolute right-3 bottom-3 p-2.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100"
+                    >
+                      <Send size={16} />
+                    </button>
+                  </div>
+                  <p className="mt-3 text-[9px] font-bold text-slate-400 text-center uppercase tracking-widest">Shift + Enter to add a new line</p>
+               </div>
+            </div>
+
+            {/* 2b. Visualization Area */}
+            <div className="xl:col-span-2 space-y-8">
+               {selectedIds.length === 0 ? (
+                 <div className="h-full min-h-[400px] flex flex-col items-center justify-center bg-white rounded-[40px] border border-dashed border-slate-200 text-center p-12">
+                   <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-8">
+                     <PieChart size={48} className="text-slate-200" />
+                   </div>
+                   <h3 className="text-xl font-black text-slate-900 mb-2 tracking-tight uppercase tracking-widest">No Analysis Context</h3>
+                   <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-sm">
+                     왼쪽 목록에서 분석하고 싶은 테이블을 선택하면 AI가 데이터를 검토하여 최적의 시각화를 추천해 드립니다.
+                   </p>
+                 </div>
+               ) : (
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-20">
+                    {charts.length === 0 && !isTyping && (
+                      <div className="md:col-span-2 h-[400px] flex flex-col items-center justify-center bg-white rounded-[40px] border border-dashed border-slate-100 text-center">
+                         <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 animate-bounce">
+                           <Sparkles size={24} />
+                         </div>
+                         <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-2">Ready to Visualize</h4>
+                         <p className="text-xs text-slate-400 font-medium">상단 버튼이나 채팅을 통해 분석을 시작해 보세요.</p>
+                      </div>
+                    )}
+                    
+                    {charts.map((chart) => (
+                      <div key={chart.id} className="md:col-span-2 last:md:col-span-2">
+                        <SmartChart 
+                          config={chart} 
+                          isSelected={selectedChartId === chart.id}
+                          onSelect={() => setSelectedChartId(prev => prev === chart.id ? null : chart.id)}
+                          onDelete={() => handleDeleteChart(chart.id)}
+                        />
+                      </div>
+                    ))}
+
+                    {isTyping && (
+                      <div className="md:col-span-2 bg-white/50 backdrop-blur-sm p-12 rounded-[40px] border border-dashed border-blue-200 flex flex-col items-center justify-center">
+                         <div className="relative w-12 h-12 mb-4">
+                            <div className="absolute inset-0 border-4 border-blue-100 rounded-full" />
+                            <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin" />
+                         </div>
+                         <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest animate-pulse">AI가 데이터를 분석하며 차트를 구성 중입니다...</p>
+                      </div>
+                    )}
+                 </div>
+               )}
+            </div>
+         </div>
       </div>
     </div>
   );

@@ -112,6 +112,28 @@ export async function queryTransactions(options: {
 }
 
 /**
+ * Query card transactions with filtering, sorting, and pagination
+ */
+export async function queryCardTransactions(options: {
+  accountId?: string;
+  cardCompanyId?: string;
+  cardNumber?: string;
+  merchantName?: string;
+  startDate?: string;
+  endDate?: string;
+  category?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  includeCancelled?: boolean;
+  limit?: number;
+  offset?: number;
+  orderBy?: 'date' | 'amount';
+  orderDir?: 'asc' | 'desc';
+} = {}) {
+  return callFinanceHubTool('financehub_query_card_transactions', options);
+}
+
+/**
  * Get transaction statistics
  */
 export async function getStatistics(options: {
