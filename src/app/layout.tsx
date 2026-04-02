@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Excel to DB : 마이 스마트 데이터 베이스",
-  description: "나만의 스마트한 데이터베이스 솔루션, Excel to DB",
+  title: "CEO DASHBOARD : 마이 스마트 데이터 베이스",
+  description: "나만의 스마트한 데이터베이스 솔루션, CEO DASHBOARD",
 };
 
 export default function RootLayout({
@@ -28,7 +28,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>{children}</body>
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }

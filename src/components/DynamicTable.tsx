@@ -21,6 +21,9 @@ interface DynamicTableProps {
   columns: Column[];
   data: any[];
   isOwner?: boolean;
+  isAdmin?: boolean;
+  canEdit?: boolean;
+  isReadOnly?: boolean;
   userRole?: string;
   currentUserId?: string | null;
   onStatusShow?: (title: string, message: string, type: 'success' | 'error' | 'info') => void;
@@ -34,6 +37,8 @@ export default function DynamicTable({
     columns, 
     data, 
     isOwner = false, 
+    canEdit = true,
+    isReadOnly = false,
     userRole = 'VIEWER', 
     currentUserId, 
     onStatusShow,
@@ -53,8 +58,9 @@ export default function DynamicTable({
   console.log('DEBUG: DynamicTable Input Data', { reportId, columns, dataCount: data.length, firstRow: data[0] });
 
   // 전체 테이블 수준에서의 권한 (UI 노출 여부 결정)
-  const hasBaseEditAuth = isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER';
-  const hasBaseDeleteAuth = isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER';
+  // '수정 금지' 원칙에 따라 canEdit가 false이거나 isReadOnly이면 모든 권한 박탈
+  const hasBaseEditAuth = !isReadOnly && canEdit && (isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER');
+  const hasBaseDeleteAuth = !isReadOnly && canEdit && (isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER');
 
   // 개별 행에 대한 관리 권한 유무 확인 함수
   const isRowManager = (row: any) => {
@@ -688,10 +694,22 @@ export default function DynamicTable({
         </table>
       </div>
 
-      {/* Pagination */}
-      {processedData.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-[24px] border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center gap-3">
+      {/* Pagination & Read-Only Indicator */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-[24px] border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Row Count</span>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-black text-gray-900 leading-none">Total {processedData.length} records</p>
+              {isReadOnly && (
+                <span className="px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-md text-[9px] font-black uppercase tracking-tight animate-pulse">
+                  Read-Only Mode
+                </span>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 border-l pl-6 border-gray-100">
             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">목록 개수</span>
             <select 
               value={itemsPerPage}
@@ -706,52 +724,46 @@ export default function DynamicTable({
               ))}
             </select>
           </div>
-
-          <div className="flex items-center gap-1.5">
-            <button 
-              onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1}
-              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
-            >
-              <ChevronsLeft size={18} />
-            </button>
-            <button 
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
-            >
-              <ChevronLeft size={18} />
-            </button>
-
-            <div className="flex items-center gap-1 px-2">
-              <span className="text-xs font-black text-blue-600">{currentPage}</span>
-              <span className="text-xs font-bold text-gray-300">/</span>
-              <span className="text-xs font-bold text-gray-400">{totalPages}</span>
-            </div>
-
-            <button 
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
-            >
-              <ChevronRight size={18} />
-            </button>
-            <button 
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages}
-              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
-            >
-              <ChevronsRight size={18} />
-            </button>
-          </div>
-
-          <div className="hidden sm:block">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-              Total {processedData.length} records
-            </span>
-          </div>
         </div>
-      )}
+
+        <div className="flex items-center gap-1.5">
+          <button 
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
+          >
+            <ChevronsLeft size={18} />
+          </button>
+          <button 
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          <div className="flex items-center gap-1 px-4">
+            <span className="text-xs font-black text-blue-600">{currentPage}</span>
+            <span className="text-xs font-bold text-gray-300">/</span>
+            <span className="text-xs font-bold text-gray-400">{totalPages}</span>
+          </div>
+
+          <button 
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
+          >
+            <ChevronRight size={18} />
+          </button>
+          <button 
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
+          >
+            <ChevronsRight size={18} />
+          </button>
+        </div>
+      </div>
 
       {isBulkEditOpen && (
         <BulkEditModal 

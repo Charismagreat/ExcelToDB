@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { 
-    Plus, 
-    Sparkles, 
-    FileSpreadsheet, 
-    ArrowLeft, 
-    Database, 
+import {
+    Plus,
+    Sparkles,
+    FileSpreadsheet,
+    ArrowLeft,
+    Database,
     ShieldAlert,
     X,
     LayoutDashboard,
@@ -32,7 +32,7 @@ export default function DataInputClient({ report, session, columns, rows }: Data
     const [showAIModal, setShowAIModal] = useState(false);
     const [showAddRecordForm, setShowAddRecordForm] = useState(true);
     const formRef = useRef<HTMLDivElement>(null);
-    
+
     // 상태 모달 관리
     const [modalStatus, setModalStatus] = useState<{
         isOpen: boolean;
@@ -63,7 +63,7 @@ export default function DataInputClient({ report, session, columns, rows }: Data
                 <div className="flex items-center gap-6">
                     {isManagement && (
                         <>
-                            <Link 
+                            <Link
                                 href={`/report/${report.id}`}
                                 className="group flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-100 rounded-2xl text-[11px] font-black text-gray-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm hover:shadow-md active:scale-95"
                             >
@@ -81,7 +81,7 @@ export default function DataInputClient({ report, session, columns, rows }: Data
                         <h2 className="text-sm font-black text-gray-900">{report.name}</h2>
                     </div>
                 </div>
-                
+
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-4 bg-white px-5 py-2.5 border border-gray-100 rounded-full shadow-sm text-xs font-bold text-gray-700">
                         <ShieldAlert size={16} className="text-orange-500" />
@@ -107,14 +107,14 @@ export default function DataInputClient({ report, session, columns, rows }: Data
 
                     {isManagement && (
                         <div className="flex items-center gap-3 w-full md:w-auto animate-in fade-in slide-in-from-right-4 duration-500">
-                            <button 
+                            <button
                                 onClick={() => setShowExcelModal(true)}
                                 className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-green-600 text-white font-black rounded-[20px] hover:bg-green-700 shadow-xl shadow-green-500/10 transition-all text-xs tracking-widest uppercase active:scale-95 group"
                             >
                                 <FileSpreadsheet size={16} className="group-hover:rotate-12 transition-transform" />
                                 엑셀 파일로 일괄 등록
                             </button>
-                            <button 
+                            <button
                                 onClick={() => setShowAIModal(true)}
                                 className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-indigo-600 text-white font-black rounded-[20px] hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all text-xs tracking-widest uppercase active:scale-95 group"
                             >
@@ -140,13 +140,13 @@ export default function DataInputClient({ report, session, columns, rows }: Data
                                     <div className="px-2 py-0.5 bg-white/10 rounded text-[8px] font-black tracking-tighter uppercase whitespace-nowrap">Live Auth</div>
                                 </div>
                             </div>
-                            
+
                             <div className="p-10 md:p-14">
                                 <DataEntryForm reportId={report.id} columns={columns} />
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Floating Info Pill - Only shown for management and if form is visible */}
                     {isManagement && showAddRecordForm && (
                         <div className="mt-8 flex items-center gap-4 px-6 py-2.5 bg-white border border-gray-100 rounded-2xl shadow-sm text-[10px] font-black text-gray-400 uppercase tracking-widest animate-in fade-in slide-in-from-bottom-2 duration-700 font-bold italic">
@@ -171,7 +171,7 @@ export default function DataInputClient({ report, session, columns, rows }: Data
                     </div>
 
                     <div className="bg-white p-2 rounded-[32px] border border-gray-100 shadow-2xl shadow-gray-900/5 overflow-hidden">
-                        <DynamicTable 
+                        <DynamicTable
                             reportId={report.id}
                             columns={columns}
                             data={rows}
@@ -230,14 +230,14 @@ export default function DataInputClient({ report, session, columns, rows }: Data
                             </button>
                         </div>
                         <div className="p-10">
-                            <BulkUpload 
-                                reportId={report.id} 
-                                columns={columns} 
-                                onStatusShow={showStatus} 
+                            <BulkUpload
+                                reportId={report.id}
+                                columns={columns}
+                                onStatusShow={showStatus}
                             />
                         </div>
                         <div className="bg-gray-50 p-6 text-center border-t border-gray-100">
-                            <button 
+                            <button
                                 onClick={() => setShowExcelModal(false)}
                                 className="px-8 py-3 bg-white border border-gray-200 text-gray-500 font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all"
                             >
@@ -250,16 +250,16 @@ export default function DataInputClient({ report, session, columns, rows }: Data
 
             {/* AI Photo Modal */}
             {showAIModal && (
-                <AIPhotoImportSection 
-                    reportId={report.id} 
-                    columns={columns} 
-                    onClose={() => setShowAIModal(false)} 
+                <AIPhotoImportSection
+                    reportId={report.id}
+                    columns={columns}
+                    onClose={() => setShowAIModal(false)}
                     onStatusShow={showStatus}
                 />
             )}
 
             {/* Global Status Modal */}
-            <StatusModal 
+            <StatusModal
                 isOpen={modalStatus.isOpen}
                 onClose={() => setModalStatus(prev => ({ ...prev, isOpen: false }))}
                 title={modalStatus.title}

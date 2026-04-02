@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { 
   LayoutDashboard, 
   Table as TableIcon, 
@@ -13,10 +15,20 @@ import {
   LineChart,
   Plus,
   X,
-  Bot
+  Bot,
+  RotateCcw
 } from 'lucide-react';
-import { getVisualizationRecommendationAction } from '@/app/actions';
+import { 
+  getVisualizationRecommendationAction, 
+  savePinnedChartAction,
+  saveAIStudioSessionAction,
+  getAIStudioSessionAction,
+  clearAIStudioSessionAction
+} from '@/app/actions';
 import SmartChart from '@/components/SmartChart';
+
+// 저장소 키 (하위 호환성 및 로그 확인용)
+const STORAGE_KEY = 'egdesk_ai_studio_state';
 
 interface DashboardClientProps {
   allTables: any[];
@@ -41,8 +53,98 @@ export default function DashboardClient({ allTables, user }: DashboardClientProp
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [charts, setCharts] = useState<any[]>([]);
+  const [charts, setCharts] = useState<Array<{ id: string, versions: any[], currentVersion: number, layout?: { span: 'half' | 'full' } }>>([]);
   const [selectedChartId, setSelectedChartId] = useState<string | null>(null);
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const isLoaded = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // 대화 내용이나 타이핑 상태가 바뀔 때마다 하단 스크롤
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatHistory, isTyping]);
+
+  // [Persistence] 서버에서 상태 복원
+  useEffect(() => {
+    let isMounted = true;
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Session load timeout')), 5000)
+    );
+
+    async function loadSession() {
+      try {
+        // 타임아웃과 경쟁하여 너무 오래 걸리면 포기
+        const savedState = await Promise.race([
+          getAIStudioSessionAction(),
+          timeoutPromise
+        ]);
+
+        if (isMounted && savedState) {
+          const { selectedIds: sIds, chatHistory: cHist, charts: cCharts } = savedState as any;
+          if (sIds) setSelectedIds(sIds);
+          if (cHist) setChatHistory(cHist);
+          if (cCharts) setCharts(cCharts);
+          console.log('AI Studio session restored from server.');
+        }
+      } catch (e) {
+        console.warn('AI Studio session load skipped or failed:', e);
+      } finally {
+        if (isMounted) {
+          isLoaded.current = true;
+        }
+      }
+    }
+    loadSession();
+    return () => { isMounted = false; };
+  }, []);
+
+  // [Persistence] 상태 변경 시 서버에 자동 저장 (Debounced)
+  useEffect(() => {
+    if (!isLoaded.current) return;
+
+    const timer = setTimeout(async () => {
+      setIsSaving(true);
+      try {
+        const result = await saveAIStudioSessionAction({
+          selectedIds,
+          chatHistory,
+          charts
+        });
+        if (!result.success) {
+          console.error('Failed to save session, will retry on next change.');
+        }
+      } catch (e) {
+        console.error('Error during session auto-save:', e);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1000); // 1초 디바운스로 단축
+
+    return () => clearTimeout(timer);
+  }, [selectedIds, chatHistory, charts]);
+
+  const resetSession = async () => {
+    if (confirm('현재 진행 중인 분석 내용을 모두 초기화하고 새로 시작하시겠습니까?')) {
+      setSelectedIds([]);
+      setChatHistory([{
+        role: 'assistant',
+        content: '안녕하세요! 테이블 분석 AI 스튜디오에 오신 것을 환영합니다. 분석하고 싶은 테이블을 왼쪽 목록에서 선택해 주세요. 선택하신 데이터의 특성에 맞춰 최적의 시각화와 분석 방향을 제안해 드릴게요.',
+      }]);
+      setCharts([]);
+      setSelectedChartId(null);
+      
+      try {
+        await clearAIStudioSessionAction();
+        // 로컬 스토리지 하위 호환성 정리
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (e) {
+        console.error('Failed to clear session on server:', e);
+      }
+    }
+  };
 
   const filteredTables = allTables.filter(t => 
     t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -60,9 +162,10 @@ export default function DashboardClient({ allTables, user }: DashboardClientProp
     if (!textToSend.trim() || selectedIds.length === 0) return;
     
     // 선택된 차트 정보를 프롬프트에 포함
-    const selectedChart = charts.find(c => c.id === selectedChartId);
-    if (selectedChartId && selectedChart) {
-      textToSend = `[대상 차트: "${selectedChart.title}"] ${textToSend}`;
+    const selectedChartInstance = charts.find(c => c.id === selectedChartId);
+    if (selectedChartId && selectedChartInstance) {
+      const currentConfig = selectedChartInstance.versions[selectedChartInstance.currentVersion];
+      textToSend = `[대상 차트: "${currentConfig.title}"] ${textToSend}`;
     }
     
     const userMsg: ChatMessage = { role: 'user', content: textToSend };
@@ -70,9 +173,6 @@ export default function DashboardClient({ allTables, user }: DashboardClientProp
     setInput('');
     setIsTyping(true);
     
-    // 메시지가 발송되면 선택은 해제
-    setSelectedChartId(null);
-
     try {
       const data = await getVisualizationRecommendationAction(
         selectedIds, 
@@ -80,12 +180,30 @@ export default function DashboardClient({ allTables, user }: DashboardClientProp
       );
       
       if (data.chartConfigs && data.chartConfigs.length > 0) {
-        // 기존 차트와 합치되, 고유 ID 부여 (최신이 위로)
-        const newConfigs = data.chartConfigs.map((c: any) => ({
-          ...c,
-          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        }));
-        setCharts(prev => [...newConfigs, ...prev]);
+        if (selectedChartId) {
+          // [혁신] 선택된 차트 인스턴스에 새 버전 추가 (In-place Evolution)
+          setCharts(prev => prev.map(c => {
+            if (c.id === selectedChartId) {
+              const incomingConfigs = data.chartConfigs || [];
+              const newVersions = [...c.versions, ...incomingConfigs];
+              return {
+                ...c,
+                versions: newVersions,
+                currentVersion: newVersions.length - 1
+              };
+            }
+            return c;
+          }));
+        } else {
+          // 새 차트 인스턴스 생성
+          const newInstances = data.chartConfigs.map((config: any) => ({
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            versions: [config],
+            currentVersion: 0,
+            layout: (config.type === 'table' ? { span: 'full' } : { span: 'half' }) as { span: 'half' | 'full' }
+          }));
+          setCharts(prev => [...newInstances, ...prev]);
+        }
       }
 
       setChatHistory(prev => [...prev, {
@@ -103,6 +221,29 @@ export default function DashboardClient({ allTables, user }: DashboardClientProp
     }
   };
 
+  const handleVersionChange = (id: string, version: number) => {
+    setCharts(prev => prev.map(c => 
+      c.id === id ? { ...c, currentVersion: version - 1 } : c
+    ));
+  };
+
+  const handleLayoutChange = (id: string, layout: { span: 'half' | 'full' }) => {
+    setCharts(prev => prev.map(c => 
+      c.id === id ? { ...c, layout } : c
+    ));
+  };
+
+  const handlePinChart = async (id: string, config: any, layout?: any) => {
+    try {
+      await savePinnedChartAction(id, { ...config, layout });
+      setPinnedIds(prev => [...prev, id]);
+      alert('차트가 리포트 갤러리에 고정되었습니다!');
+    } catch (error) {
+      console.error('Pin Error:', error);
+      alert('고정 중 오류가 발생했습니다.');
+    }
+  };
+
   const handleDeleteChart = (id: string) => {
     setCharts(prev => prev.filter(c => c.id !== id));
     if (selectedChartId === id) {
@@ -112,6 +253,7 @@ export default function DashboardClient({ allTables, user }: DashboardClientProp
 
   const selectedTables = allTables.filter(t => selectedIds.includes(t.id));
   const currentTargetedChart = charts.find(c => c.id === selectedChartId);
+  const currentTargetedConfig = currentTargetedChart?.versions[currentTargetedChart.currentVersion];
 
   return (
     <div className="flex flex-col lg:flex-row gap-8 min-h-[calc(100vh-12rem)]">
@@ -229,14 +371,27 @@ export default function DashboardClient({ allTables, user }: DashboardClientProp
                     <div>
                       <h3 className="text-sm font-bold text-slate-900">AI Assistant</h3>
                       <div className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Studio</span>
+                        <span className={`w-1.5 h-1.5 ${isSaving ? 'bg-amber-500' : 'bg-green-500'} rounded-full animate-pulse`} />
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          {isSaving ? 'Saving to Server...' : 'Active Studio (Synced)'}
+                        </span>
                       </div>
                     </div>
                   </div>
-               </div>
+                  <button 
+                    onClick={resetSession}
+                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all flex items-center gap-2"
+                    title="새 분석 시작 (초기화)"
+                  >
+                    <RotateCcw size={14} />
+                    <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">새 분석 시작</span>
+                  </button>
+                </div>
 
-               <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
+               <div 
+                 ref={chatContainerRef}
+                 className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth"
+               >
                   {chatHistory.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                        <div className={`max-w-[85%] p-4 rounded-3xl text-sm leading-relaxed ${
@@ -244,7 +399,27 @@ export default function DashboardClient({ allTables, user }: DashboardClientProp
                          ? 'bg-blue-600 text-white rounded-tr-none shadow-lg shadow-blue-500/20' 
                          : 'bg-slate-50 text-slate-700 rounded-tl-none border border-slate-100'
                        }`}>
-                          {msg.content}
+                          <ReactMarkdown 
+                             remarkPlugins={[remarkGfm]}
+                             components={{
+                               p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                               table: ({ children }) => (
+                                 <div className="overflow-x-auto my-4 rounded-2xl border border-slate-200 shadow-sm">
+                                   <table className="w-full text-xs text-left border-collapse bg-white">
+                                     {children}
+                                   </table>
+                                 </div>
+                               ),
+                               thead: ({ children }) => <thead className="bg-slate-50 font-black text-blue-600 uppercase tracking-widest">{children}</thead>,
+                               th: ({ children }) => <th className="px-4 py-3 border-b border-slate-200">{children}</th>,
+                               td: ({ children }) => <td className="px-4 py-2 border-b border-slate-100 last:border-b-0">{children}</td>,
+                               strong: ({ children }) => <strong className="font-black text-blue-700">{children}</strong>,
+                               ul: ({ children }) => <ul className="list-disc list-inside space-y-1 my-2">{children}</ul>,
+                               li: ({ children }) => <li className="text-slate-600">{children}</li>
+                             }}
+                           >
+                             {msg.content}
+                           </ReactMarkdown>
                        </div>
                     </div>
                   ))}
@@ -265,7 +440,7 @@ export default function DashboardClient({ allTables, user }: DashboardClientProp
                     <div className="mb-3 px-4 py-2 bg-blue-600 rounded-xl flex items-center justify-between shadow-lg animate-in slide-in-from-bottom-2">
                        <div className="flex items-center gap-2 overflow-hidden">
                           <BarChart3 size={12} className="text-white shrink-0" />
-                          <span className="text-[10px] font-black text-white uppercase truncate">수정 중: {currentTargetedChart.title}</span>
+                          <span className="text-[10px] font-black text-white uppercase truncate">수정 중: {currentTargetedConfig?.title}</span>
                        </div>
                        <button onClick={() => setSelectedChartId(null)} className="p-1 hover:bg-white/20 rounded-full text-white transition-colors">
                           <X size={12} />
@@ -325,12 +500,22 @@ export default function DashboardClient({ allTables, user }: DashboardClientProp
                     )}
                     
                     {charts.map((chart) => (
-                      <div key={chart.id} className="md:col-span-2 last:md:col-span-2">
+                      <div 
+                        key={chart.id} 
+                        className={chart.layout?.span === 'full' ? 'md:col-span-2' : 'md:col-span-1'}
+                      >
                         <SmartChart 
-                          config={chart} 
+                          config={chart.versions[chart.currentVersion]} 
                           isSelected={selectedChartId === chart.id}
+                          currentVersion={chart.currentVersion + 1}
+                          totalVersions={chart.versions.length}
+                          onVersionChange={(v) => handleVersionChange(chart.id, v)}
+                          onPin={() => handlePinChart(chart.id, chart.versions[chart.currentVersion], chart.layout)}
+                          isPinned={pinnedIds.includes(chart.id)}
                           onSelect={() => setSelectedChartId(prev => prev === chart.id ? null : chart.id)}
                           onDelete={() => handleDeleteChart(chart.id)}
+                          layout={chart.layout}
+                          onLayoutChange={(newLayout) => handleLayoutChange(chart.id, newLayout)}
                         />
                       </div>
                     ))}

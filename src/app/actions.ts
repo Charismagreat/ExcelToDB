@@ -9,7 +9,8 @@ import {
     updateRows, 
     deleteRows, 
     aggregateTable,
-    createTable
+    createTable,
+    listTables
 } from '@/egdesk-helpers';
 import { EGDESK_CONFIG } from '@/egdesk.config';
 import { parseExcelWorkbook } from '@/lib/excel-parser';
@@ -18,6 +19,8 @@ import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { notifyNewDataRow, notifyBulkUpload } from '@/lib/notifications';
+import { getVisualizationRecommendation } from '@/lib/dashboard-ai';
+import { runAITool } from '@/lib/ai-tools';
 
 // Password Security Utilities
 const SALT_SIZE = 16;
@@ -800,7 +803,14 @@ export async function loginAction(username: string, password?: string) {
 export async function logoutAction() {
     const cookieStore = await cookies();
     cookieStore.delete('session_user_id');
-    return { success: true };
+    redirect('/login');
+}
+
+export async function getVisualizationRecommendationAction(tableIds: string[], messages: any[]) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+    
+    return await getVisualizationRecommendation(tableIds, messages);
 }
 
 export async function getSessionAction() {
@@ -1109,4 +1119,394 @@ export async function restoreRowsAction(reportId: string, rowIds: string[]) {
     revalidatePath(`/report/${reportId}`);
     revalidatePath(`/report/${reportId}/input`);
     return { success: true };
+}
+
+/**
+ * 핀 고정된 차트 목록을 관리하기 위한 영구 저장소 경로
+ */
+const PINNED_CHARTS_PATH = path.join(process.cwd(), 'pinned_charts.json');
+
+/**
+ * 핀 고정된 차트 설정을 저장합니다.
+ */
+export async function savePinnedChartAction(chartId: string, config: any) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+
+    let pinned: any[] = [];
+    try {
+        const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
+        pinned = JSON.parse(fileContent);
+    } catch (e) {
+        // 파일이 없으면 빈 배열로 시작
+    }
+
+    // 기존에 있으면 업데이트, 없으면 추가
+    const existingIndex = pinned.findIndex(p => p.id === chartId);
+    if (existingIndex > -1) {
+        pinned[existingIndex] = { ...pinned[existingIndex], config, updatedAt: new Date().toISOString() };
+    } else {
+        pinned.push({
+            id: chartId,
+            userId: user.id,
+            config,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        });
+    }
+
+    await fs.writeFile(PINNED_CHARTS_PATH, JSON.stringify(pinned, null, 2));
+    revalidatePath('/dashboard');
+    return { success: true };
+}
+
+/**
+ * 동적 플레이스홀더($TODAY, $TODAY-N 등)를 실제 날짜 값으로 변환합니다.
+ */
+function resolveDynamicValue(val: any): any {
+    if (typeof val !== 'string') return val;
+    
+    const today = new Date();
+    // sv-SE(스웨덴) 로케일은 항상 YYYY-MM-DD 형식을 보장하며, KST 타임존을 명시합니다.
+    const kstTodayStr = today.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+    
+    if (val === '$TODAY') return kstTodayStr;
+    
+    const match = val.match(/^\$TODAY-(\d+)$/);
+    if (match) {
+        const days = parseInt(match[1], 10);
+        const targetDate = new Date(today);
+        targetDate.setDate(today.getDate() - days);
+        return targetDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+    }
+    
+    return val;
+}
+
+/**
+ * 인자 객체 전체를 순회하며 동적 플레이스홀더를 치환합니다.
+ */
+function resolveDynamicArgs(args: any): any {
+    if (!args || typeof args !== 'object') return args;
+    
+    const resolvedArgs: any = Array.isArray(args) ? [] : {};
+    for (const [key, value] of Object.entries(args)) {
+        if (value && typeof value === 'object') {
+            resolvedArgs[key] = resolveDynamicArgs(value);
+        } else {
+            resolvedArgs[key] = resolveDynamicValue(value);
+        }
+    }
+    return resolvedArgs;
+}
+
+/**
+ * 차트 설명 내의 날짜 정보를 동적으로 변환합니다.
+ */
+function resolveDynamicDescription(desc: string, args: any): string {
+    if (!desc) return desc;
+    let resolvedDesc = desc;
+    
+    // 설명 내에 "$TODAY[-N]" 형태의 플레이스홀더가 있으면 직접 치환
+    resolvedDesc = resolvedDesc.replace(/\$TODAY(?:-(\d+))?/g, (match) => {
+        return resolveDynamicValue(match);
+    });
+
+    // 기존의 YYYY-MM-DD 형태 텍스트 치환 로직 (백업)
+    if (args?.startDate && args?.endDate) {
+        const sDate = resolveDynamicValue(args.startDate);
+        const eDate = resolveDynamicValue(args.endDate);
+        
+        resolvedDesc = resolvedDesc.replace(/\d{4}-\d{2}-\d{2}/g, (match, offset) => {
+            return offset < resolvedDesc.indexOf('부터') ? sDate : eDate;
+        });
+    }
+    
+    return resolvedDesc;
+}
+
+/**
+ * 툴 호출 결과를 차트 데이터 형식으로 변환합니다.
+ */
+function mapRefreshedData(rawData: any, mapping: any): any[] {
+    let newData: any[] = [];
+    
+    // 1. 결과 객체 내에 배열이 있는 경우 우선 처리 (상세 내역 우선)
+    // 'result' 또는 'transactions' 키를 유연하게 지원
+    const records = (rawData && rawData.result && Array.isArray(rawData.result)) ? rawData.result :
+                  (rawData && rawData.transactions && Array.isArray(rawData.transactions)) ? rawData.transactions : null;
+
+    if (records) {
+        newData = records.map((row: any) => {
+            if (mapping && typeof mapping === 'object' && !mapping.label && !mapping.value) {
+                const mappedRow: any = {};
+                for (const [targetKey, sourceKey] of Object.entries(mapping)) {
+                    mappedRow[targetKey] = row[sourceKey as string] ?? row[targetKey] ?? '';
+                }
+                return mappedRow;
+            }
+            return {
+                label: mapping?.label && row[mapping.label] !== undefined ? row[mapping.label] : Object.values(row)[0],
+                value: mapping?.value && row[mapping.value] !== undefined ? row[mapping.value] : Object.values(row)[1]
+            };
+        });
+    }
+    // 2. 배열 형태의 결과 처리
+    else if (Array.isArray(rawData)) {
+        newData = rawData.map(row => {
+            if (mapping && typeof mapping === 'object' && !mapping.label && !mapping.value) {
+                const mappedRow: any = {};
+                for (const [targetKey, sourceKey] of Object.entries(mapping)) {
+                    mappedRow[targetKey] = row[sourceKey as string] ?? row[targetKey] ?? '';
+                }
+                return mappedRow;
+            }
+            return {
+                label: mapping?.label && row[mapping.label] !== undefined ? row[mapping.label] : (row.month || row.name || row.label || row.date),
+                value: mapping?.value && row[mapping.value] !== undefined ? row[mapping.value] : (row.amount || row.value || row.count || row.total)
+            };
+        });
+    } 
+    // 3. 카테고리 요약 형태 처리
+    else if (rawData && rawData.categorySummary) {
+        newData = Object.entries(rawData.categorySummary).map(([label, value]) => ({ label, value }));
+    } 
+    
+    return newData;
+}
+
+/**
+ * 핀 고정된 차트 목록을 가져옵니다.
+ */
+export async function getPinnedChartsAction() {
+    const user = await getSessionAction();
+    if (!user) return [];
+
+    try {
+        const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
+        const pinned = JSON.parse(fileContent);
+        const userPinned = pinned.filter((p: any) => p.userId === user.id);
+
+        // 실시간 데이터 동기화 (병렬 처리)
+        let hasChanges = false;
+        const refreshedCharts = await Promise.all(userPinned.map(async (item: any) => {
+            if (item.config.refreshMetadata) {
+                try {
+                    const { tool, args: originalArgs, mapping } = item.config.refreshMetadata;
+                    const args = resolveDynamicArgs(originalArgs);
+                    
+                    if (item.config.sourceDescription) {
+                        item.config.sourceDescription = resolveDynamicDescription(item.config.sourceDescription, originalArgs);
+                    }
+                    
+                    const rawData = await runAITool(tool, args);
+                    const newData = mapRefreshedData(rawData, mapping);
+
+                    if (newData.length > 0) {
+                        item.config.data = newData;
+                        item.refreshedAt = new Date().toISOString();
+                        hasChanges = true;
+                    }
+                } catch (e) {
+                    console.error(`[Refresh Error] Chart ${item.id}:`, e);
+                }
+            }
+            return item;
+        }));
+
+        // 변경된 내용이 있으면 전체 목록 파일에 영구 저장 (Consistency 보장)
+        if (hasChanges) {
+            // 원본 목록 중 현재 사용자의 것만 업데이트하여 다시 저장
+            const updatedPinned = pinned.map((p: any) => {
+                const refreshed = refreshedCharts.find((rc: any) => rc.id === p.id);
+                return refreshed || p;
+            });
+            await fs.writeFile(PINNED_CHARTS_PATH, JSON.stringify(updatedPinned, null, 2));
+        }
+
+        return refreshedCharts;
+    } catch (e) {
+        return [];
+    }
+}
+
+/**
+ * 핀 고정된 차트를 삭제합니다.
+ */
+export async function deletePinnedChartAction(chartId: string) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+
+    try {
+        const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
+        let pinned = JSON.parse(fileContent);
+        pinned = pinned.filter((p: any) => p.id !== chartId);
+        await fs.writeFile(PINNED_CHARTS_PATH, JSON.stringify(pinned, null, 2));
+        revalidatePath('/dashboard');
+        return { success: true };
+    } catch (e) {
+        return { success: false };
+    }
+}
+
+/**
+ * 특정 차트의 데이터를 즉시 새로고침합니다.
+ */
+export async function refreshIndividualChartAction(chartId: string) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+
+    try {
+        const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
+        let pinned = JSON.parse(fileContent);
+        const chartIndex = pinned.findIndex((p: any) => p.id === chartId);
+        if (chartIndex === -1) throw new Error('차트를 찾을 수 없습니다.');
+
+        const item = pinned[chartIndex];
+        if (!item.config.refreshMetadata) return { success: true, item };
+
+        const { tool, args: originalArgs, mapping } = item.config.refreshMetadata;
+        
+        // 동적 인자 처리
+        const args = resolveDynamicArgs(originalArgs);
+        
+        // 설명 정보 업데이트
+        if (item.config.sourceDescription) {
+            item.config.sourceDescription = resolveDynamicDescription(item.config.sourceDescription, originalArgs);
+        }
+
+        const rawData = await runAITool(tool, args);
+        const newData = mapRefreshedData(rawData, mapping);
+
+        if (newData.length > 0) {
+            item.config.data = newData;
+            item.refreshedAt = new Date().toISOString();
+            pinned[chartIndex] = item;
+            await fs.writeFile(PINNED_CHARTS_PATH, JSON.stringify(pinned, null, 2));
+        }
+
+        revalidatePath('/dashboard');
+        return { success: true, item };
+    } catch (e) {
+        console.error('Refresh Action Error:', e);
+        return { success: false };
+    }
+}
+
+/**
+ * 차트의 레이아웃(너비 등) 설정을 업데이트합니다.
+ */
+export async function updateChartLayoutAction(chartId: string, layout: any) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+
+    try {
+        const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
+        let pinned = JSON.parse(fileContent);
+        const chartIndex = pinned.findIndex((p: any) => p.id === chartId);
+        if (chartIndex === -1) throw new Error('차트를 찾을 수 없습니다.');
+
+        pinned[chartIndex].layout = layout;
+        pinned[chartIndex].updatedAt = new Date().toISOString();
+
+        await fs.writeFile(PINNED_CHARTS_PATH, JSON.stringify(pinned, null, 2));
+        revalidatePath('/dashboard');
+        return { success: true };
+    } catch (e) {
+        console.error('Update Layout Action Error:', e);
+        return { success: false };
+    }
+}
+
+// AI 분석 스튜디오 세션 테이블 초기화 여부를 서버 메모리에 캐싱
+let isAIStudioSessionTableInitialized = false;
+
+/**
+ * AI 분석 스튜디오의 세션 상태를 서버에 저장합니다.
+ */
+export async function saveAIStudioSessionAction(data: any) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+
+    const tableName = 'ai_studio_session';
+    
+    try {
+        const sessionData = {
+            userId: user.id,
+            data: JSON.stringify(data),
+            updatedAt: new Date().toISOString()
+        };
+
+        // 1. 초기 1회 또는 오류 발생 시 테이블 생성 시도 (Lazy Creation)
+        if (!isAIStudioSessionTableInitialized) {
+            try {
+                await queryTable(tableName, { limit: 1 });
+                isAIStudioSessionTableInitialized = true;
+            } catch (e) {
+                // 테이블이 없으면 생성
+                await createTable('AI Studio Session', [
+                    { name: 'userId', type: 'TEXT', notNull: true },
+                    { name: 'data', type: 'TEXT', notNull: true },
+                    { name: 'updatedAt', type: 'TEXT', notNull: true }
+                ], { tableName, uniqueKeyColumns: ['userId'] });
+                isAIStudioSessionTableInitialized = true;
+            }
+        }
+
+        // 2. Upsert (userId 기준)
+        const existing = await queryTable(tableName, { filters: { userId: user.id } });
+        
+        if (existing && existing.length > 0) {
+            await updateRows(tableName, {
+                data: sessionData.data,
+                updatedAt: sessionData.updatedAt
+            }, { filters: { userId: user.id } });
+        } else {
+            await insertRows(tableName, [sessionData]);
+        }
+
+        return { success: true };
+    } catch (e) {
+        console.error('Save AI Studio Session Error:', e);
+        // 오류 발생 시 다음 재시도에서 테이블 체크를 다시 하도록 플래그 리셋
+        isAIStudioSessionTableInitialized = false;
+        return { success: false };
+    }
+}
+
+/**
+ * 서버에서 AI 분석 스튜디오의 세션 상태를 불러옵니다.
+ */
+export async function getAIStudioSessionAction() {
+    const user = await getSessionAction();
+    if (!user) return null;
+
+    const tableName = 'ai_studio_session';
+    
+    try {
+        const results = await queryTable(tableName, { filters: { userId: user.id } });
+        if (results && results.length > 0) {
+            return JSON.parse(results[0].data);
+        }
+    } catch (e) {
+        // 테이블이 없거나 데이터가 없는 경우 무시 (새로운 분석을 위해 null 반환)
+    }
+    return null;
+}
+
+/**
+ * 서버의 AI 분석 스튜디오 세션 상태를 초기화합니다.
+ */
+export async function clearAIStudioSessionAction() {
+    const user = await getSessionAction();
+    if (!user) return { success: false };
+
+    const tableName = 'ai_studio_session';
+    
+    try {
+        await deleteRows(tableName, { filters: { userId: user.id } });
+        return { success: true };
+    } catch (e) {
+        return { success: false };
+    }
 }

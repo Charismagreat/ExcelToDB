@@ -2,11 +2,27 @@ import React from 'react';
 import { getSessionAction } from '@/app/actions';
 import DeleteReportButton from '@/components/DeleteReportButton';
 import Link from 'next/link';
-import { FileSpreadsheet, User, LayoutDashboard, Trash2, ShieldCheck, ExternalLink, Wallet, Database } from 'lucide-react';
+import { 
+  FileSpreadsheet, 
+  LayoutDashboard, 
+  User, 
+  Trash2, 
+  ExternalLink, 
+  Plus, 
+  ShieldCheck, 
+  Wallet, 
+  Database,
+  BarChart3,
+  Sparkles,
+  ArrowRight,
+  Star,
+  Compass
+} from 'lucide-react';
 import NewTableSection from '@/components/NewTableSection';
 import { redirect } from 'next/navigation';
 import LogoutButton from '@/components/LogoutButton';
 import { queryTable, aggregateTable } from '@/egdesk-helpers';
+import NavigationSidebar from '@/components/NavigationSidebar';
 
 export default async function DashboardPage() {
   // 실제 세션 사용자 정보 가져오기
@@ -35,12 +51,12 @@ export default async function DashboardPage() {
     if (r.id === 'test-report-id') {
       return { ...r, _count: { rows: 133 }, isDirectTable: true };
     }
-    const rowCountResult = await aggregateTable('report_row', 'id', 'COUNT', { 
-        filters: { reportId: r.id, isDeleted: '0' } 
+    const rowCountResult = await aggregateTable('report_row', 'id', 'COUNT', {
+      filters: { reportId: r.id, isDeleted: '0' }
     });
     return {
-        ...r,
-        _count: { rows: Number(rowCountResult) || 0 }
+      ...r,
+      _count: { rows: Number(rowCountResult) || 0 }
     };
   }));
 
@@ -49,10 +65,10 @@ export default async function DashboardPage() {
     {
       id: 'finance-hub-table',
       name: '금융거래 통합 내역 (FinanceHub)',
-      sheetName: 'Transactions',
-      columns: '[]',
+      sheetName: 'FinanceHub',
       _count: { rows: '연동 중' },
-      isFinanceTable: true
+      isFinanceTable: true,
+      isReadOnly: true // 읽기 전용 상태 명시
     },
     ...reports
   ];
@@ -60,141 +76,167 @@ export default async function DashboardPage() {
   const isStaff = user.role === 'VIEWER';
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-[family-name:var(--font-geist-sans)]">
-      <header className="max-w-6xl mx-auto flex justify-between items-center mb-12">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-lg text-white">
-              <LayoutDashboard size={24} />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Excel to DB</h1>
-          </div>
-          {!isStaff && (
-            <Link 
-              href="/archive" 
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-100 rounded-full text-xs font-black text-gray-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm"
-            >
-              <Trash2 size={14} />
-              DELETED TABLES
-            </Link>
-          )}
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-4 bg-white px-4 py-2 border rounded-full shadow-sm text-sm font-medium text-gray-700">
-            <User size={18} className="text-blue-500" />
-            <span>{user.username} ({user.role})</span>
-          </div>
-          <LogoutButton />
-        </div>
-      </header>
+    <div className="flex min-h-screen bg-[#f8fafc]">
+      <NavigationSidebar user={user} />
+      <div className="flex-1 ml-72 flex flex-col min-w-0 overflow-hidden">
+        <main className="max-w-6xl mx-auto p-8 md:p-12 space-y-16 w-full overflow-y-auto">
+          {!isStaff && <NewTableSection userId={user.id} />}
 
-      <main className="max-w-6xl mx-auto space-y-16">
-        {!isStaff && <NewTableSection userId={user.id} />}
-
-        {/* Reports List */}
-        <section>
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet size={20} className="text-blue-600" />
-              <h2 className="text-lg font-bold text-gray-800">{isStaff ? '나의 업무 테이블' : 'My Tables'}</h2>
-            </div>
-            <span className="text-sm text-gray-500">총 {reports.length}개</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* System Users Table (Admin/Editor only) */}
-            {(user.role === 'ADMIN' || user.role === 'EDITOR') && (
-              <div className="relative group bg-indigo-600 border border-indigo-500 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-indigo-200 transition-all duration-300">
-                <div className="p-6 text-white">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="bg-white/20 text-white p-2.5 rounded-xl backdrop-blur-md group-hover:scale-110 transition-transform">
-                      <User size={20} strokeWidth={2.5} />
-                    </div>
-                    <span className="px-2 py-0.5 bg-white/20 rounded text-[9px] font-black uppercase tracking-widest border border-white/10">System Table</span>
-                  </div>
-                  <h3 className="text-lg font-black mb-1 truncate">시스템 사용자 관리</h3>
-                  <div className="flex items-center gap-2 text-sm text-indigo-100 mb-4 opacity-80 font-semibold">
-                    <span>직원 계정 보관소</span>
-                    <span>•</span>
-                    <span>관리자 전용</span>
-                  </div>
+          {/* Dashboard Hero Banner */}
+          <section className="relative overflow-hidden bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-gray-900/5 group">
+            <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-blue-50/50 to-transparent pointer-events-none" />
+            <div className="relative p-10 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8">
+              <div className="flex-1 space-y-4">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-100">
+                  <Sparkles size={12} />
+                  DATA CENTER
+                </div>
+                <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight">
+                  데이터를 한눈에 통찰하는<br/>
+                  <span className="text-blue-600">DASHBOARD</span>
+                </h2>
+                <p className="text-gray-500 font-medium max-w-lg leading-relaxed">
+                  모든 테이블의 데이터를 통합하여 시각화하고 실시간 통계를 확인하세요. 
+                  FinanceHub와 연동된 금융 데이터도 함께 분석할 수 있습니다.
+                </p>
+                <div className="flex flex-wrap gap-4">
                   <Link 
-                    href="/users"
-                    className="block w-full text-center py-2.5 px-4 bg-white text-indigo-600 font-black rounded-xl hover:bg-indigo-50 transition-all text-xs uppercase tracking-widest"
+                    href="/dashboard"
+                    className="inline-flex items-center gap-3 px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-black transition-all active:scale-95 group/btn shadow-xl shadow-blue-500/20"
                   >
-                    Open Management
+                    DASHBOARD 보기
+                    <Star size={18} />
+                  </Link>
+                  <Link 
+                    href="/dashboard/studio"
+                    className="inline-flex items-center gap-3 px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-indigo-600 transition-all active:scale-95 group/btn shadow-xl shadow-gray-200"
+                  >
+                    ANALYSIS STUDIO 시작
+                    <ArrowRight size={20} className="group-hover/btn:translate-x-1 transition-transform" />
                   </Link>
                 </div>
               </div>
-            )}
-
-            {reports.map((report: any) => (
-              <div key={report.id} className="relative group bg-white border rounded-2xl overflow-hidden hover:border-blue-300 hover:shadow-xl transition-all duration-300">
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className={`p-2.5 rounded-xl transition-colors ${
-                      report.isFinance ? 'bg-indigo-50 text-indigo-600' :
-                      report.isDirectTable ? 'bg-slate-50 text-slate-600' :
-                      (isStaff ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-700 group-hover:bg-blue-600 group-hover:text-white')
-                    }`}>
-                      {report.isFinance ? <Wallet size={20} /> :
-                       report.isDirectTable ? <Database size={20} /> :
-                       (isStaff ? <ShieldCheck size={20} /> : <FileSpreadsheet size={20} />)}
+              <div className="w-full md:w-auto flex items-center justify-center">
+                <div className="relative w-48 h-48 md:w-64 md:h-64 bg-blue-50 rounded-[60px] flex items-center justify-center transform rotate-6 group-hover:rotate-0 transition-transform duration-500">
+                  <BarChart3 size={80} className="text-blue-600 opacity-20" strokeWidth={1} />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-32 h-32 bg-white rounded-[40px] shadow-2xl flex items-center justify-center animate-pulse">
+                       <LayoutDashboard size={48} className="text-blue-600" />
                     </div>
-                    {!isStaff && <DeleteReportButton reportId={report.id} reportName={report.name} />}
-                    {isStaff && (
-                      <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-black rounded uppercase tracking-widest border border-amber-100">
-                        Authorized
-                      </span>
-                    )}
                   </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">{report.name}</h3>
-                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-                    <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-medium uppercase">{report.sheetName || 'Sheet'}</span>
-                    <span>•</span>
-                    <span>{report._count.rows}개의 데이터</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Reports List */}
+          <section>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet size={20} className="text-blue-600" />
+                <h2 className="text-lg font-bold text-gray-800">{isStaff ? '나의 MY DB' : 'MY DB'}</h2>
+              </div>
+              <span className="text-sm text-gray-500">총 {reports.length}개</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* System Users Table (Admin/Editor only) */}
+              {(user.role === 'ADMIN' || user.role === 'EDITOR') && (
+                <div className="relative group bg-indigo-600 border border-indigo-500 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-indigo-200 transition-all duration-300">
+                  <div className="p-6 text-white">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="bg-white/20 text-white p-2.5 rounded-xl backdrop-blur-md group-hover:scale-110 transition-transform">
+                        <User size={20} strokeWidth={2.5} />
+                      </div>
+                      <span className="px-2 py-0.5 bg-white/20 rounded text-[9px] font-black uppercase tracking-widest border border-white/10">System Table</span>
+                    </div>
+                    <h3 className="text-lg font-black mb-1 truncate">시스템 사용자 관리</h3>
+                    <div className="flex items-center gap-2 text-sm text-indigo-100 mb-4 opacity-80 font-semibold">
+                      <span>직원 계정 보관소</span>
+                      <span>•</span>
+                      <span>관리자 전용</span>
+                    </div>
+                    <Link
+                      href="/users"
+                      className="block w-full text-center py-2.5 px-4 bg-white text-indigo-600 font-black rounded-xl hover:bg-indigo-50 transition-all text-xs uppercase tracking-widest"
+                    >
+                      Open Management
+                    </Link>
                   </div>
-                  <Link 
-                    href={
-                      report.isFinance ? '/dashboard' : 
-                      report.isDirectTable ? `/report/${report.id}` :
-                      (isStaff ? `/report/${report.id}/input` : `/report/${report.id}`)
-                    }
-                    className={`block w-full text-center py-2.5 px-4 font-black rounded-xl transition-all text-xs uppercase tracking-[0.1em] border ${
-                        report.isFinance 
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600' 
-                        : (isStaff ? 'bg-amber-600 text-white hover:bg-amber-700 border-amber-600 shadow-lg shadow-amber-500/20' : 'bg-gray-50 text-blue-600 border-blue-50 group-hover:bg-blue-600 group-hover:text-white')
-                    }`}
-                  >
-                    {report.isFinance ? 'Open Finance Hub' : 
-                     report.isDirectTable ? 'View Raw Table' :
-                     (isStaff ? (
-                        <span className="flex items-center justify-center gap-2">
-                           Open Data Entry <ExternalLink size={14} />
+                </div>
+              )}
+
+              {reports.map((report: any) => (
+                <div key={report.id} className="relative group bg-white border rounded-2xl overflow-hidden hover:border-blue-300 hover:shadow-xl transition-all duration-300">
+                  <div className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={`p-2.5 rounded-xl transition-colors ${report.isFinance ? 'bg-indigo-50 text-indigo-600' :
+                          report.isDirectTable ? 'bg-slate-50 text-slate-600' :
+                            (isStaff ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-700 group-hover:bg-blue-600 group-hover:text-white')
+                        }`}>
+                        {report.isFinance ? <Wallet size={20} /> :
+                          report.isDirectTable ? <Database size={20} /> :
+                            (isStaff ? <ShieldCheck size={20} /> : <FileSpreadsheet size={20} />)}
+                      </div>
+                      {report.isReadOnly && (
+                        <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[9px] font-black rounded uppercase tracking-widest border border-amber-100 animate-pulse">
+                          Read-Only
                         </span>
-                    ) : 'View Table')}
-                  </Link>
+                      )}
+                      {!isStaff && !report.isReadOnly && <DeleteReportButton reportId={report.id} reportName={report.name} />}
+                      {isStaff && (
+                        <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-black rounded uppercase tracking-widest border border-amber-100">
+                          Authorized
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">{report.name}</h3>
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
+                      <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-medium uppercase">{report.sheetName || 'Sheet'}</span>
+                      <span>•</span>
+                      <span>{report._count.rows}개의 데이터</span>
+                    </div>
+                    <Link
+                      href={
+                        report.isFinance ? '/dashboard' :
+                          report.isDirectTable ? `/report/${report.id}` :
+                            (isStaff ? `/report/${report.id}/input` : `/report/${report.id}`)
+                      }
+                      className={`block w-full text-center py-2.5 px-4 font-black rounded-xl transition-all text-xs uppercase tracking-[0.1em] border ${report.isFinance
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600'
+                          : (isStaff ? 'bg-amber-600 text-white hover:bg-amber-700 border-amber-600 shadow-lg shadow-amber-500/20' : 'bg-gray-50 text-blue-600 border-blue-50 group-hover:bg-blue-600 group-hover:text-white')
+                        }`}
+                    >
+                      {report.isFinance ? 'Open Finance Hub' :
+                        report.isDirectTable ? 'View Raw Table' :
+                          (isStaff ? (
+                            <span className="flex items-center justify-center gap-2">
+                              Open Data Entry <ExternalLink size={14} />
+                            </span>
+                          ) : 'View Table')}
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            ))}
-            {reports.length === 0 && (
-              <div className="col-span-full py-20 bg-white border border-dashed rounded-3xl flex flex-col items-center justify-center text-gray-400">
-                {isStaff ? (
+              ))}
+              {reports.length === 0 && (
+                <div className="col-span-full py-20 bg-white border border-dashed rounded-3xl flex flex-col items-center justify-center text-gray-400">
+                  {isStaff ? (
                     <>
-                        <ShieldCheck size={48} className="mb-4 opacity-20" />
-                        <p className="text-sm font-medium">배정된 업무 테이블이 없습니다. 관리자에게 문의해 주세요.</p>
+                      <ShieldCheck size={48} className="mb-4 opacity-20" />
+                      <p className="text-sm font-medium">배정된 업무 테이블이 없습니다. 관리자에게 문의해 주세요.</p>
                     </>
-                ) : (
+                  ) : (
                     <>
-                        <FileSpreadsheet size={48} className="mb-4 opacity-20" />
-                        <p className="text-sm font-medium">관리 중인 보고서가 없습니다. 엑셀 파일을 업로드해 보세요.</p>
+                      <FileSpreadsheet size={48} className="mb-4 opacity-20" />
+                      <p className="text-sm font-medium">관리 중인 보고서가 없습니다. 엑셀 파일을 업로드해 보세요.</p>
                     </>
-                )}
-              </div>
-            )}
-          </div>
-        </section>
-      </main>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        </main>
+      </div>
     </div>
   );
 }

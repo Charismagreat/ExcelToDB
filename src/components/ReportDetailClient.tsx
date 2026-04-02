@@ -18,6 +18,7 @@ interface ReportDetailClientProps {
     isOwner: boolean;
     isAdmin: boolean;
     canEdit: boolean;
+    isReadOnly?: boolean;
     id: string;
 }
 
@@ -29,6 +30,7 @@ export default function ReportDetailClient({
     isOwner, 
     isAdmin, 
     canEdit,
+    isReadOnly = false,
     id
 }: ReportDetailClientProps) {
     const [showAddRecordForm, setShowAddRecordForm] = useState(false);
@@ -56,16 +58,17 @@ export default function ReportDetailClient({
     return (
         <main className="max-w-6xl mx-auto space-y-10 pb-32">
             <ReportHeader 
-                reportId={report.id}
-                initialName={report.name}
-                sheetName={report.sheetName || '없음'}
-                createdAt={new Date(report.createdAt).toLocaleDateString()}
+                reportId={id} 
+                initialName={report.name} 
+                sheetName={report.sheetName} 
+                createdAt={report.createdAt}
                 isOwner={isOwner}
                 isAdmin={isAdmin}
                 canEdit={canEdit}
+                isReadOnly={isReadOnly || report.isReadOnly}
                 initialColumns={columns}
                 initialSlackWebhookUrl={report.slackWebhookUrl}
-                onToggleAccessManager={() => setShowAccessManager(!showAccessManager)}
+                onToggleAccessManager={() => setShowAccessManager(true)}
             />
 
             {/* Toggled Sections (Inline) */}
@@ -101,6 +104,8 @@ export default function ReportDetailClient({
                         columns={columns} 
                         data={rows} 
                         isOwner={isOwner} 
+                        canEdit={canEdit} 
+                        isReadOnly={isReadOnly || report.isReadOnly}
                         userRole={user?.role}
                         currentUserId={user?.id}
                         onToggleAddRecord={() => {

@@ -1,100 +1,54 @@
 import React from 'react';
-import { getSessionAction } from '@/app/actions';
+import { getSessionAction, getPinnedChartsAction } from '@/app/actions';
 import { redirect } from 'next/navigation';
-import { 
-  getOverallStats, 
-  listAccounts, 
-  queryTransactions, 
-  getMonthlySummary, 
-  getSyncHistory 
-} from '@/financehub-helpers';
-import DashboardClient from './DashboardClient';
-import { LayoutDashboard, Wallet, ArrowUpRight, ArrowDownRight, RefreshCw, Landmark, History, Table as TableIcon } from 'lucide-react';
+import { LayoutDashboard, Compass, Star, Sparkles, Plus, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
+import GalleryClient from './GalleryClient';
 
-export default async function FinanceDashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ page?: string }>;
-}) {
-  const { page: pageStr } = await searchParams;
-  const page = parseInt(pageStr || '1', 10);
-  const pageSize = 10;
-  
+export default async function ReportGalleryPage() {
   const user = await getSessionAction();
   if (!user) {
     redirect('/login');
   }
 
-  // Fetch all necessary data in parallel
-  const [
-    overallStats,
-    accounts,
-    recentTransactions,
-    monthlySummary,
-    syncHistory
-  ] = await Promise.all([
-    getOverallStats(),
-    listAccounts(),
-    queryTransactions({ 
-      limit: pageSize, 
-      offset: (page - 1) * pageSize,
-      orderBy: 'date',
-      orderDir: 'desc'
-    }),
-    getMonthlySummary({ months: 6 }),
-    getSyncHistory(5)
-  ]);
+  const pinnedCharts = await getPinnedChartsAction();
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] transition-colors duration-500">
-      {/* Navigation Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2 group">
-              <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform duration-300">
-                <LayoutDashboard size={20} />
-              </div>
-              <span className="text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
-                Excel2DB FinanceHub
-              </span>
-            </Link>
-            
-            <nav className="hidden md:flex gap-1">
-              <Link href="/dashboard" className="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 transition-colors flex items-center gap-2">
-                <TableIcon size={16} /> Finance Transactions
-              </Link>
-              <Link href="/" className="px-4 py-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-                Excel Tables
-              </Link>
-            </nav>
+    <div className="flex-1 overflow-y-auto">
+      <main className="max-w-[1600px] mx-auto p-8 md:p-12">
+        <div className="flex items-center justify-between mb-12">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+               My Finalized Insights
+               <Sparkles className="text-blue-500" />
+            </h1>
+            <p className="text-slate-500 font-medium mt-2">분석 스튜디오에서 완성하여 핀으로 고정한 핵심 차트 리포트입니다.</p>
           </div>
-
-          <div className="flex items-center gap-4">
-             <div className="hidden sm:flex flex-col items-end mr-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Welcome back</span>
-                <span className="text-sm font-black text-slate-700 dark:text-slate-200">{user.username}</span>
-             </div>
-             <LogoutButton />
-          </div>
+          <Link 
+            href="/dashboard/studio" 
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all"
+          >
+            <Plus size={18} />
+            새 분석 도구 시작하기
+          </Link>
         </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-        <DashboardClient 
-          stats={overallStats} 
-          accounts={accounts} 
-          transactions={recentTransactions} 
-          monthlyData={monthlySummary}
-          syncHistory={syncHistory}
-          currentPage={page}
-        />
+        {pinnedCharts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-20 bg-white rounded-[40px] border border-dashed border-slate-200 text-center">
+            <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-6">
+              <ImageIcon size={40} className="text-slate-200" />
+            </div>
+            <h2 className="text-xl font-black text-slate-900 uppercase tracking-widest mb-2">갤러리가 비어 있습니다</h2>
+            <p className="text-slate-400 font-medium max-w-sm">Data Analysis Studio에서 차트를 분석하고 핀 아이콘을 눌러 이곳에 나만의 리포트를 구성해 보세요.</p>
+          </div>
+        ) : (
+          <GalleryClient initialCharts={pinnedCharts} />
+        )}
       </main>
       
-      <footer className="max-w-7xl mx-auto px-4 py-12 text-center text-slate-400 text-sm border-t border-slate-200 dark:border-slate-800 mt-12">
-        <p>&copy; 2026 ExcelToDB Finance Hub &bull; Powered by EGDesk MCP</p>
+      <footer className="max-w-[1600px] mx-auto px-6 py-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">
+        &copy; 2026 Interactive Report Gallery &bull; Final Insights
       </footer>
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FileText, Edit2, Check, X, Settings, ShieldCheck, Share2, Bell, Loader2 } from 'lucide-react';
+import { FileText, Edit2, Check, X, Settings, ShieldCheck, Share2, Bell, Loader2, Link } from 'lucide-react';
 import { renameReportAction, updateReportWebhookAction } from '@/app/actions';
 import { ColumnDefinition } from '@/lib/excel-parser';
 import SchemaEditor from './SchemaEditor';
@@ -14,6 +14,7 @@ interface ReportHeaderProps {
   isOwner: boolean;
   isAdmin?: boolean;
   canEdit?: boolean;
+  isReadOnly?: boolean;
   initialColumns: ColumnDefinition[];
   initialSlackWebhookUrl?: string | null;
   onToggleAccessManager?: () => void;
@@ -27,6 +28,7 @@ export default function ReportHeader({
   isOwner, 
   isAdmin, 
   canEdit,
+  isReadOnly = false,
   initialColumns, 
   initialSlackWebhookUrl,
   onToggleAccessManager
@@ -135,7 +137,12 @@ export default function ReportHeader({
               ) : (
                 <div className="flex items-center gap-3 group">
                   <h1 className="text-3xl font-black text-gray-900 tracking-tight">{name}</h1>
-                  {isOwner && (
+                  {isReadOnly && (
+                    <div className="px-3 py-1 bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border border-amber-200 shadow-sm animate-pulse">
+                      Read-Only
+                    </div>
+                  )}
+                  {isOwner && !isReadOnly && (
                     <button 
                       onClick={() => setIsEditing(true)}
                       className="p-2 text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100"
@@ -157,7 +164,7 @@ export default function ReportHeader({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {canEdit && (
+            {!isReadOnly && canEdit && (
               <div className="flex items-center gap-3">
                 {(isAdmin || isOwner) && (
                     <button 
@@ -186,15 +193,15 @@ export default function ReportHeader({
                         </>
                     ) : (
                         <>
-                            <Share2 size={16} strokeWidth={2.5} />
-                            Copy Input URL
+                            <Link size={16} />
+                            워크스페이스 URL 복사
                         </>
                     )}
                 </button>
               </div>
             )}
             
-            {(isOwner || isAdmin) && (
+            {!isReadOnly && (isOwner || isAdmin) && (
               <div className="flex items-center gap-3 ml-2 relative">
                 <div className="w-px h-8 bg-gray-100 mx-1" />
                 
