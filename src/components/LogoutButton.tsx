@@ -18,11 +18,10 @@ export default function LogoutButton({ className }: LogoutButtonProps) {
         
         setIsLoading(true);
         try {
-            const result = await logoutAction();
-            if (result.success) {
-                router.push('/login');
-                router.refresh(); // 세션 정보를 위해 강제 새로고침
-            }
+            await logoutAction();
+            // logoutAction calls redirect(), so code below may not execute
+            router.push('/login');
+            router.refresh();
         } catch (error) {
             console.error('Logout failed:', error);
             alert('로그아웃 중 오류가 발생했습니다.');

@@ -15,6 +15,7 @@ interface SelectedField {
     isActive: boolean;
     isRequired: boolean;
     type: string;    // 데이터 타입 (string, number 등)
+    options?: string[]; // 목록형인 경우 선택 옵션
 }
 
 interface ExtendedTableData extends TableData {
@@ -132,8 +133,8 @@ export default function UploadWorkflow({ userId }: { userId: string }) {
                     formDataForAI.append('image', generatedImage);
                     const result = await analyzeExcelScreenshotAction(formDataForAI);
                     
-                    setRecommendations(result.recommendedTables);
-                    applyRecommendation(tables, result.recommendedTables);
+                    setRecommendations(result.recommendedTables || []);
+                    applyRecommendation(tables, result.recommendedTables || []);
                     
                     setStep('select');
                 } catch (err) {
@@ -174,7 +175,7 @@ export default function UploadWorkflow({ userId }: { userId: string }) {
                 if (isSubtotalRow(table.rawRows[i])) continue;
 
                 const row = table.rawRows[i].map(c => c?.toString().trim().toLowerCase() || '');
-                const matches = rec.columns.filter(aiCol => {
+                const matches = rec.columns.filter((aiCol: any) => {
                     const aiLower = aiCol.name.toLowerCase();
                     return row.some(rowCol => rowCol.includes(aiLower) || aiLower.includes(rowCol));
                 }).length;
@@ -203,7 +204,7 @@ export default function UploadWorkflow({ userId }: { userId: string }) {
         // 3. 엑셀 컬럼들을 필드 객체로 변환
         newHeaderNames.forEach(h => {
             // AI 추천 목록에서 해당 컬럼과 유사한 필드 찾기
-            const colRec = rec?.columns.find(c => 
+            const colRec = rec?.columns.find((c: any) => 
               h.toLowerCase().includes(c.name.toLowerCase()) || 
               c.name.toLowerCase().includes(h.toLowerCase())
             );
@@ -317,6 +318,17 @@ export default function UploadWorkflow({ userId }: { userId: string }) {
     });
   };
 
+  const updateFieldOptions = (tableName: string, fieldId: string, optionsStr: string) => {
+    const options = optionsStr.split(/[;\n]/).map(s => s.trim()).filter(s => !!s);
+    setSelectedFields(prev => {
+        const currentFields = [...(prev[tableName] || [])];
+        const updated = currentFields.map(f => 
+            f.id === fieldId ? { ...f, options } : f
+        );
+        return { ...prev, [tableName]: updated };
+    });
+  };
+
   const updateTableName = (idx: number, newName: string) => {
     setPreviewTables(prev => {
         const oldName = prev[idx].name;
@@ -395,10 +407,17 @@ export default function UploadWorkflow({ userId }: { userId: string }) {
     formData.append('configsJson', JSON.stringify(finalConfigs));
     
     try {
-        await uploadExcelAction(formData, userId);
+        const result = await uploadExcelAction(formData, userId);
+        
+        if (result && result.totalRejected > 0) {
+            alert(`⚠️ 업로드 완료 경고\n\n${result.totalRejected}개의 데이터가 필수값이 누락되어 추가되지 않고 생략되었습니다.\n\n[누락 예시]\n${result.rejectedReasons.join('\n')}`);
+        } else {
+            alert('업로드가 완료되었습니다.');
+        }
+        
         window.location.reload();
-    } catch (error) {
-        alert('업로드 중 오류가 발생했습니다.');
+    } catch (error: any) {
+        alert('업로드 중 오류가 발생했습니다: ' + error.message);
         setStep('select');
     }
   };
@@ -564,19 +583,37 @@ export default function UploadWorkflow({ userId }: { userId: string }) {
                           {/* Tags & Controls */}
                           <div className="hidden sm:flex items-center gap-3">
                               {/* Type Select */}
-                              <select 
-                                value={field.type} 
-                                onChange={(e) => updateFieldType(table.name, field.id, e.target.value)}
-                                className={`
-                                    text-[10px] font-black bg-gray-100 border-none rounded-md px-2 py-1.5 outline-none text-gray-500 transition-all
-                                    ${field.isActive ? 'hover:bg-blue-50 hover:text-blue-600' : ''}
-                                `}
-                              >
-                                  <option value="string">STRING</option>
-                                  <option value="number">NUMBER</option>
-                                  <option value="date">DATE</option>
-                                  <option value="currency">CURRENCY</option>
-                              </select>
+                              <div className="flex flex-col gap-1.5">
+                                <select 
+                                  value={field.type} 
+                                  onChange={(e) => updateFieldType(table.name, field.id, e.target.value)}
+                                  className={`
+                                      text-[10px] font-black bg-gray-100 border-none rounded-md px-2 py-1.5 outline-none text-gray-500 transition-all
+                                      ${field.isActive ? 'hover:bg-blue-50 hover:text-blue-600' : ''}
+                                  `}
+                                >
+                                    <option value="string">STRING</option>
+                                    <option value="number">NUMBER</option>
+                                    <option value="date">DATE</option>
+                                    <option value="currency">CURRENCY</option>
+                                    <option value="boolean">BOOLEAN</option>
+                                    <option value="select">SELECT (목록)</option>
+                                    <option value="textarea">TEXTAREA (장문)</option>
+                                    <option value="phone">PHONE</option>
+                                    <option value="email">EMAIL</option>
+                                    <option value="file">FILE/IMAGE</option>
+                                </select>
+
+                                {field.type === 'select' && (
+                                    <textarea 
+                                      rows={2}
+                                      placeholder="엔터 또는 세미콜론(;)으로 항목 구분 (예: 완료; 미결)"
+                                      value={field.options?.join(';\n') || ''}
+                                      onChange={(e) => updateFieldOptions(table.name, field.id, e.target.value)}
+                                      className="text-[10px] font-bold border border-blue-100 rounded-lg outline-none focus:border-blue-500 bg-white/50 px-2 py-1.5 w-64 h-12 text-blue-600 placeholder:text-gray-300 resize-none custom-scrollbar"
+                                    />
+                                )}
+                              </div>
 
                               {/* Required Toggle */}
                               <button 
@@ -594,13 +631,13 @@ export default function UploadWorkflow({ userId }: { userId: string }) {
                               {field.id === '__data_id__' && (
                                   <span className="text-[10px] font-black text-white bg-indigo-500 px-3 py-1.5 rounded-full shadow-sm">DEFAULT_ID</span>
                               )}
-                              {recommendations.some(r => r.columns.some(c => c.name === field.id)) && (
+                              {recommendations.some(r => r.columns.some((c: any) => c.name === field.id)) && (
                                   <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full flex items-center gap-1">
                                       <Sparkles size={10} /> AI_REC
                                   </span>
                               )}
                           </div>
-                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>

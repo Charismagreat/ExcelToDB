@@ -132,8 +132,15 @@ export default function AuditHistoryModal({ rowId, onClose }: AuditHistoryModalP
                             <div className="relative pl-10 space-y-8 before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100">
                                 {/* Histories */}
                                 {auditData?.histories.map((history, idx) => {
-                                    const oldData = JSON.parse(history.oldData);
-                                    const newData = JSON.parse(history.newData);
+                                    let oldData: any = {};
+                                    let newData: any = {};
+                                    try {
+                                        oldData = history.oldData ? JSON.parse(history.oldData) : {};
+                                        newData = history.newData ? JSON.parse(history.newData) : {};
+                                    } catch (e) {
+                                        console.error('JSON parse error in history:', e);
+                                    }
+
                                     const changedFields = Object.keys(newData).filter(key => 
                                         key !== 'id' && key !== 'updatedAt' && JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])
                                     );

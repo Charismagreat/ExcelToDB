@@ -11,7 +11,13 @@ import {
   CheckSquare, 
   ChevronDown, 
   AlertCircle,
-  Loader2
+  Loader2,
+  Banknote,
+  Mail,
+  Phone,
+  AlignLeft,
+  LayoutList,
+  Upload
 } from 'lucide-react';
 import { addRowAction } from '@/app/actions';
 
@@ -27,9 +33,10 @@ interface Column {
 interface DataEntryFormProps {
   reportId: string;
   columns: Column[];
+  onSuccess?: (warning?: string) => void;
 }
 
-export default function DataEntryForm({ reportId, columns }: DataEntryFormProps) {
+export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntryFormProps) {
   const router = useRouter();
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,8 +56,18 @@ export default function DataEntryForm({ reportId, columns }: DataEntryFormProps)
     try {
       const result = await addRowAction(reportId, formData);
       if (result.success) {
-        router.push(`/report/${reportId}`);
-        router.refresh();
+        setFormData({}); // 폼 초기화
+        setIsSubmitting(false); // 버튼 상태 복구
+        router.refresh(); // 데이터 목록 갱신
+
+        if (onSuccess) {
+           onSuccess(result.syncWarning);
+        } else {
+           if (result.syncWarning) {
+              setError(result.syncWarning);
+           }
+           router.push(`/report/${reportId}`);
+        }
       }
     } catch (err: any) {
       setError(err.message || '데이터 저장 중 오류가 발생했습니다.');
@@ -65,10 +82,11 @@ export default function DataEntryForm({ reportId, columns }: DataEntryFormProps)
       case 'select':
         return (
           <div className="relative">
+            <LayoutList className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <select
               value={value}
               onChange={(e) => handleChange(col.name, e.target.value)}
-              className="w-full pl-4 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold appearance-none cursor-pointer"
+              className="w-full pl-11 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold appearance-none cursor-pointer"
               required={col.isRequired}
             >
               <option value="">선택하세요</option>
@@ -111,7 +129,6 @@ export default function DataEntryForm({ reportId, columns }: DataEntryFormProps)
         );
 
       case 'number':
-      case 'currency':
         return (
           <div className="relative">
             <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -123,7 +140,53 @@ export default function DataEntryForm({ reportId, columns }: DataEntryFormProps)
                   const val = e.target.value.replace(/[^0-9.-]/g, '');
                   handleChange(col.name, val);
               }}
-              placeholder={col.type === 'currency' ? '0' : ''}
+              className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
+              required={col.isRequired}
+            />
+          </div>
+        );
+
+      case 'currency':
+        return (
+          <div className="relative">
+            <Banknote className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500/60" size={18} />
+            <input
+              type="text"
+              inputMode="numeric"
+              value={value}
+              onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9.,₩$¥€-]/g, '');
+                  handleChange(col.name, val);
+              }}
+              placeholder="0"
+              className="w-full pl-11 pr-4 py-3 bg-blue-50/30 border border-blue-100/50 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
+              required={col.isRequired}
+            />
+          </div>
+        );
+
+      case 'email':
+        return (
+          <div className="relative">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="email"
+              value={value}
+              onChange={(e) => handleChange(col.name, e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
+              required={col.isRequired}
+            />
+          </div>
+        );
+
+      case 'phone':
+        return (
+          <div className="relative">
+            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="tel"
+              value={value}
+              onChange={(e) => handleChange(col.name, e.target.value)}
               className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
               required={col.isRequired}
             />
@@ -132,13 +195,33 @@ export default function DataEntryForm({ reportId, columns }: DataEntryFormProps)
 
       case 'textarea':
         return (
-          <textarea
-            value={value}
-            onChange={(e) => handleChange(col.name, e.target.value)}
-            rows={4}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold resize-none"
-            required={col.isRequired}
-          />
+          <div className="relative">
+            <AlignLeft className="absolute left-4 top-4 text-gray-400" size={18} />
+            <textarea
+              value={value}
+              onChange={(e) => handleChange(col.name, e.target.value)}
+              rows={4}
+              className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold resize-none"
+              required={col.isRequired}
+            />
+          </div>
+        );
+
+      case 'file':
+        return (
+          <div className="w-full">
+            <label className="flex items-center justify-center gap-3 w-full py-10 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 hover:border-blue-400 transition-all text-gray-400 hover:text-blue-500 group">
+              <input 
+                type="button" // 실제 파일 업로드는 DynamicForm 참고하여 추후 고도화 가능하나, 일단 아이콘 통일
+                className="hidden" 
+              />
+              <Upload size={24} className="group-hover:scale-110 transition-transform" />
+              <div className="text-left">
+                <p className="text-xs font-black uppercase tracking-widest leading-none mb-1">Click to upload</p>
+                <p className="text-[10px] font-bold text-gray-400">Image, PDF, or Doc files</p>
+              </div>
+            </label>
+          </div>
         );
 
       default:

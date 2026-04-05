@@ -1,6 +1,21 @@
 import { getSessionAction } from '@/app/actions';
-import { queryTable } from '@/egdesk-helpers';
+import { queryTable, getTableSchema } from '@/egdesk-helpers';
 import { queryTransactions, queryCardTransactions } from '@/financehub-helpers';
+
+/**
+ * 컬럼명을 기반으로 적절한 필드 타입을 추론합니다.
+ */
+function inferColumnType(name: string): string {
+  const lowercase = name.toLowerCase();
+  if (lowercase.includes('date') || lowercase.includes('at') || lowercase.includes('time')) return 'date';
+  if (lowercase.includes('amount') || lowercase.includes('price') || lowercase.includes('cost') || lowercase.includes('fee')) return 'currency';
+  if (lowercase.includes('count') || lowercase.includes('quantity') || (lowercase.includes('id') && lowercase !== 'id' && !lowercase.includes('uuid'))) return 'number';
+  if (lowercase.startsWith('is') || lowercase.startsWith('has') || lowercase === 'active' || lowercase === 'deleted') return 'boolean';
+  if (lowercase.includes('memo') || lowercase.includes('description') || lowercase.includes('data')) return 'textarea';
+  if (lowercase.includes('email')) return 'email';
+  if (lowercase.includes('phone') || lowercase.includes('tel') || lowercase.includes('mobile')) return 'phone';
+  return 'string';
+}
 import ReportDetailClient from '@/components/ReportDetailClient';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -26,11 +41,21 @@ export default async function ReportDetailPage({
   if (id === 'test-report-id') {
     const { TABLES } = await import('@/egdesk.config');
     const tableDef = TABLES.table1;
+    const physicalSchema = await getTableSchema(tableDef.name).catch(() => []);
+    
     report = {
       id: 'test-report-id',
       name: tableDef.displayName,
       sheetName: 'Main Database',
-      columns: JSON.stringify(tableDef.columns.map((c: string) => ({ name: c, type: 'string' }))),
+      columns: JSON.stringify(tableDef.columns.map((c: string) => {
+        const pCol = physicalSchema.find((ps: any) => ps.name === c);
+        let type = inferColumnType(c);
+        if (pCol) {
+          if (pCol.type === 'REAL' || pCol.type === 'INTEGER') type = 'number';
+          if (pCol.type === 'DATE') type = 'date';
+        }
+        return { name: c, type };
+      })),
       ownerId: 'system',
     };
     const rowsData = await queryTable(tableDef.name, { limit: 100 });
@@ -86,32 +111,226 @@ export default async function ReportDetailPage({
       updatedAt: new Date().toISOString(),
     }));
 
-    columns = financeColumns;
+    columns = financeColumns.map(c => ({
+        ...c,
+        type: c.name === 'amount' || c.name === 'foreignAmountUsd' ? 'currency' : (c.name.includes('Date') || c.name.includes('At') || c.name === 'date' ? 'date' : 'string')
+    }));
+    report.columns = JSON.stringify(columns);
 
     // SERVER DEBUG LOG
     console.log('>>> [SERVER DEBUG] FinanceHub Transactions count:', rows.length);
   } else {
-    const reports = await queryTable('report', { filters: { id } });
-    report = reports[0];
+    const { getTableByName } = await import('@/egdesk.config');
+    const systemTableDef = getTableByName(id);
 
-    if (!report) {
-      return <div className="p-20 text-center text-gray-500 font-bold">보고서를 찾을 수 없거나 삭제되었습니다.</div>;
+    if (systemTableDef) {
+      const physicalSchema = await getTableSchema(systemTableDef.name).catch(() => []);
+      
+      report = {
+        id: systemTableDef.name,
+        name: systemTableDef.displayName,
+        sheetName: 'System Table',
+        columns: JSON.stringify(systemTableDef.columns.map((c: string) => {
+           const pCol = physicalSchema.find((ps: any) => ps.name === c);
+           let type = inferColumnType(c);
+           if (pCol) {
+             if (pCol.type === 'REAL' || pCol.type === 'INTEGER') {
+               type = (c.startsWith('is') || c.startsWith('has') || c === 'active') ? 'boolean' : 'number';
+             }
+             if (pCol.type === 'DATE') type = 'date';
+           }
+           return { name: c, type };
+        })),
+        ownerId: 'system',
+        isReadOnly: true,
+      };
+      
+      try {
+        const rowsData = await queryTable(systemTableDef.name, { limit: 1000 });
+        rows = rowsData.map((r: any, idx: number) => ({
+           ...r, 
+           id: String(r.id || idx), 
+           updatedAt: r.updatedAt || new Date().toISOString() 
+        }));
+      } catch (err) {
+        console.error(`Failed to load system table ${systemTableDef.name}`, err);
+        rows = [];
+      }
+      columns = JSON.parse(report.columns);
+    } else {
+      const reports = await queryTable('report', { filters: { id } });
+      report = reports[0];
+
+      if (!report) {
+        // 혹시 가상 보고서가 아니라 시스템에 존재하는 원시 물리 테이블명으로 직접 접근한 경우인지 확인합니다.
+        const rawPhysicalSchema = await getTableSchema(id).catch(() => []);
+        if (rawPhysicalSchema && rawPhysicalSchema.length > 0) {
+            const { listTables } = await import('@/egdesk-helpers');
+            const tablesRes = await listTables().catch(() => ({ tables: [] }));
+            const matchedTable = tablesRes?.tables?.find((t: any) => t.tableName === id);
+            const displayName = matchedTable?.displayName || id;
+
+            report = {
+                id: id,
+                name: displayName,
+                sheetName: 'Raw Physical Table',
+                columns: JSON.stringify(rawPhysicalSchema.map((ps: any) => {
+                    let type = inferColumnType(ps.name);
+                    if (ps.type === 'REAL' || ps.type === 'INTEGER') {
+                        type = (ps.name.toLowerCase().startsWith('is') || ps.name.toLowerCase().startsWith('has') || ps.name.toLowerCase() === 'active') ? 'boolean' : 'number';
+                    }
+                    if (ps.type === 'DATE') type = 'date';
+                    return { name: ps.name, type };
+                })),
+                ownerId: 'system',
+                isReadOnly: true,
+            };
+
+            try {
+                const rowsData = await queryTable(id, { limit: 1000 });
+                rows = rowsData.map((r: any, idx: number) => ({
+                    ...r,
+                    id: String(r.id || r.did || idx),
+                    updatedAt: r.updatedAt || new Date().toISOString()
+                }));
+            } catch (err) {
+                console.error(`Failed to load raw physical table ${id}:`, err);
+                rows = [];
+            }
+            columns = JSON.parse(report.columns);
+        } else {
+            return <div className="p-20 text-center text-gray-500 font-bold">보고서를 찾을 수 없거나 삭제되었습니다.</div>;
+        }
+      } else {
+          const physicalSchema = report.tableName ? await getTableSchema(report.tableName).catch(() => []) : [];
+      const columnsData = JSON.parse(report.columns);
+      
+      columns = columnsData.map((c: any) => {
+        let colObj = typeof c === 'string' ? { name: c, type: inferColumnType(c) } : c;
+        // 물리적 스키마와 비교하여 타입 보정 (예: DB가 REAL인데 메타데이터가 string인 경우)
+        const pCol = physicalSchema.find((ps: any) => ps.name === colObj.name);
+        if (pCol) {
+          if (pCol.type === 'REAL' && (colObj.type === 'string' || colObj.type === 'TEXT')) colObj.type = 'number';
+          if (pCol.type === 'INTEGER' && (colObj.type === 'string' || colObj.type === 'TEXT')) colObj.type = 'number';
+          if (pCol.type === 'DATE' && (colObj.type === 'string' || colObj.type === 'TEXT')) colObj.type = 'date';
+        }
+        return colObj;
+      });
+
+      if (report.tableName) {
+          // 물리적 테이블이 있는 경우 해당 테이블에서 직접 조회
+          try {
+              const rowsData = await queryTable(report.tableName, { limit: 1000 });
+              const virtualRows = await queryTable('report_row', { filters: { reportId: id }, limit: 10000 });
+              
+              const idColDef = columnsData.find((c: any) => c.isAutoGenerated || c.name === '데이터ID');
+              const idColName = idColDef ? idColDef.name : null;
+              
+              const usedVirtualIds = new Set();
+
+              rows = rowsData.map((r: any, idx: number) => {
+                  let uuid = r.id || r.did || `row-${idx}`;
+                  let updatedAt = r.updatedAt || report.createdAt;
+                  let isDeleted = false;
+                  let creatorId = 'system';
+                  
+                  // 1. Try to find by unique exact ID
+                  let vr = virtualRows.find((v: any) => {
+                      if (usedVirtualIds.has(v.id)) return false;
+                      try {
+                          const d = JSON.parse(v.data);
+                          if (idColName && d[idColName] && r[idColName] && String(d[idColName]) === String(r[idColName])) return true;
+                          if (d.id && r.id && String(d.id) === String(r.id)) return true;
+                          return false;
+                      } catch(e) { return false; }
+                  });
+                  
+                  // 2. If no unique ID could match, try to match by all row fields (content match)
+                  if (!vr) {
+                      vr = virtualRows.find((v: any) => {
+                          if (usedVirtualIds.has(v.id)) return false;
+                          try {
+                              const d = JSON.parse(v.data);
+                              // Match every column (excluding dynamically added ones)
+                              const matches = columnsData.every((c: any) => {
+                                  if (c.isAutoGenerated) return true;
+                                  return String(d[c.name] || '') === String(r[c.name] || '');
+                              });
+                              return matches;
+                          } catch(e) { return false; }
+                      });
+                  }
+
+                  if (vr) {
+                      usedVirtualIds.add(vr.id);
+                      uuid = vr.id;
+                      updatedAt = vr.updatedAt;
+                      isDeleted = (vr.isDeleted === 1 || String(vr.isDeleted) === '1' || vr.isDeleted === true);
+                      creatorId = vr.creatorId;
+                  }
+
+                  return {
+                      ...r,
+                      id: uuid,
+                      _physicalId: r.id, 
+                      updatedAt,
+                      isDeleted,
+                      creatorId
+                  };
+              });
+
+              // Append soft-deleted virtual rows that have been removed from the physical table
+              virtualRows.forEach((v: any) => {
+                  if (!usedVirtualIds.has(v.id)) {
+                      const isDeleted = (v.isDeleted === 1 || String(v.isDeleted) === '1' || v.isDeleted === true);
+                      if (isDeleted) {
+                          try {
+                              const d = JSON.parse(v.data);
+                              rows.push({
+                                  ...d,
+                                  id: v.id,
+                                  updatedAt: v.updatedAt,
+                                  isDeleted: true,
+                                  creatorId: v.creatorId
+                              });
+                          } catch(e) {}
+                      }
+                  }
+              });
+          } catch (err) {
+              console.error(`Physical table ${report.tableName} query failed:`, err);
+              // Fallback to report_row if physical table fails
+              const rowsData = await queryTable('report_row', {
+                  filters: { reportId: id },
+                  orderBy: 'updatedAt',
+                  orderDirection: 'DESC'
+              });
+              rows = rowsData.map((r: any) => ({
+                  ...JSON.parse(r.data),
+                  id: r.id,
+                  updatedAt: r.updatedAt,
+                  isDeleted: r.isDeleted === 1,
+                  creatorId: r.creatorId
+              }));
+          }
+      } else {
+          // 기존 가상 테이블(report_row) 방식 유지
+          const rowsData = await queryTable('report_row', {
+            filters: { reportId: id },
+            orderBy: 'updatedAt',
+            orderDirection: 'DESC'
+          });
+
+          rows = rowsData.map((r: any) => ({
+            ...JSON.parse(r.data),
+            id: r.id,
+            updatedAt: r.updatedAt,
+            isDeleted: r.isDeleted === 1,
+            creatorId: r.creatorId
+          }));
+      }
+      }
     }
-
-    const rowsData = await queryTable('report_row', {
-      filters: { reportId: id },
-      orderBy: 'updatedAt',
-      orderDirection: 'DESC'
-    });
-
-    columns = JSON.parse(report.columns);
-    rows = rowsData.map((r: any) => ({
-      ...JSON.parse(r.data),
-      id: r.id,
-      updatedAt: r.updatedAt,
-      isDeleted: r.isDeleted === 1,
-      creatorId: r.creatorId
-    }));
   }
 
   const isOwner = report.ownerId === user?.id || report.ownerId === 'system';

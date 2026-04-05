@@ -11,7 +11,8 @@ import {
   User as UserIcon, 
   Layers,
   ChevronRight,
-  Database
+  Database,
+  Archive
 } from 'lucide-react';
 import LogoutButton from './LogoutButton';
 
@@ -43,6 +44,13 @@ export default function NavigationSidebar({ user }: NavigationSidebarProps) {
       icon: Compass,
       active: pathname === '/dashboard/studio',
       desc: 'AI 기반 데이터 시각화'
+    },
+    {
+      name: 'ARCHIVE',
+      href: '/archive',
+      icon: Archive,
+      active: pathname === '/archive',
+      desc: '삭제된 테이블 관리'
     },
   ];
 

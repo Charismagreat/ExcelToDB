@@ -15,6 +15,7 @@ export default async function DataAnalysisStudioPage() {
 
   // Fetch all user-managed reports (tables)
   const reportsData = await queryTable('report', { 
+    filters: { isDeleted: '0' },
     orderBy: 'updatedAt',
     orderDirection: 'DESC'
   });

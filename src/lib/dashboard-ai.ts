@@ -43,8 +43,21 @@ const tools: any[] = [
         }
       },
       {
+        name: "get_aggregated_report_data",
+        description: "항목별로 값을 집계(SUM)합니다. 삭제되지 않은 유효 데이터만 계산합니다. groupByKey와 sumKey는 반드시 테이블 스키마의 실제 필드명(예: '구 분', '금 액')을 사용하세요. 반환 형식은 항상 고정: [{label: '그룹값', value: 합계숫자}, ...] 입니다. 차트를 만들 때 반드시 xAxis는 'label', series의 key는 'value'로 설정하세요.",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            tableId: { type: SchemaType.STRING, description: "보고서 ID" },
+            groupByKey: { type: SchemaType.STRING, description: "집계 기준 열 (스키마의 실제 키, 예: '구 분')" },
+            sumKey: { type: SchemaType.STRING, description: "합산할 열 (스키마의 실제 키, 예: '금 액')" }
+          },
+          required: ["tableId", "groupByKey", "sumKey"]
+        }
+      },
+      {
         name: "execute_analytical_sql",
-        description: "워크스페이스 테이블에 대해 복잡한 분석 SQL(SELECT)을 실행합니다. 집계, 그룹화 등에 사용하세요. 테이블명은 'report_row'이며 'reportId' 필터가 필수입니다.",
+        description: "데이터 필터링 등 단순 조회용 원시 쿼리입니다. 테이블명은 'report_row'. WHERE 조건 예시: WHERE reportId = 'xxx'. 주의: 데이터베이스 보안 필터에 의해 'DELETE' 텍스트(isDeleted 등 포함)가 포함되면 즉시 차단되므로 단일 항목 집계를 원한다면 절대 이 도구보다 'get_aggregated_report_data'를 쓰세요. 불가피할 때만 쓰세요.",
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
@@ -122,7 +135,7 @@ async function getInitialContext(tableIds: string[]) {
         id,
         name: report.name,
         schema: JSON.parse(report.columns),
-        availableTools: ['execute_analytical_sql', 'query_workspace_table']
+        availableTools: ['get_aggregated_report_data', 'execute_analytical_sql', 'query_workspace_table']
       };
     }
   }));
@@ -162,12 +175,16 @@ export async function getVisualizationRecommendation(
     2. **표 형식 시각화 통합**: 사용자가 "표 형식으로 보여줘", "내역을 보여줘", "리스트로 보여줘"라고 요청하면, 'content'에는 간단한 요약만 작성하고 **상세 데이터는 반드시 'chartConfigs' 내에 'type: "table"'을 사용하여 독립된 표 컴포넌트로 생성**하십시오.
     3. **최근 데이터 해석**: 
        - 유선/금융 테이블의 경우 현재 일시를 기준으로 기간을 설정하십시오. 
-       - 일반 워크스페이스 테이블에서 "최근 10개 내역" 등을 요청하면 'execute_analytical_sql'을 사용하여 'ORDER BY ... DESC LIMIT 10' 쿼리를 수행하십시오.
-    4. 당신이 이전에 생성한 차트나 분석 내용을 기억하고, 사용자가 "그 차트에 ~를 추가해줘"라고 하면 이전 대화 맥락을 바탕으로 수정된 JSON을 제공하세요.
-    5. 만약 사용자의 메시지가 "[대상 차트: '차트제목'] {요청내용}" 형식이면, 당신이 이전에 생성한 차트 중 해당 제목을 가진 차트를 찾아 그 설정을 수정하는 것에 집중하세요. 다른 차트들은 그대로 두거나 필요한 경우에만 업데이트하세요.
+       - 일반 워크스페이스 테이블에서 "최근 10개 내역" 등을 요청하면 'execute_analytical_sql'을 사용하여 'ORDER BY createdAt DESC LIMIT 10' 쿼리를 수행하십시오. 
+       - 데이터는 'data'라는 JSON 컬럼을 쓰므로 직접 SQL을 쓸 땐 \`data->>'속성명'\` 을 씁니다.
+       - **중요 (SQL 보안 제한)**: 쿼리에 \`DELETE\` 텍스트가 한 글자라도 들어가면(예: \`isDeleted\`, \`deletedAt\`) 백엔드 보안 필터가 즉시 쿼리를 차단하고 에러를 뿜습니다. 따라서 SQL 내에서 isDeleted 등의 필터링 구문을 절대 사용하지 마세요.
+       - **가장 좋은 해결책**: 차트를 위한 데이터 집계 요청 시 **'get_aggregated_report_data'** 도구를 적극 사용하세요. 
+       - **필수(차트 축 규칙)**: 'get_aggregated_report_data' 도구는 항상 [{label: "그룹명", value: 숫자}, ...] 형식으로 결과를 반환합니다. 따라서 이 도구의 결과로 차트를 만들 때는 **반드시** xAxis를 "label"로, series를 [{key: "value", name: "표시할 이름"}]으로 설정하세요. 이것을 지키지 않으면 차트에 '알 수 없음'만 표시되는 치명적 오류가 발생합니다!
+    4. 당신이 이전에 생성한 차트나 분석 내용을 기억하고, 사용자가 "그 차트에 ~를 추가해줘"라고 하면 이전 대화 맥락을 바탕으로 수정된 내용을 반영하여 도출하세요. 단, 이전에 시각화된 데이터가 화면에서 사라지지 않도록 응답에는 이전에 출력했던 다른 차트들을 포함한 **전체 chartConfigs 배열을 반드시 반환**하세요.
+    5. 만약 사용자의 메시지가 "[대상 차트: '차트제목'] {요청내용}" 형식이면, 해당 제목을 가진 차트를 찾아 설정을 수정하세요. 다른 원본 차트들은 그대로 유지한 상태로, 이들을 모두 합쳐서 전체 chartConfigs 배열로 반환해야 합니다. 일부만 반환하면 화면에서 기존 차트가 날아가는 버그가 생깁니다.
     6. **정밀 색상 제어**: 차트의 개별 요소(막대, 파이 조각 등)의 색상을 개별적으로 지정하려면 'data' 배열의 각 객체에 '"color": "#hex"' 속성을 추가하십시오. 특정 항목의 색상만 변경하라는 요청을 받으면, **해당 항목의 색상만 수정하고 다른 항목들은 기존에 적용되었던 색상을 유지**하여 일관성을 지키십시오.
     7. 이제 차트 막대나 선 위에 금액(값)을 상시 표시할 수 있습니다. 사용자가 수치를 직접 보고 싶어 한다면 chartConfigs에서 "showLabels": true를 설정하십시오. (기본적으로 true를 권장합니다)
-    8. 시각화 추천이 포함된 경우, 반드시 응답 텍스트 끝에 JSON 형식을 포함하세요.
+    8. 시각화 추천이 포함된 경우, **반드시 어떠한 마크다운 코드블록(예: \`\`\`json)이나 불필요한 인사말 없이, 처음부터 끝까지 올바른 1개의 JSON 객체 형식만** 문자열로 출력하세요. JSON 파싱이 실패하지 않도록 'content' 등 문자열 내부에 쌍따옴표나 줄바꿈이 있다면 반드시 올바르게 이스케이프('\\n', '\\"') 처리하십시오.
     9. **Explainability & Dynamic Sync**: 차트를 생성할 때 다음 두 필드를 반드시 포함하여 사용자가 데이터의 근거를 이해하고 최신 데이터로 갱신할 수 있게 하십시오.
        - 'sourceDescription': 데이터가 어떻게 추출되었는지에 대한 한글 설명 (예: "최근 6개월간의 월별 카드 지출 합계")
        - 'refreshMetadata': 자동 갱신을 위한 기술적 정보. 사용한 도구명('tool'), 인자('args'), 그리고 도구 결과 필드를 차트 데이터('label', 'value')로 매핑하는 정보('mapping')를 포함하십시오.
@@ -217,15 +234,26 @@ export async function getVisualizationRecommendation(
   const lastUserMessage = messages[messages.length - 1].content;
   let response = await chat.sendMessage(lastUserMessage);
   
-  // 기능 호출 루프 (Agentic Loop)
+  // 기능 호출 루프 (Agentic Loop) - 무한 재시도 및 Quota 초과 방지
   let retryCount = 0;
-  while (response.response.candidates?.[0]?.content?.parts?.some(p => p.functionCall) && retryCount < 5) {
+  while (response.response.candidates?.[0]?.content?.parts?.some(p => p.functionCall) && retryCount < 2) {
     const functionCalls = response.response.candidates[0].content.parts
       .filter(p => p.functionCall)
       .map(p => p.functionCall!);
     
     const functionResponses = await Promise.all(functionCalls.map(async (call) => {
-      const result = await runAITool(call.name, call.args);
+      let result;
+      try {
+        result = await runAITool(call.name, call.args);
+      } catch (error: any) {
+        console.error(`[AI Tool Error - ${call.name}]:`, error);
+        result = { 
+          error: error.message || String(error), 
+          sql_used: (call.args as any).sql || "not a sql tool",
+          tip: "CRITICAL DIRECTIVE: 쿼리가 실패했습니다. 절대로 사과나 변명을 하지 마세요! 즉시 'content' 필드에 [조회 실패 알림] 이라는 제목과 함께, 당신이 실행했던 정확한 SQL 쿼리 원문과 아래 에러 메시지의 원문을 한 글자도 빠짐없이 렌더링하세요. 사용자가 버그를 고치기 위해 꼭 필요합니다." 
+        };
+      }
+      
       return {
         functionResponse: {
           name: call.name,
@@ -239,16 +267,20 @@ export async function getVisualizationRecommendation(
   }
 
   const responseText = response.response.text();
+  let cleanedResponseText = responseText.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
 
   // JSON 추출
-  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+  const jsonMatch = cleanedResponseText.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
     try {
       return JSON.parse(jsonMatch[0]);
-    } catch (e) {
-      return { content: responseText };
+    } catch (e: any) {
+      console.error("[JSON Parsing Error]:", e, responseText);
+      return { 
+        content: `시각화 데이터를 구성하는 중 파싱 오류가 발생했습니다. AI가 반환한 포맷이 규격을 벗어났습니다.\n\nAI가 작성하려고 했던 답변 일부:\n${cleanedResponseText.substring(0, 100)}...`
+      };
     }
   }
 
-  return { content: responseText };
+  return { content: cleanedResponseText };
 }

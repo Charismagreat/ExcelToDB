@@ -105,7 +105,12 @@ export default function BulkUpload({ reportId, columns, onStatusShow }: BulkUplo
       const plainRows = JSON.parse(JSON.stringify(rowsToSave));
       const result = await addRowsAction(reportId, plainRows);
       
-      onStatusShow('업로드 완료', `${result.addedCount}건의 데이터가 성공적으로 추가되었습니다. (중복 ${result.skippedCount}건 제외)`, 'success');
+      if (result.addedCount === 0 && result.skippedCount > 0) {
+        onStatusShow('업로드 결과', `새로 추가된 데이터가 없습니다. (중복 또는 유효성 오류로 ${result.skippedCount}건 제외)`, 'info');
+      } else {
+        onStatusShow('업로드 완료', `${result.addedCount}건의 데이터가 성공적으로 추가되었습니다. (중복 및 유효성 오류 ${result.skippedCount}건 제외)`, 'success');
+      }
+      
       setPreviewData(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       // setTimeout(() => window.location.reload(), 1500); // 팝업이 뜰 것이므로 리로드 대신 수동 닫기 유도 가능

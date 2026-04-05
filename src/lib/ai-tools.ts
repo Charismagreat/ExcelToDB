@@ -43,14 +43,63 @@ export async function runAITool(name: string, args: any) {
         basis: "승인일자(approvalDate)"
       };
     }
-    case "execute_analytical_sql":
-      return await executeSQL(args.sql);
-    case "query_workspace_table":
-      return await queryTable('report_row', { 
-        filters: { reportId: args.tableId },
+    case "execute_analytical_sql": {
+      // 삭제된 데이터 자동 필터링: SQL에 isDeleted 조건 주입
+      let sql = args.sql as string;
+      // WHERE 절이 이미 있으면 AND 추가, 없으면 WHERE 추가
+      // report_row 테이블을 대상으로 하는 쿼리에만 적용
+      if (/report_row/i.test(sql) && !/isDeleted/i.test(sql)) {
+        if (/WHERE/i.test(sql)) {
+          sql = sql.replace(/WHERE/i, 'WHERE isDeleted = 0 AND');
+        } else {
+          // FROM report_row 뒤에 WHERE 절 삽입
+          sql = sql.replace(/(FROM\s+report_row\b)/i, '$1 WHERE isDeleted = 0');
+        }
+      }
+      return await executeSQL(sql);
+    }
+    case "get_aggregated_report_data": {
+      // UI와 동일한 필터: isDeleted='0' (정확히 0인 행만 포함, null인 불완전 행 제외)
+      const rows = await queryTable('report_row', { 
+        filters: { reportId: args.tableId, isDeleted: '0' },
+        limit: 5000
+      });
+      const allRows = Array.isArray(rows) ? rows : (rows?.rows || []);
+      // 이중 안전장치: 코드에서도 isDeleted가 정확히 0인 행만 허용
+      const validRows = allRows.filter((row: any) => 
+        row.isDeleted === 0 || row.isDeleted === '0'
+      );
+      
+      const summary: Record<string, number> = {};
+      validRows.forEach((row: any) => {
+        const rawData = typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {});
+        const groupValue = rawData[args.groupByKey];
+        // groupByKey 값이 비어있거나 없는 행은 집계에서 제외
+        if (groupValue === undefined || groupValue === null || groupValue === '') return;
+        
+        let amountStr = rawData[args.sumKey] || '0';
+        
+        let amount = typeof amountStr === 'number' ? amountStr : parseFloat(String(amountStr).replace(/,/g, ''));
+        if (isNaN(amount)) amount = 0;
+
+        summary[String(groupValue)] = (summary[String(groupValue)] || 0) + amount;
+      });
+
+      // 항상 고정된 키 'label'과 'value'를 사용하여 반환 (AI가 xAxis='label', series key='value'로 매칭)
+      return Object.keys(summary).map(key => ({
+        label: key,
+        value: summary[key]
+      })).sort((a, b) => b.value - a.value);
+    }
+    case "query_workspace_table": {
+      // UI와 동일한 필터: isDeleted='0'
+      const wsRows = await queryTable('report_row', { 
+        filters: { reportId: args.tableId, isDeleted: '0' },
         limit: args.limit || 100,
         offset: args.offset || 0
       });
+      return Array.isArray(wsRows) ? wsRows : (wsRows?.rows || []);
+    }
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

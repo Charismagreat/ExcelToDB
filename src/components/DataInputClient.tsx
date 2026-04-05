@@ -142,7 +142,13 @@ export default function DataInputClient({ report, session, columns, rows }: Data
                             </div>
 
                             <div className="p-10 md:p-14">
-                                <DataEntryForm reportId={report.id} columns={columns} />
+                                <DataEntryForm reportId={report.id} columns={columns} onSuccess={(warning) => {
+                                    if (warning) {
+                                        showStatus('부분 완료 (동기화 실패)', warning, 'error');
+                                    } else {
+                                        showStatus('추가 완료', '데이터가 성공적으로 추가되었습니다.', 'success');
+                                    }
+                                }} />
                             </div>
                         </div>
                     )}

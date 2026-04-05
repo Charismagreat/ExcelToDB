@@ -33,7 +33,7 @@ export default function ReportAccessManager({ reportId, ownerId }: ReportAccessM
                 ]);
                 
                 // VIEWER 권한 사용자만 목록에 표시 (ADMIN/EDITOR는 기본적으로 모든 권한을 가짐)
-                const viewerUsers = users.filter(u => u.role === 'VIEWER');
+                const viewerUsers = users.filter((u: any) => u.role === 'VIEWER');
                 setAllUsers(viewerUsers);
                 setAuthorizedUserIds(authorized.map(u => u.id));
             } catch (error) {

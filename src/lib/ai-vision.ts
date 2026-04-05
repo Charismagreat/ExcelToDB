@@ -16,8 +16,15 @@ export interface ColumnRecommendation {
   reason?: string;
 }
 
-export interface RecommendationResponse {
+export interface RecommendationTable {
+  tableName: string;
   columns: ColumnRecommendation[];
+  reason?: string;
+}
+
+export interface RecommendationResponse {
+  columns?: ColumnRecommendation[];
+  recommendedTables?: RecommendationTable[];
 }
 
 /**

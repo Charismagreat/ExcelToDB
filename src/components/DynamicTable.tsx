@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Trash2, Edit3, Search, ArrowUpDown, ArrowUp, ArrowDown, FilterX, FileDown, Table as TableIcon, FileText, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CheckCircle2, XCircle, ExternalLink, Eye, History as HistoryIcon, Plus, FileSpreadsheet, Sparkles, RotateCcw } from 'lucide-react';
+import { Trash2, Edit3, Search, ArrowUpDown, ArrowUp, ArrowDown, FilterX, FileDown, Table as TableIcon, FileText, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CheckCircle2, XCircle, ExternalLink, Eye, History as HistoryIcon, Plus, FileSpreadsheet, Sparkles, RotateCcw, Mail, Phone } from 'lucide-react';
 import { deleteRowsAction, updateSingleRowAction, restoreRowsAction } from '@/app/actions';
 import * as XLSX from 'xlsx';
 import { Check, X as XIcon } from 'lucide-react';
@@ -231,9 +231,13 @@ export default function DynamicTable({
 
     setIsDeleting(true);
     try {
-      await deleteRowsAction(reportId, selectedIds);
+      const result = await deleteRowsAction(reportId, selectedIds);
+      if (result.syncWarning) {
+        showStatus('부분 완료 (동기화 실패)', result.syncWarning, 'error');
+      } else {
+        showStatus('삭제 완료', '데이터가 성공적으로 삭제되었습니다.', 'success');
+      }
       setSelectedIds([]);
-      showStatus('삭제 완료', '데이터가 성공적으로 삭제되었습니다.', 'success');
     } catch (error) {
       showStatus('삭제 실패', '데이터 삭제 중 오류가 발생했습니다.', 'error');
     } finally {
@@ -247,11 +251,15 @@ export default function DynamicTable({
 
     setIsRestoring(true);
     try {
-      await restoreRowsAction(reportId, selectedIds);
+      const result = await restoreRowsAction(reportId, selectedIds);
+      if (result.syncWarning) {
+         showStatus('부분 완료 (동기화 실패)', result.syncWarning, 'error');
+      } else {
+         showStatus('복구 완료', '데이터가 성공적으로 복구되었습니다.', 'success');
+      }
       setSelectedIds([]);
-      showStatus('복구 완료', '데이터가 성공적으로 복구되었습니다.', 'success');
-    } catch (error) {
-      showStatus('복구 실패', '데이터 복구 중 오류가 발생했습니다.', 'error');
+    } catch (error: any) {
+      showStatus('복구 실패', error.message || '데이터 복구 중 오류가 발생했습니다.', 'error');
     } finally {
       setIsRestoring(false);
     }
@@ -262,10 +270,14 @@ export default function DynamicTable({
     
     setIsRestoring(true);
     try {
-      await restoreRowsAction(reportId, [id]);
-      showStatus('복구 완료', '데이터가 성공적으로 복구되었습니다.', 'success');
-    } catch (error) {
-      showStatus('복구 실패', '데이터 복구 중 오류가 발생했습니다.', 'error');
+      const result = await restoreRowsAction(reportId, [id]);
+      if (result.syncWarning) {
+         showStatus('부분 완료 (동기화 실패)', result.syncWarning, 'error');
+      } else {
+         showStatus('복구 완료', '데이터가 성공적으로 복구되었습니다.', 'success');
+      }
+    } catch (error: any) {
+      showStatus('복구 실패', error.message || '데이터 복구 중 오류가 발생했습니다.', 'error');
     } finally {
       setIsRestoring(false);
     }
@@ -287,7 +299,11 @@ export default function DynamicTable({
     try {
       const result = await updateSingleRowAction(reportId, editingRowId, editFormData);
       if (result.success) {
-        showStatus('수정 완료', '데이터가 성공적으로 수정되었습니다.', 'success');
+        if (result.syncWarning) {
+          showStatus('부분 완료 (동기화 실패)', result.syncWarning, 'error');
+        } else {
+          showStatus('수정 완료', '데이터가 성공적으로 수정되었습니다.', 'success');
+        }
         setEditingRowId(null);
         setEditFormData({});
       }
@@ -543,10 +559,23 @@ export default function DynamicTable({
                         );
                     }
 
+                    if (col.type === 'textarea') {
+                        return (
+                            <td key={col.name} className="px-4 py-2">
+                                <textarea
+                                    value={editFormData[col.name] || ''}
+                                    onChange={(e) => handleEditChange(col.name, e.target.value)}
+                                    className="w-full min-w-[200px] h-20 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-blue-400 outline-none transition-all resize-none"
+                                    placeholder={`${col.name} 입력`}
+                                />
+                            </td>
+                        );
+                    }
+
                     return (
                         <td key={col.name} className="px-4 py-2">
                             <input
-                                type={col.type === 'date' ? 'date' : 'text'}
+                                type={col.type === 'date' ? 'date' : (col.type === 'number' ? 'number' : 'text')}
                                 value={col.type === 'date' && typeof editFormData[col.name] === 'number' 
                                     ? new Date(Math.round((editFormData[col.name] - 25569) * 86400 * 1000)).toISOString().split('T')[0]
                                     : (editFormData[col.name] || '')}
@@ -590,6 +619,34 @@ export default function DynamicTable({
                     return (
                         <td key={col.name} className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-900 text-right font-mono tracking-tight">
                         {displayVal}
+                      </td>
+                    );
+                  } else if (col.type === 'email' && val) {
+                    return (
+                      <td key={col.name} className="px-6 py-4 whitespace-nowrap">
+                        <a href={`mailto:${val}`} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors group/link p-1 rounded-lg hover:bg-blue-50/50">
+                          <Mail size={12} className="group-hover/link:scale-110 transition-transform" />
+                          <span className="text-xs font-black border-b border-blue-100">{val}</span>
+                        </a>
+                      </td>
+                    );
+                  } else if (col.type === 'phone' && val) {
+                    return (
+                      <td key={col.name} className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2 text-indigo-600 p-1">
+                          <Phone size={12} />
+                          <span className="text-xs font-black tracking-tighter">{val}</span>
+                        </div>
+                      </td>
+                    );
+                  } else if (col.type === 'textarea' && val) {
+                    const truncated = val.toString().length > 30 ? val.toString().substring(0, 30) + '...' : val;
+                    return (
+                      <td key={col.name} className="px-6 py-4">
+                        <div className="flex items-start gap-2 max-w-[200px]" title={val}>
+                          <FileText size={12} className="mt-1 text-gray-400 shrink-0" />
+                          <span className="text-xs font-medium text-gray-600 leading-tight">{truncated}</span>
+                        </div>
                       </td>
                     );
                   } else if (col.type === 'file' && val) {

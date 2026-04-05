@@ -119,11 +119,21 @@ export default function SmartChart({
   }
 
   const renderChart = () => {
+    // 차트일 때, x축 값이 series에 포함되어 버리면 숫자가 아닌 문자열 바를 렌더링하려다 라이브러리가 크래시됨
+    // 따라서 type이 table이 아닌 경우에는 xAxis 키를 series에서 걸러냄
+    const chartSeries = type === 'table' ? series : series.filter(s => s.key !== xAxis);
+    
+    // 데이터 중 null/undefined 보완
+    const safeData = data.map(d => ({
+      ...d,
+      [xAxis || '']: d[xAxis || ''] ?? '알 수 없음'
+    }));
+
     switch (type) {
       case 'bar':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data}>
+            <BarChart data={safeData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis 
                 dataKey={xAxis} 
@@ -142,7 +152,7 @@ export default function SmartChart({
                 formatter={(value: any) => [formatValue(value), '']}
               />
               <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
-              {series.map((s, i) => (
+              {chartSeries.map((s, i) => (
                 <Bar 
                   key={`${s.key}-${i}`} 
                   dataKey={s.key} 
@@ -151,7 +161,7 @@ export default function SmartChart({
                   radius={[4, 4, 0, 0]} 
                   barSize={32}
                 >
-                  {data.map((entry, index) => (
+                  {safeData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
                       fill={entry.color || s.color || COLORS[i % COLORS.length]} 
@@ -175,7 +185,7 @@ export default function SmartChart({
       case 'line':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 20 }}>
+            <LineChart data={safeData} margin={{ top: 20 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey={xAxis} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} dy={10} />
               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
@@ -184,7 +194,7 @@ export default function SmartChart({
                 formatter={(value: any) => [formatValue(value), '']}
               />
               <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 'bold' }} />
-              {series.map((s, i) => (
+              {chartSeries.map((s, i) => (
                 <Line 
                   key={`${s.key}-${i}`} 
                   type="monotone" 
@@ -213,9 +223,9 @@ export default function SmartChart({
       case 'area':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 20 }}>
+            <AreaChart data={safeData} margin={{ top: 20 }}>
               <defs>
-                {series.map((s, i) => (
+                {chartSeries.map((s, i) => (
                   <linearGradient key={`grad-${s.key}-${i}`} id={`grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={s.color || COLORS[i % COLORS.length]} stopOpacity={0.3}/>
                     <stop offset="95%" stopColor={s.color || COLORS[i % COLORS.length]} stopOpacity={0}/>
@@ -230,7 +240,7 @@ export default function SmartChart({
                 formatter={(value: any) => [formatValue(value), '']}
               />
               <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 'bold' }} />
-              {series.map((s, i) => (
+              {chartSeries.map((s, i) => (
                 <Area 
                   key={`${s.key}-${i}`} 
                   type="monotone" 
@@ -261,17 +271,17 @@ export default function SmartChart({
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={data}
+                data={safeData}
                 cx="50%"
                 cy="50%"
                 innerRadius={60}
                 outerRadius={80}
                 paddingAngle={5}
-                dataKey={series[0]?.key || 'value'}
+                dataKey={chartSeries[0]?.key || 'value'}
                 nameKey={xAxis || 'name'}
                 label={({ name, percent, value }) => `${name}\n(${formatValue(value)})`}
               >
-                {data.map((entry, index) => (
+                {safeData.map((entry, index) => (
                   <Cell 
                     key={`cell-${index}`} 
                     fill={entry.color || COLORS[index % COLORS.length]} 

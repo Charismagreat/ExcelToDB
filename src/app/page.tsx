@@ -21,8 +21,9 @@ import {
 import NewTableSection from '@/components/NewTableSection';
 import { redirect } from 'next/navigation';
 import LogoutButton from '@/components/LogoutButton';
-import { queryTable, aggregateTable } from '@/egdesk-helpers';
+import { queryTable, aggregateTable, listTables } from '@/egdesk-helpers';
 import NavigationSidebar from '@/components/NavigationSidebar';
+import SyncStatusBadge from '@/components/SyncStatusBadge';
 
 export default async function DashboardPage() {
   // 실제 세션 사용자 정보 가져오기
@@ -32,7 +33,16 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  // 권한에 따른 보고서 필터링
+  // 1. 물리적 시스템 테이블 목록 가져오기
+  let systemTables: any[] = [];
+  try {
+    const res = await listTables();
+    systemTables = res?.tables || [];
+  } catch (err) {
+    console.error('Failed to list system tables:', err);
+  }
+
+  // 2. 권한에 따른 보고서 필터링 (가상 테이블)
   let allReports = await queryTable('report', {
     filters: { isDeleted: '0' },
     orderBy: 'createdAt',
@@ -41,37 +51,78 @@ export default async function DashboardPage() {
 
   // VIEWER 필터링: 본인 소유이거나 접근 권한이 부여된 보고서만
   if (user.role === 'VIEWER') {
-    const accessList = await queryTable('report_access', { filters: { userId: user.id } });
+    const accessList = await queryTable('report_access', { filters: { userId: String(user.id) } });
     const authorizedIds = new Set(accessList.map((a: any) => a.reportId));
     allReports = allReports.filter((r: any) => r.ownerId === user.id || authorizedIds.has(r.id));
   }
 
   // 보고서별 데이터 행 개수 추가
-  let reports = await Promise.all(allReports.map(async (r: any) => {
+  let virtualReports = await Promise.all(allReports.map(async (r: any) => {
+    let count: number | string = 0;
     if (r.id === 'test-report-id') {
-      return { ...r, _count: { rows: 133 }, isDirectTable: true };
+      count = 133;
+    } else if (r.tableName) {
+      try {
+        const aggr = await aggregateTable(r.tableName, 'id', 'COUNT');
+        count = Number(aggr?.value ?? aggr) || 0; 
+      } catch (err) {}
+    } else {
+      try {
+        const aggr = await aggregateTable('report_row', 'id', 'COUNT', {
+          filters: { reportId: String(r.id), isDeleted: '0' }
+        });
+        count = Number(aggr?.value ?? aggr) || 0;
+      } catch (err) { count = 0; }
     }
-    const rowCountResult = await aggregateTable('report_row', 'id', 'COUNT', {
-      filters: { reportId: r.id, isDeleted: '0' }
-    });
     return {
       ...r,
-      _count: { rows: Number(rowCountResult) || 0 }
+      _count: { rows: count },
+      isVirtualReport: true,
+      isDirectTable: r.id === 'test-report-id'
     };
   }));
 
-  // FinanceHub 테이블만 수기 추가
-  reports = [
-    {
+  // 관리자/에디터 권한 판별
+  const isAdminOrEditor = user.role === 'ADMIN' || user.role === 'EDITOR';
+  let reports: any[] = [];
+
+  // FinanceHub 테이블 추가 (항상 상단)
+  if (isAdminOrEditor) {
+    reports.push({
       id: 'finance-hub-table',
       name: '금융거래 통합 내역 (FinanceHub)',
-      sheetName: 'FinanceHub',
+      sheetName: 'FinanceHub External',
       _count: { rows: '연동 중' },
       isFinanceTable: true,
-      isReadOnly: true // 읽기 전용 상태 명시
-    },
-    ...reports
-  ];
+      isSystemTable: true,
+      isReadOnly: true
+    });
+  }
+
+  // 1. 물리적 시스템 테이블 목록 가져오기 및 2. 가상 리포트 필터링 로직이 위쪽에 있습니다.
+  // ... 생략 ...
+
+  // 가상 리포트 중에서 사용 중인 물리적 테이블(tableName) 리스트 추출
+  const mappedTableNames = new Set(virtualReports.map(r => r.tableName).filter(Boolean));
+
+  // 시스템 물리 테이블 통합 (어드민/에디터만)
+  if (isAdminOrEditor) {
+    const mappedSystemTables = systemTables
+      .filter((t: any) => !mappedTableNames.has(t.tableName)) // 이미 가상 보고서와 연결된 물리 테이블은 중복 방지를 위해 제외
+      .map((t: any) => ({
+        id: t.tableName,
+        name: t.displayName || t.tableName,
+        sheetName: 'System Table',
+        _count: { rows: t.rowCount !== null && t.rowCount !== undefined ? t.rowCount : 'N/A' },
+        isSystemTable: true,
+        ownerId: 'system',
+        isReadOnly: true
+      }));
+    reports = [...reports, ...mappedSystemTables];
+  }
+
+  // 가상 리포트 병합
+  reports = [...reports, ...virtualReports];
 
   const isStaff = user.role === 'VIEWER';
 
@@ -140,55 +191,40 @@ export default async function DashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* System Users Table (Admin/Editor only) */}
-              {(user.role === 'ADMIN' || user.role === 'EDITOR') && (
-                <div className="relative group bg-indigo-600 border border-indigo-500 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-indigo-200 transition-all duration-300">
-                  <div className="p-6 text-white">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="bg-white/20 text-white p-2.5 rounded-xl backdrop-blur-md group-hover:scale-110 transition-transform">
-                        <User size={20} strokeWidth={2.5} />
-                      </div>
-                      <span className="px-2 py-0.5 bg-white/20 rounded text-[9px] font-black uppercase tracking-widest border border-white/10">System Table</span>
-                    </div>
-                    <h3 className="text-lg font-black mb-1 truncate">시스템 사용자 관리</h3>
-                    <div className="flex items-center gap-2 text-sm text-indigo-100 mb-4 opacity-80 font-semibold">
-                      <span>직원 계정 보관소</span>
-                      <span>•</span>
-                      <span>관리자 전용</span>
-                    </div>
-                    <Link
-                      href="/users"
-                      className="block w-full text-center py-2.5 px-4 bg-white text-indigo-600 font-black rounded-xl hover:bg-indigo-50 transition-all text-xs uppercase tracking-widest"
-                    >
-                      Open Management
-                    </Link>
-                  </div>
-                </div>
-              )}
+
 
               {reports.map((report: any) => (
-                <div key={report.id} className="relative group bg-white border rounded-2xl overflow-hidden hover:border-blue-300 hover:shadow-xl transition-all duration-300">
+                <div key={report.id} className="relative group bg-white border rounded-2xl hover:border-blue-300 hover:shadow-xl transition-all duration-300">
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
-                      <div className={`p-2.5 rounded-xl transition-colors ${report.isFinance ? 'bg-indigo-50 text-indigo-600' :
+                      <div className={`p-2.5 rounded-xl transition-colors ${report.isFinanceTable ? 'bg-indigo-50 text-indigo-600' :
+                          report.isSystemTable ? 'bg-purple-50 text-purple-600' :
                           report.isDirectTable ? 'bg-slate-50 text-slate-600' :
                             (isStaff ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-700 group-hover:bg-blue-600 group-hover:text-white')
                         }`}>
-                        {report.isFinance ? <Wallet size={20} /> :
+                        {report.isFinanceTable ? <Wallet size={20} /> :
+                          report.isSystemTable ? <Database size={20} /> :
                           report.isDirectTable ? <Database size={20} /> :
                             (isStaff ? <ShieldCheck size={20} /> : <FileSpreadsheet size={20} />)}
                       </div>
-                      {report.isReadOnly && (
-                        <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[9px] font-black rounded uppercase tracking-widest border border-amber-100 animate-pulse">
-                          Read-Only
-                        </span>
-                      )}
-                      {!isStaff && !report.isReadOnly && <DeleteReportButton reportId={report.id} reportName={report.name} />}
-                      {isStaff && (
-                        <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-black rounded uppercase tracking-widest border border-amber-100">
-                          Authorized
-                        </span>
-                      )}
+                      <div className="flex flex-col items-end gap-2">
+                          <div className="flex items-center gap-2">
+                              {report.isReadOnly && (
+                                <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[9px] font-black rounded uppercase tracking-widest border border-amber-100 animate-pulse">
+                                  Read-Only
+                                </span>
+                              )}
+                              {isStaff && (
+                                <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-black rounded uppercase tracking-widest border border-amber-100">
+                                  Authorized
+                                </span>
+                              )}
+                              {!isStaff && !report.isReadOnly && <DeleteReportButton reportId={report.id} reportName={report.name} />}
+                          </div>
+                          {!report.isFinanceTable && !report.isSystemTable && !report.isDirectTable && (
+                              <SyncStatusBadge reportId={report.id} />
+                          )}
+                      </div>
                     </div>
                     <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">{report.name}</h3>
                     <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
@@ -198,16 +234,18 @@ export default async function DashboardPage() {
                     </div>
                     <Link
                       href={
-                        report.isFinance ? '/dashboard' :
-                          report.isDirectTable ? `/report/${report.id}` :
+                          report.isSystemTable && report.id === 'user' ? '/users' :
+                          (report.isSystemTable || report.isDirectTable) ? `/report/${report.id}` :
                             (isStaff ? `/report/${report.id}/input` : `/report/${report.id}`)
                       }
-                      className={`block w-full text-center py-2.5 px-4 font-black rounded-xl transition-all text-xs uppercase tracking-[0.1em] border ${report.isFinance
-                          ? 'bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600'
+                      className={`block w-full text-center py-2.5 px-4 font-black rounded-xl transition-all text-xs uppercase tracking-[0.1em] border ${
+                          report.isSystemTable ? 'bg-purple-600 text-white hover:bg-purple-700 border-purple-600' 
                           : (isStaff ? 'bg-amber-600 text-white hover:bg-amber-700 border-amber-600 shadow-lg shadow-amber-500/20' : 'bg-gray-50 text-blue-600 border-blue-50 group-hover:bg-blue-600 group-hover:text-white')
                         }`}
                     >
-                      {report.isFinance ? 'Open Finance Hub' :
+                      {
+                        report.isSystemTable && report.id === 'user' ? 'Open Management' :
+                        report.isSystemTable ? 'View System Table' :
                         report.isDirectTable ? 'View Raw Table' :
                           (isStaff ? (
                             <span className="flex items-center justify-center gap-2">

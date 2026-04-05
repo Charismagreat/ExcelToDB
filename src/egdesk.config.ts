@@ -7,14 +7,14 @@
 
 export const EGDESK_CONFIG = {
   apiUrl: 'http://localhost:8080',
-  apiKey: '7a1e4b57-313f-4597-9866-1bb95f623d97',
+  apiKey: '3931f0ae-064f-41f4-b63d-367dbf249e37',
 } as const;
 
 export interface TableDefinition {
   name: string;
   displayName: string;
   description?: string;
-  rowCount: number;
+  rowCount?: number;
   columnCount: number;
   columns: string[];
 }
