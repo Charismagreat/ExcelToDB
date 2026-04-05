@@ -461,7 +461,7 @@ export default function DynamicTable({
                   key={col.name}
                   onClick={() => toggleSort(col.name)}
                   className={`
-                    px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest cursor-pointer group transition-all
+                    px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest cursor-pointer group transition-all whitespace-nowrap
                     ${sortConfig.key === col.name ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}
                   `}
                 >
@@ -640,13 +640,12 @@ export default function DynamicTable({
                       </td>
                     );
                   } else if (col.type === 'textarea' && val) {
-                    const truncated = val.toString().length > 30 ? val.toString().substring(0, 30) + '...' : val;
                     return (
                       <td key={col.name} className="px-6 py-4">
-                        <div className="flex items-start gap-2 max-w-[200px]" title={val}>
-                          <FileText size={12} className="mt-1 text-gray-400 shrink-0" />
-                          <span className="text-xs font-medium text-gray-600 leading-tight">{truncated}</span>
-                        </div>
+                         <div className="flex items-center gap-2 cursor-help group" title={val.toString()}>
+                           <FileText size={12} className="text-gray-400 shrink-0 group-hover:text-blue-500 transition-colors" />
+                           <span className="inline-block max-w-[200px] text-xs font-medium text-gray-600 truncate">{val.toString()}</span>
+                         </div>
                       </td>
                     );
                   } else if (col.type === 'file' && val) {
@@ -667,14 +666,17 @@ export default function DynamicTable({
                             </div>
                           )}
                           <ExternalLink size={10} className="text-gray-300 group-hover/file:text-blue-500" />
+                            <ExternalLink size={10} className="text-gray-300 group-hover/file:text-blue-500" />
                         </a>
                       </td>
                     );
                   }
 
                   return (
-                    <td key={col.name} className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${col.autoPrefix ? 'text-blue-600 font-black' : 'text-gray-700'} ${row.isDeleted ? 'line-through text-gray-400' : ''}`}>
-                      {displayValue}
+                    <td key={col.name} className={`px-6 py-4 text-sm font-medium ${col.autoPrefix ? 'text-blue-600 font-black' : 'text-gray-700'} ${row.isDeleted ? 'line-through text-gray-400' : ''} min-w-[150px] max-w-[300px]`}>
+                       <div className="block truncate whitespace-nowrap max-w-[200px]" title={displayValue}>
+                        {displayValue}
+                      </div>
                     </td>
                   );
                 })}
