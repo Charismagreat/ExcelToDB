@@ -14,6 +14,15 @@ export default function GalleryClient({ initialCharts }: GalleryClientProps) {
   const [charts, setCharts] = useState(initialCharts);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
+  // 컴포넌트 마운트 시 모든 차트 자동 새로고침 (사용자 요청 사항: 자동으로 데이터를 갱신하도록)
+  React.useEffect(() => {
+    initialCharts.forEach(chart => {
+      if (chart.config?.refreshMetadata) {
+        handleRefresh(chart.id);
+      }
+    });
+  }, []);
+
   const handleDelete = async (id: string) => {
     if (!confirm('이 차트를 갤러리에서 삭제하시겠습니까?')) return;
     const res = await deletePinnedChartAction(id);
@@ -58,6 +67,7 @@ export default function GalleryClient({ initialCharts }: GalleryClientProps) {
           <SmartChart 
             config={p.config} 
             isPinned={true}
+            chartId={p.id}
             onDelete={() => handleDelete(p.id)}
             onRefresh={() => handleRefresh(p.id)}
             refreshedAt={p.refreshedAt || p.updatedAt}

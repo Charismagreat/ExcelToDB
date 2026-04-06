@@ -14,11 +14,12 @@ export default async function DataAnalysisStudioPage() {
   }
 
   // Fetch all user-managed reports (tables)
-  const reportsData = await queryTable('report', { 
-    filters: { isDeleted: '0' },
+  const rawReportsData = await queryTable('report', { 
+    limit: 1000,
     orderBy: 'updatedAt',
     orderDirection: 'DESC'
   });
+  const reportsData = rawReportsData.filter((r: any) => String(r.isDeleted) === '0');
 
   // Define virtual tables (e.g., FinanceHub)
   const virtualReports = [

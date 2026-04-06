@@ -160,24 +160,58 @@ export default function DynamicTable({
   }, [processedData, currentPage, itemsPerPage]);
 
   const exportToExcel = () => {
-    const exportData = processedData.map(row => {
-        const rowObj: any = {};
-        columns.forEach(col => {
-            let val = row[col.name];
-            if (col.type === 'date' && typeof val === 'number') {
-                const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-                val = date.toISOString().split('T')[0];
-            }
-            rowObj[col.name] = val;
+    try {
+        const exportData = processedData.map(row => {
+            const rowObj: any = {};
+            columns.forEach(col => {
+                let val = row[col.name];
+                if (col.type === 'date' && typeof val === 'number') {
+                    const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+                    val = date.toISOString().split('T')[0];
+                }
+                rowObj[col.name] = val;
+            });
+            return rowObj;
         });
-        return rowObj;
-    });
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Data');
-    XLSX.writeFile(wb, `export_${reportId}_${new Date().getTime()}.xlsx`);
-    setIsExportingMenuOpen(false);
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Data');
+        
+        // 파일명 생성 (특수문자 제거)
+        const timestamp = new Date().toISOString().replace(/T/, '_').replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `data_export_${reportId}_${timestamp}.xlsx`;
+
+        // 1. ArrayBuffer로 엑셀 데이터 생성
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        
+        // 2. 명시적인 MIME 타입으로 Blob 생성
+        const dataBlob = new Blob([excelBuffer], { 
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' 
+        });
+
+        // 3. 임시 <a> 태그를 사용한 다운로드 트리거
+        const url = window.URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+
+        // 4. 리소스 정리
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        setIsExportingMenuOpen(false);
+        if (onStatusShow) {
+            onStatusShow('다운로드 시작됨', '엑셀 파일 다운로드가 완료되었습니다.', 'success');
+        }
+    } catch (error) {
+        console.error('Export Excel Error:', error);
+        if (onStatusShow) {
+            onStatusShow('다운로드 실패', '엑셀 파일을 생성하는 중 오류가 발생했습니다.', 'error');
+        }
+    }
   };
 
   const exportToCSV = () => {

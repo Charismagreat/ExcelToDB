@@ -20,7 +20,7 @@ export default async function ReportGalleryPage() {
         <div className="flex items-center justify-between mb-12">
           <div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-               My Finalized Insights
+               My Dashboard
                <Sparkles className="text-blue-500" />
             </h1>
             <p className="text-slate-500 font-medium mt-2">분석 스튜디오에서 완성하여 핀으로 고정한 핵심 차트 리포트입니다.</p>

@@ -1,13 +1,13 @@
 /**
  * EGDesk User Data Configuration
- * Generated at: 2026-04-01T10:00:30.164Z
+ * Generated at: 2026-04-06T01:55:38.278Z
  *
  * This file contains type-safe definitions for your EGDesk tables.
  */
 
 export const EGDESK_CONFIG = {
   apiUrl: 'http://localhost:8080',
-  apiKey: '94fc5d29-e67a-48f7-a9a9-c9a06e18c965',
+  apiKey: 'a87d1623-34c1-43fe-87c8-9fa8263d71a4',
 } as const;
 
 export interface TableDefinition {
@@ -21,6 +21,14 @@ export interface TableDefinition {
 
 export const TABLES = {
   table1: {
+    name: 'ai_studio_session',
+    displayName: 'AI Studio Session',
+    description: undefined,
+    rowCount: 1,
+    columnCount: 4,
+    columns: ['id', 'userId', 'data', 'updatedAt']
+  } as TableDefinition,
+  table2: {
     name: 'report_access',
     displayName: 'ReportAccess',
     description: undefined,
@@ -28,7 +36,7 @@ export const TABLES = {
     columnCount: 3,
     columns: ['id', 'reportId', 'userId']
   } as TableDefinition,
-  table2: {
+  table3: {
     name: 'report_row_history',
     displayName: 'ReportRowHistory',
     description: undefined,
@@ -36,7 +44,7 @@ export const TABLES = {
     columnCount: 7,
     columns: ['id', 'rowId', 'oldData', 'newData', 'changeType', 'changedById', 'changedAt']
   } as TableDefinition,
-  table3: {
+  table4: {
     name: 'report_row',
     displayName: 'ReportRow',
     description: undefined,
@@ -44,7 +52,7 @@ export const TABLES = {
     columnCount: 10,
     columns: ['id', 'data', 'contentHash', 'reportId', 'creatorId', 'createdAt', 'updaterId', 'updatedAt', 'isDeleted', 'deletedAt']
   } as TableDefinition,
-  table4: {
+  table5: {
     name: 'report',
     displayName: 'Report',
     description: undefined,
@@ -52,7 +60,7 @@ export const TABLES = {
     columnCount: 9,
     columns: ['id', 'name', 'sheetName', 'columns', 'ownerId', 'createdAt', 'isDeleted', 'deletedAt', 'slackWebhookUrl']
   } as TableDefinition,
-  table5: {
+  table6: {
     name: 'user',
     displayName: 'User',
     description: undefined,
@@ -74,9 +82,10 @@ export function getTableByName(tableName: string): TableDefinition | undefined {
 
 // Export table names for easy access
 export const TABLE_NAMES = {
-  table1: 'report_access',
-  table2: 'report_row_history',
-  table3: 'report_row',
-  table4: 'report',
-  table5: 'user'
+  table1: 'ai_studio_session',
+  table2: 'report_access',
+  table3: 'report_row_history',
+  table4: 'report_row',
+  table5: 'report',
+  table6: 'user'
 } as const;

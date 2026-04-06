@@ -28,8 +28,11 @@ import {
   RotateCcw,
   Clock,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Download,
+  Share2
 } from 'lucide-react';
+import { toPng } from 'html-to-image';
 
 interface SeriesConfig {
   key: string;
@@ -105,10 +108,54 @@ export default function SmartChart({
   const { type, data, xAxis, series = [], title, showLabels = true, sourceDescription } = config;
   const [showInfo, setShowInfo] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
+  const chartRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleDownloadImage = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!chartRef.current) return;
+    
+    try {
+      const dataUrl = await toPng(chartRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        filter: (node) => {
+          if (node.hasAttribute && node.hasAttribute('data-html2canvas-ignore')) {
+            return false;
+          }
+          return true;
+        }
+      });
+      
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `${title.replace(/\s+/g, '_')}_${new Date().getTime()}.png`;
+      link.click();
+    } catch (err) {
+      console.error('Failed to capture image:', err);
+      alert('이미지 다운로드 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!chartId) {
+      alert('이 차트는 아직 공유할 수 없습니다. (대시보드에 고정 후 시도해 주세요)');
+      return;
+    }
+    const currentPath = window.location.pathname;
+    const basePath = currentPath.replace(/\/(dashboard|report|share).*$/, '');
+    const shareUrl = `${window.location.origin}${basePath}/share/${chartId}`;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      alert(`공유 링크가 클립보드에 복사되었습니다!\n(로그인 없이 열람 가능: ${shareUrl})`);
+    }).catch(() => {
+      alert('링크 복사에 실패했습니다.');
+    });
+  };
 
   if (!data || data.length === 0) {
     return (
@@ -353,7 +400,7 @@ export default function SmartChart({
   };
 
   return (
-    <div className={`bg-white p-8 rounded-[40px] border transition-all duration-300 flex flex-col h-[500px] animate-in fade-in zoom-in duration-500 relative group/card ${
+    <div ref={chartRef} className={`bg-white p-8 rounded-[40px] border transition-all duration-300 flex flex-col h-[500px] animate-in fade-in zoom-in duration-500 relative group/card ${
       isSelected 
       ? 'ring-4 ring-blue-500/20 border-blue-500 shadow-2xl shadow-blue-500/30' 
       : 'border-slate-100 shadow-xl shadow-slate-200/30 hover:shadow-2xl hover:shadow-slate-200/50'
@@ -412,7 +459,7 @@ export default function SmartChart({
           
           {/* Version Navigation */}
           {totalVersions > 1 && (
-            <div className="flex items-center gap-2 px-2 py-1 bg-slate-50 rounded-lg border border-slate-100 mt-2 self-start">
+            <div className="flex items-center gap-2 px-2 py-1 bg-slate-50 rounded-lg border border-slate-100 mt-2 self-start" data-html2canvas-ignore>
                <button 
                  disabled={currentVersion <= 1}
                  onClick={() => onVersionChange?.(currentVersion - 1)}
@@ -432,7 +479,21 @@ export default function SmartChart({
           )}
         </div>
         
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0" data-html2canvas-ignore>
+           <button 
+             onClick={handleShare}
+             className="p-1.5 bg-slate-50 text-slate-400 hover:bg-violet-50 hover:text-violet-600 rounded-xl transition-all"
+             title="Share Chart Link"
+           >
+             <Share2 size={14} />
+           </button>
+           <button 
+             onClick={handleDownloadImage}
+             className="p-1.5 bg-slate-50 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 rounded-xl transition-all"
+             title="Download as Image (PNG)"
+           >
+             <Download size={14} />
+           </button>
            {onRefresh && (
              <button 
                onClick={(e) => {

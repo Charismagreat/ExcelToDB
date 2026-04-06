@@ -35,6 +35,13 @@ function generateSafeId() {
 }
 
 /**
+ * 프록시 Prisma 백엔드의 Int 제약을 피하기 위한 숫자형 ID 생성기
+ */
+function generateNumericId() {
+    return Math.floor(Math.random() * 2147483647);
+}
+
+/**
  * 필수 시스템 테이블 스키마 정의 (Self-Healing 용)
  */
 const SYSTEM_TABLES = [
@@ -53,6 +60,7 @@ const SYSTEM_TABLES = [
         tableName: 'report', displayName: 'System Reports', schema: [
             { name: 'id', type: 'TEXT', notNull: true },
             { name: 'name', type: 'TEXT', notNull: true },
+            { name: 'sheetName', type: 'TEXT' },
             { name: 'description', type: 'TEXT' },
             { name: 'tableName', type: 'TEXT', notNull: true },
             { name: 'columns', type: 'TEXT', notNull: true },
@@ -60,9 +68,10 @@ const SYSTEM_TABLES = [
             { name: 'aiConfig', type: 'TEXT' },
             { name: 'isDeleted', type: 'INTEGER', defaultValue: 0 },
             { name: 'deletedAt', type: 'TEXT' },
-            { name: 'creatorId', type: 'TEXT', notNull: true },
+            { name: 'ownerId', type: 'TEXT', notNull: true },
+            { name: 'lastSerial', type: 'INTEGER', defaultValue: 0 },
             { name: 'createdAt', type: 'TEXT', notNull: true },
-            { name: 'updatedAt', type: 'TEXT', notNull: true }
+            { name: 'updatedAt', type: 'TEXT' }
         ] as any[]
     },
     {
@@ -371,7 +380,7 @@ export async function uploadExcelAction(formData: FormData, userId: string) {
         columns: JSON.stringify(table.columns),
         ownerId: userId,
         createdAt: new Date().toISOString(),
-        isDeleted: 0, // Explicitly set to 0 to ensure it shows up in dashboards
+        isDeleted: '0', // Explicitly set to '0' to match query filters
         lastSerial: table.rows.length // Initialize lastSerial with valid count
       }]);
 
@@ -535,7 +544,7 @@ export async function addRowAction(reportId: string, rowData: any) {
     creatorId: creatorId,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    isDeleted: 0
+    isDeleted: '0'
   }]);
     
   // 7. 최대 일련번호 업데이트
@@ -672,7 +681,7 @@ export async function restoreRowsAction(reportId: string, rowIds: string[]) {
                 try {
                     await ensureHistoryTable();
                     await insertRows('report_row_history', [{
-                        id: generateSafeId(),
+                        id: generateNumericId(),
                         rowId: row.id,
                         oldData: row.data,
                         newData: row.data,
@@ -706,7 +715,7 @@ export async function restoreRowsAction(reportId: string, rowIds: string[]) {
 
 export async function deleteReportAction(reportId: string) {
     await updateRows('report', { 
-        isDeleted: 1,
+        isDeleted: '1',
         deletedAt: new Date().toISOString()
     }, { filters: { id: String(reportId) } });
     revalidatePath('/');
@@ -715,7 +724,7 @@ export async function deleteReportAction(reportId: string) {
 
 export async function restoreReportAction(reportId: string) {
     await updateRows('report', { 
-        isDeleted: 0,
+        isDeleted: '0',
         deletedAt: null
     }, { filters: { id: String(reportId) } });
     revalidatePath('/');
@@ -780,7 +789,7 @@ export async function deleteRowsAction(reportId: string, rowIds: string[]) {
             try {
                 // 논리적 삭제 및 이력 생성
                 await updateRows('report_row', {
-                    isDeleted: 1, // Number ok for setter if column type is INTEGER
+                    isDeleted: '1', // Ensure string type to match query filters
                     deletedAt: new Date().toISOString(),
                     updaterId: updaterId
                 }, { filters: { id: String(row.id) } });
@@ -1306,9 +1315,10 @@ export async function addRowsAction(reportId: string, rows: any[]) {
     let skippedCount = 0;
     
     // 1. 기존 데이터의 해시값 로드 (중복 체크용) - 삭제되지 않은 행만 대상
-    const existingRows = await queryTable('report_row', {
-        filters: { reportId: String(reportId), isDeleted: '0' }
+    const rawExistingRows = await queryTable('report_row', {
+        filters: { reportId: String(reportId) }
     });
+    const existingRows = rawExistingRows.filter((r: any) => String(r.isDeleted) === '0');
     const existingHashes = new Set(existingRows.map((r: any) => r.contentHash).filter((h: any) => h));
 
     // 2. 각 행당 유효성 검사 및 정제
@@ -1402,10 +1412,10 @@ export async function addRowsAction(reportId: string, rows: any[]) {
         });
 
         cleanedRowsToInsert.push({
-            id: generateId(),
+            id: generateNumericId(),
             data: JSON.stringify(rowWithMetadata),
             contentHash: hash,
-            reportId: reportId,
+            reportId: String(reportId),
             creatorId: creatorId,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -1990,10 +2000,11 @@ function resolveDynamicDescription(desc: string, args: any): string {
 function mapRefreshedData(rawData: any, mapping: any): any[] {
     let newData: any[] = [];
     
-    // 1. 결과 객체 내에 배열이 있는 경우 우선 처리 (상세 내역 우선)
-    // 'result' 또는 'transactions' 키를 유연하게 지원
+    // 1. 결과 객체 내에 배열이 있는 경우 우선 처리 (상세 내역 또는 요약 내역)
+    // 'result', 'transactions', 'summary' 키를 유연하게 지원
     const records = (rawData && rawData.result && Array.isArray(rawData.result)) ? rawData.result :
-                  (rawData && rawData.transactions && Array.isArray(rawData.transactions)) ? rawData.transactions : null;
+                  (rawData && rawData.transactions && Array.isArray(rawData.transactions)) ? rawData.transactions : 
+                  (rawData && rawData.summary && Array.isArray(rawData.summary)) ? rawData.summary : null;
 
     if (records) {
         newData = records.map((row: any) => {
@@ -2005,8 +2016,8 @@ function mapRefreshedData(rawData: any, mapping: any): any[] {
                 return mappedRow;
             }
             return {
-                label: mapping?.label && row[mapping.label] !== undefined ? row[mapping.label] : Object.values(row)[0],
-                value: mapping?.value && row[mapping.value] !== undefined ? row[mapping.value] : Object.values(row)[1]
+                label: mapping?.label && row[mapping.label] !== undefined ? row[mapping.label] : (row.yearMonth || row.month || row.name || row.label || row.date || Object.values(row)[0]),
+                value: mapping?.value && row[mapping.value] !== undefined ? row[mapping.value] : (row.totalWithdrawals || row.amount || row.value || row.count || row.total || Object.values(row)[1])
             };
         });
     }
@@ -2021,8 +2032,8 @@ function mapRefreshedData(rawData: any, mapping: any): any[] {
                 return mappedRow;
             }
             return {
-                label: mapping?.label && row[mapping.label] !== undefined ? row[mapping.label] : (row.month || row.name || row.label || row.date),
-                value: mapping?.value && row[mapping.value] !== undefined ? row[mapping.value] : (row.amount || row.value || row.count || row.total)
+                label: mapping?.label && row[mapping.label] !== undefined ? row[mapping.label] : (row.yearMonth || row.month || row.name || row.label || row.date),
+                value: mapping?.value && row[mapping.value] !== undefined ? row[mapping.value] : (row.totalWithdrawals || row.amount || row.value || row.count || row.total)
             };
         });
     } 
@@ -2044,7 +2055,7 @@ export async function getPinnedChartsAction() {
     try {
         const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
         const pinned = JSON.parse(fileContent);
-        const userPinned = pinned.filter((p: any) => p.userId === user.id);
+        const userPinned = pinned.filter((p: any) => String(p.userId) === String(user.id));
 
         // 실시간 데이터 동기화 (병렬 처리)
         let hasChanges = false;
@@ -2372,18 +2383,26 @@ export async function repairVirtualTableAction(reportId: string) {
         const reportsResult: any = await queryTable('report', { filters: { id: sReportId } });
         const reports = reportsResult?.rows || reportsResult || [];
         const report = reports[0];
-        if (!report || !report.tableName) return { success: false, error: '보고서 또는 물리 테이블 정보를 찾을 수 없습니다.' };
+        if (!report || !report.tableName) return { success: false, message: '보고서 또는 물리 테이블 정보를 찾을 수 없습니다.' };
 
         let columns: any[] = [];
         try {
             columns = typeof report.columns === 'string' ? JSON.parse(report.columns) : (report.columns || []);
         } catch (e) {
-            return { success: false, error: '보고서 컬럼 설정 형식이 올바르지 않습니다.' };
+            return { success: false, message: '보고서 컬럼 설정 형식이 올바르지 않습니다.' };
         }
 
-        const idCol = columns.find((c: any) => c.isAutoGenerated);
-        const idColName = idCol?.name;
-        if (!idColName) return { success: false, error: '기준이 될 데이터ID(AutoGenerated) 컬럼을 찾을 수 없습니다.' };
+        let idCol = columns.find((c: any) => c.isAutoGenerated);
+        let idColName = idCol?.name;
+        
+        // Fallbacks for legacy/restored data where isAutoGenerated flag might be missing
+        if (!idColName) {
+            const possibleIdCol = columns.find((c: any) => c.name === '데이터ID' || c.name.toLowerCase() === 'id');
+            if (possibleIdCol) idColName = possibleIdCol.name;
+            else if (columns.length > 0) idColName = columns[0].name; // 최종 폴백: 첫번째 컬럼을 기준키로 사용
+        }
+
+        if (!idColName) return { success: false, message: '기준이 될 데이터ID(AutoGenerated) 컬럼을 찾을 수 없습니다.' };
 
         // 2. 데이터 통합 로드 (안정적인 병렬 호출)
         const [pRowsResponse, vRowsResponse]: any[] = await Promise.all([
@@ -2415,18 +2434,26 @@ export async function repairVirtualTableAction(reportId: string) {
         const toDeleteIds: string[] = [];
 
         // 4. 동기화 데이터 분류
+        const matchedVirtualRowIds = new Set<string>();
+
         for (const [pId, pData] of physicalMap.entries()) {
             const vEntry = virtualMap.get(pId);
             if (!vEntry) {
                 toInsert.push(pData);
-            } else if (JSON.stringify(vEntry.data) !== JSON.stringify(pData)) {
-                toUpdateItems.push({ id: vEntry.rowId, data: JSON.stringify(pData) });
+            } else {
+                matchedVirtualRowIds.add(vEntry.rowId);
+                if (JSON.stringify(vEntry.data) !== JSON.stringify(pData)) {
+                    toUpdateItems.push({ id: vEntry.rowId, data: JSON.stringify(pData) });
+                }
             }
         }
 
-        for (const [vId, vEntry] of virtualMap.entries()) {
-            if (!physicalMap.has(vId)) toDeleteIds.push(vEntry.rowId);
-        }
+        // 매칭되지 않은 모든 가상 행(중복 포함)을 삭제 대상으로 추가
+        virtualRows.forEach((row: any) => {
+            if (!matchedVirtualRowIds.has(row.id)) {
+                toDeleteIds.push(row.id);
+            }
+        });
 
         let successCount = 0;
         let failCount = 0;
@@ -2438,7 +2465,7 @@ export async function repairVirtualTableAction(reportId: string) {
             const batchSize = 50;
             for (let i = 0; i < toInsert.length; i += batchSize) {
                 const chunk = toInsert.slice(i, i + batchSize).map(pData => ({
-                    id: generateSafeId(),
+                    id: generateNumericId(),
                     reportId: sReportId,
                     data: JSON.stringify(pData),
                     isDeleted: 0,
@@ -2448,7 +2475,10 @@ export async function repairVirtualTableAction(reportId: string) {
                 try {
                     await insertRows('report_row', chunk);
                     successCount += chunk.length;
-                } catch (e) { failCount += chunk.length; }
+                } catch (e) { 
+                    console.error("DEBUG_INSERT_ERROR:", e);
+                    failCount += chunk.length; 
+                }
             }
         }
 
@@ -2459,7 +2489,7 @@ export async function repairVirtualTableAction(reportId: string) {
                     data: item.data,
                     isDeleted: 0,
                     updatedAt: new Date().toISOString()
-                }, { filters: { id: item.id } });
+                }, { filters: { id: String(item.id) } });
                 successCount++;
             } catch (e) { failCount++; }
         }
@@ -2467,7 +2497,7 @@ export async function repairVirtualTableAction(reportId: string) {
         // C. 삭제 작업 (순차)
         for (const id of toDeleteIds) {
             try {
-                await deleteRows('report_row', { filters: { id } });
+                await deleteRows('report_row', { filters: { id: String(id) } });
                 successCount++;
             } catch (e) { failCount++; }
         }
@@ -2476,7 +2506,7 @@ export async function repairVirtualTableAction(reportId: string) {
         try {
             await ensureHistoryTable();
             await insertRows('report_row_history', [{
-                id: generateSafeId(),
+                id: generateNumericId(),
                 rowId: 'SYSTEM_REPAIR',
                 oldData: JSON.stringify({ reportId: sReportId, beforeCount: virtualRows.length }),
                 newData: JSON.stringify({ added: toInsert.length, deleted: toDeleteIds.length, updated: toUpdateItems.length, successCount, failCount }),
@@ -2495,6 +2525,6 @@ export async function repairVirtualTableAction(reportId: string) {
         };
     } catch (err: any) {
         console.error('repairVirtualTableAction error:', err);
-        return { success: false, error: '서버 내부 오류가 발생했습니다.' };
+        return { success: false, message: err?.message || '서버 내부 오류가 발생했습니다.' };
     }
 }

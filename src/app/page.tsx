@@ -43,11 +43,12 @@ export default async function DashboardPage() {
   }
 
   // 2. 권한에 따른 보고서 필터링 (가상 테이블)
-  let allReports = await queryTable('report', {
-    filters: { isDeleted: '0' },
+  const rawAllReports = await queryTable('report', {
+    limit: 1000,
     orderBy: 'createdAt',
     orderDirection: 'DESC'
   });
+  let allReports = rawAllReports.filter((r: any) => String(r.isDeleted) === '0');
 
   // VIEWER 필터링: 본인 소유이거나 접근 권한이 부여된 보고서만
   if (user.role === 'VIEWER') {
@@ -103,12 +104,12 @@ export default async function DashboardPage() {
   // ... 생략 ...
 
   // 가상 리포트 중에서 사용 중인 물리적 테이블(tableName) 리스트 추출
-  const mappedTableNames = new Set(virtualReports.map(r => r.tableName).filter(Boolean));
+  const mappedTableNames = new Set(virtualReports.map(r => r.tableName?.toLowerCase()).filter(Boolean));
 
   // 시스템 물리 테이블 통합 (어드민/에디터만)
   if (isAdminOrEditor) {
     const mappedSystemTables = systemTables
-      .filter((t: any) => !mappedTableNames.has(t.tableName)) // 이미 가상 보고서와 연결된 물리 테이블은 중복 방지를 위해 제외
+      .filter((t: any) => !mappedTableNames.has(t.tableName?.toLowerCase())) // 이미 가상 보고서와 연결된 물리 테이블은 중복 방지를 위해 제외
       .map((t: any) => ({
         id: t.tableName,
         name: t.displayName || t.tableName,

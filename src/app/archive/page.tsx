@@ -5,11 +5,12 @@ import { FileSpreadsheet, ArrowLeft, Archive } from 'lucide-react';
 import ArchiveActions from '@/components/ArchiveActions';
 
 export default async function ArchivePage() {
-  const allDeletedReports = await queryTable('report', {
-    filters: { isDeleted: '1' },
+  const rawAllDeletedReports = await queryTable('report', {
+    limit: 1000,
     orderBy: 'deletedAt',
     orderDirection: 'DESC'
   });
+  const allDeletedReports = rawAllDeletedReports.filter((r: any) => String(r.isDeleted) === '1');
 
   const deletedReports = await Promise.all(allDeletedReports.map(async (r: any) => {
     const rowCountResult = await aggregateTable('report_row', 'id', 'COUNT', { 
