@@ -73,27 +73,16 @@ export default function ReportHeader({
   };
 
   const handleShare = async () => {
-    const basePath = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_EGDESK_BASE_PATH) || '';
+    const currentPath = window.location.pathname;
+    const basePath = currentPath.replace(/\/(dashboard|report|share).*$/, '');
     const shareUrl = `${window.location.origin}${basePath}/report/${reportId}/input`;
-    const shareData = {
-      title: `${name} - 데이터 입력`,
-      text: `${name} 보고서의 데이터 입력을 위한 전용 페이지 링크입니다.`,
-      url: shareUrl,
-    };
 
     try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        await navigator.clipboard.writeText(shareUrl);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
-    } catch (err) {
-      // User cancelled or share failed, fallback to copy
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      alert('URL 복사에 실패했습니다.');
     }
   };
 

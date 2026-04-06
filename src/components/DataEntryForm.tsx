@@ -82,11 +82,10 @@ export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntr
       case 'select':
         return (
           <div className="relative">
-            <LayoutList className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <select
               value={value}
               onChange={(e) => handleChange(col.name, e.target.value)}
-              className="w-full pl-11 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold appearance-none cursor-pointer"
+              className="w-full px-4 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold appearance-none cursor-pointer"
               required={col.isRequired}
             >
               <option value="">선택하세요</option>
@@ -117,12 +116,11 @@ export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntr
       case 'date':
         return (
           <div className="relative">
-            <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="date"
               value={value}
               onChange={(e) => handleChange(col.name, e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
               required={col.isRequired}
             />
           </div>
@@ -131,7 +129,6 @@ export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntr
       case 'number':
         return (
           <div className="relative">
-            <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
               inputMode="numeric"
@@ -140,7 +137,7 @@ export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntr
                   const val = e.target.value.replace(/[^0-9.-]/g, '');
                   handleChange(col.name, val);
               }}
-              className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
               required={col.isRequired}
             />
           </div>
@@ -149,7 +146,6 @@ export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntr
       case 'currency':
         return (
           <div className="relative">
-            <Banknote className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500/60" size={18} />
             <input
               type="text"
               inputMode="numeric"
@@ -159,7 +155,7 @@ export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntr
                   handleChange(col.name, val);
               }}
               placeholder="0"
-              className="w-full pl-11 pr-4 py-3 bg-blue-50/30 border border-blue-100/50 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
+              className="w-full px-4 py-3 bg-blue-50/30 border border-blue-100/50 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
               required={col.isRequired}
             />
           </div>
@@ -168,12 +164,11 @@ export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntr
       case 'email':
         return (
           <div className="relative">
-            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="email"
               value={value}
               onChange={(e) => handleChange(col.name, e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
               required={col.isRequired}
             />
           </div>
@@ -182,12 +177,11 @@ export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntr
       case 'phone':
         return (
           <div className="relative">
-            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="tel"
               value={value}
               onChange={(e) => handleChange(col.name, e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
               required={col.isRequired}
             />
           </div>
@@ -196,12 +190,11 @@ export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntr
       case 'textarea':
         return (
           <div className="relative">
-            <AlignLeft className="absolute left-4 top-4 text-gray-400" size={18} />
             <textarea
               value={value}
               onChange={(e) => handleChange(col.name, e.target.value)}
               rows={4}
-              className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold resize-none"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold resize-none"
               required={col.isRequired}
             />
           </div>
@@ -227,12 +220,11 @@ export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntr
       default:
         return (
           <div className="relative">
-            <Type className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
               value={value}
               onChange={(e) => handleChange(col.name, e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
               required={col.isRequired}
             />
           </div>

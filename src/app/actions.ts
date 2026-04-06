@@ -386,19 +386,29 @@ export async function uploadExcelAction(formData: FormData, userId: string) {
 
       // 3. Insert data into 'report_row' (virtual) AND the NEW physical table
       if (table.rows.length > 0) {
-        // Virtual storage
-        await insertRows('report_row', table.rows.map(row => ({
-          id: generateId(),
+        const vRes = await insertRows('report_row', table.rows.map(row => ({
+          id: generateNumericId(),
           reportId: reportId,
           data: JSON.stringify(row),
+          creatorId: userId,
           createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          isDeleted: 0
         })));
+
+        if (!vRes?.success) {
+            console.error("Virtual insert failed:", vRes);
+            throw new Error(`Virtual table insertion failed: ${vRes?.error || JSON.stringify(vRes)}`);
+        }
 
         // Physical storage
         try {
-          await insertRows(physicalTableName, table.rows);
-          console.log(`Inserted ${table.rows.length} rows into physical table ${physicalTableName}`);
+          const pRes = await insertRows(physicalTableName, table.rows);
+          if(!pRes?.success) {
+              console.error(`Physical table insertion returned error:`, pRes);
+          } else {
+              console.log(`Inserted ${table.rows.length} rows into physical table ${physicalTableName}`);
+          }
         } catch (err) {
           console.error(`Failed to insert rows into physical table ${physicalTableName}:`, err);
         }
@@ -1445,7 +1455,11 @@ export async function addRowsAction(reportId: string, rows: any[]) {
         }
 
         // 4. 가상 테이블 (report_row) 저장
-        await insertRows('report_row', cleanedRowsToInsert);
+        const vRes = await insertRows('report_row', cleanedRowsToInsert);
+        if (!vRes?.success) {
+            console.error("Virtual insert failed:", vRes);
+            throw new Error(`가상 테이블 데이터 일괄 삽입에 실패하였습니다. (사유: ${vRes?.error || '알 수 없음'})`);
+        }
 
         // 5. 최대 일련번호 업데이트
         try {

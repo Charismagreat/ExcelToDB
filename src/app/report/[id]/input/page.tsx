@@ -28,7 +28,7 @@ export default async function DataInputPage({
 
   // 권한 체크를 위한 별도 조회 (Many-to-Many 대응)
   const accessList = await queryTable('report_access', {
-    filters: { reportId: id, userId: session.id }
+    filters: { reportId: id, userId: String(session.id) }
   });
   const hasExplicitAccess = accessList.length > 0;
 
@@ -68,7 +68,7 @@ export default async function DataInputPage({
   const rowsData = await queryTable('report_row', {
     filters: {
       reportId: id,
-      ...(isManagement ? {} : { creatorId: session.id }),
+      ...(isManagement ? {} : { creatorId: String(session.id) }),
       isDeleted: '0'
     },
     orderBy: 'updatedAt',
