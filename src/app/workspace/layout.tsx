@@ -1,5 +1,6 @@
 import React from 'react';
 import BottomNav from '@/components/workspace/BottomNav';
+import SmartFAB from '@/components/workspace/SmartFAB';
 
 export default function WorkspaceLayout({
     children,
@@ -22,7 +23,8 @@ export default function WorkspaceLayout({
                 </div>
             </main>
 
-            {/* Smart FAB Placeholder - will be added later in a specific container or layout layer */}
+            {/* Smart FAB */}
+            <SmartFAB />
             
             <BottomNav />
         </div>
