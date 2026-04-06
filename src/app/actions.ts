@@ -712,10 +712,13 @@ export async function restoreRowsAction(reportId: string, rowIds: string[]) {
                 // A. 물리 복구
                 if (report?.tableName) {
                     try {
+                        console.log(`[Restore] Step A: Physically restoring row into ${report.tableName}`);
                         const rowData = JSON.parse(row.data);
-                        await insertRows(report.tableName, [rowData]);
+                        const pRes = await insertRows(report.tableName, [rowData]);
+                        console.log(`[Restore] Step A result:`, pRes);
                     } catch (pErr: any) {
                         const msg = String(pErr.message || pErr);
+                        console.warn(`[Restore] Physical restore warning for row ${row.id}:`, msg);
                         if (!(msg.includes('unique') || msg.includes('Duplicate') || msg.includes('exists'))) {
                             throw pErr;
                         }
@@ -723,12 +726,14 @@ export async function restoreRowsAction(reportId: string, rowIds: string[]) {
                 }
 
                 // B. 가상 상태 업데이트
-                await updateRows('report_row', {
+                console.log(`[Restore] Step B: Updating virtual status for row ${row.id}`);
+                const vRes = await updateRows('report_row', {
                     isDeleted: 0,
                     deletedAt: null,
                     updaterId: updaterId,
                     updatedAt: new Date().toISOString()
-                }, { filters: { id: row.id } });
+                }, { filters: { id: String(row.id) } });
+                console.log(`[Restore] Step B result:`, vRes);
 
                 // C. 이력 기록 (실패해도 중단하지 않음)
                 try {
