@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Mic } from 'lucide-react';
 import AiInputOverlay from './AiInputOverlay';
+import { submitWorkspaceDataAction } from '@/app/workspace/actions';
 
 export default function SmartFAB() {
     const [isOverlayOpen, setIsOverlayOpen] = useState(false);
@@ -11,15 +12,20 @@ export default function SmartFAB() {
     const handleClose = () => setIsOverlayOpen(false);
 
     const handleSubmit = async (text: string, file?: File | null) => {
-        // Task 5에서 실제 Server Action(workspace/actions.ts)과 연결 예정
-        console.log('Submitted input:', text);
-        if (file) {
-            console.log('Submitted file:', file.name);
+        try {
+            const formData = new FormData();
+            formData.append('text', text);
+            if (file) {
+                formData.append('image', file);
+            }
+            
+            const result = await submitWorkspaceDataAction(formData);
+            if (result.success) {
+                alert(result.message || '데이터가 성공적으로 등록 되었습니다.');
+            }
+        } catch (error: any) {
+            alert(error.message || '요청 처리 중 오류가 발생했습니다.');
         }
-        
-        // Simulating network request
-        await new Promise(resolve => setTimeout(resolve, 800));
-        alert('데이터가 성공적으로 등록 되었습니다.');
     };
 
     return (
