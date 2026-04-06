@@ -47,6 +47,45 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // RBAC Authentication & Authorization Logic
+  const userIdCookie = request.cookies.get('session_user_id');
+  const roleCookie = request.cookies.get('session_user_role');
+  const isAuthenticated = !!userIdCookie?.value;
+  const role = roleCookie?.value;
+
+  // Public Assets & Next.js internal paths: Bypass middleware
+  if (
+      pathname.startsWith('/_next') ||
+      pathname.startsWith('/api') ||
+      pathname.includes('.') ||
+      pathname.includes('__user_data_proxy')
+  ) {
+      return NextResponse.next();
+  }
+
+  // 1. 비로그인 시 /login으로 무조건 리다이렉트
+  if (!isAuthenticated && pathname !== '/login') {
+      return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // 2. 이미 로그인한 사용자가 로그인 페이지 접근 시
+  if (isAuthenticated && pathname === '/login') {
+      if (role === 'EMPLOYEE') {
+          return NextResponse.redirect(new URL('/workspace', request.url));
+      }
+      return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // 3. 역할(Role) 기반 라우팅 제한
+  if (isAuthenticated) {
+      if (role === 'EMPLOYEE') {
+          // EMPLOYEE는 오직 /workspace 하위 경로만 접근 가능
+          if (!pathname.startsWith('/workspace')) {
+              return NextResponse.redirect(new URL('/workspace', request.url));
+          }
+      }
+  }
+
   // Continue to next proxy or route
   return NextResponse.next();
 }

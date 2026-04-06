@@ -7,14 +7,28 @@ interface AiInputOverlayProps {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (text: string, file?: File | null) => Promise<void>;
+    initialMode?: 'camera' | 'mic' | 'file' | null;
 }
 
-export default function AiInputOverlay({ isOpen, onClose, onSubmit }: AiInputOverlayProps) {
+export default function AiInputOverlay({ isOpen, onClose, onSubmit, initialMode }: AiInputOverlayProps) {
     const [inputText, setInputText] = useState('');
     const [isListening, setIsListening] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // 초기 모드 처리
+    React.useEffect(() => {
+        if (isOpen && initialMode) {
+            if (initialMode === 'mic') {
+                toggleListening();
+            } else if (initialMode === 'camera' || initialMode === 'file') {
+                setTimeout(() => {
+                    fileInputRef.current?.click();
+                }, 100);
+            }
+        }
+    }, [isOpen, initialMode]);
 
     if (!isOpen) return null;
 
@@ -105,8 +119,7 @@ export default function AiInputOverlay({ isOpen, onClose, onSubmit }: AiInputOve
                             
                             <input 
                                 type="file" 
-                                accept="image/*" 
-                                capture="environment" 
+                                accept="*" 
                                 className="hidden" 
                                 ref={fileInputRef}
                                 onChange={handleFileChange}
