@@ -1605,6 +1605,23 @@ export async function loginAction(username: string, password?: string) {
         await updateRows('user', { isActive: 1 }, { filters: { username: 'admin_user' } });
     }
 
+    // Check if employee_user exists, create if not
+    const employees = await queryTable('user', { filters: { username: 'employee_user' } });
+    const existingEmployee = employees[0];
+
+    if (!existingEmployee) {
+        await insertRows('user', [{ 
+            id: generateId(),
+            username: 'employee_user', 
+            role: 'EMPLOYEE', 
+            fullName: '테스트 사원', 
+            isActive: 1,
+            password: hashPassword('employee123!') // 기본 비밀번호 설정
+        }]);
+    } else if (!existingEmployee.isActive && trimmedUsername === 'employee_user') {
+        await updateRows('user', { isActive: 1 }, { filters: { username: 'employee_user' } });
+    }
+
     const users = await queryTable('user', { filters: { username: trimmedUsername } });
     const user = users[0];
     
@@ -1624,6 +1641,14 @@ export async function loginAction(username: string, password?: string) {
 
     const cookieStore = await cookies();
     cookieStore.set('session_user_id', user.id, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+        path: '/'
+    });
+
+    cookieStore.set('session_user_role', user.role, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
