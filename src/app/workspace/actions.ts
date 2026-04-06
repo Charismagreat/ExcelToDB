@@ -15,19 +15,22 @@ export async function getWorkspaceFeedAction() {
 
     try {
         // 1. 각 테이블의 원천 데이터를 별도로 조회 (SQL 필터/정렬 시 500 에러 발생 대응)
-        const [rawRows, reports, users] = await Promise.all([
+        const [rawRows, reportsResult, usersResult] = await Promise.all([
             executeSQL('SELECT * FROM report_row'),
             queryTable('report', { filters: { isDeleted: '0' } }),
             queryTable('user', { filters: { isActive: '1' } })
-        ]);
+        ]) as [any, any, any];
+        
+        const reports = reportsResult.rows || reportsResult || [];
+        const users = usersResult.rows || usersResult || [];
 
         if (!rawRows || !rawRows.rows) return [];
-        
-        const reportMap = new Map(reports.map((r: any) => [r.id, r]));
-        const userMap = new Map(users.map((u: any) => [u.id, u]));
+
+        const reportMap = new Map((reports as any[]).map((r: any) => [r.id, r]));
+        const userMap = new Map((users as any[]).map((u: any) => [u.id, u]));
 
         // 2. JS 레벨에서 조인, 필터링 및 정렬 수행
-        const feedData = rawRows.rows
+        const feedData = (rawRows.rows as any[])
             .filter((row: any) => Number(row.isDeleted) === 0) // 삭제되지 않은 것만
             .map((row: any) => {
                 const report = reportMap.get(row.reportId);
@@ -115,16 +118,21 @@ export async function submitWorkspaceDataAction(formData: FormData) {
         // 1. AI를 통한 분석 및 데이터 추출
         const aiResult = await processWorkspaceInput(text, imageBase64, mimeType);
 
-        // 2. 적절한 보고서가 식별된 경우 DB 저장
+        // 2. 적절한 보고서가 식별된 경우 데이터를 반환 (DB 저장은 사용자가 확인 후 수행)
         if (aiResult.reportId && aiResult.extractedData) {
             console.log(`[AI Match Success] Report: ${aiResult.reportName} | Data:`, aiResult.extractedData);
             
-            // 기존 addRowAction을 호출하여 물리+가상 테이블 동기화 및 알림 처리
-            await addRowAction(aiResult.reportId, aiResult.extractedData);
-            
+            // 칼럼 정보 추가 조회 (UI 폼 구성을 위함)
+            const reports = await queryTable('report', { filters: { id: aiResult.reportId } });
+            const columns = reports.length > 0 ? JSON.parse(reports[0].columns) : [];
+
             return { 
                 success: true, 
-                message: aiResult.message 
+                data: aiResult.extractedData,
+                reportId: aiResult.reportId,
+                reportName: aiResult.reportName,
+                columns: columns,
+                message: "AI가 데이터를 추출했습니다. 내용을 확인하고 수정해 주세요."
             };
         }
 
@@ -139,6 +147,32 @@ export async function submitWorkspaceDataAction(formData: FormData) {
         return {
             success: false,
             message: err.message || "AI 분석 중 오류가 발생했습니다."
+        };
+    }
+}
+
+/**
+ * 사용자가 수정한 최종 데이터를 DB에 저장합니다.
+ */
+export async function confirmWorkspaceDataAction(reportId: string, rowData: Record<string, any>) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+
+    try {
+        console.log(`[Workspace Final Save] Report: ${reportId} | Data:`, rowData);
+        
+        // 기존 addRowAction을 호출하여 물리+가상 테이블 동기화 및 알림 처리
+        const result = await addRowAction(reportId, rowData);
+        
+        return { 
+            success: true, 
+            message: "데이터가 성공적으로 저장되었습니다." 
+        };
+    } catch (err: any) {
+        console.error("Workspace final save failed:", err);
+        return {
+            success: false,
+            message: err.message || "데이터 저장 중 오류가 발생했습니다."
         };
     }
 }
