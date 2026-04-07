@@ -42,9 +42,9 @@
   --ring: #60a5fa;
 
   /* Glassmorphism Dark */
-  --glass-bg: rgba(15, 23, 42, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-shadow: rgba(0, 0, 0, 0.3);
+  --glass-bg: rgba(15, 23, 42, 0.5); /* Slate-900 transparent */
+  --glass-border: rgba(255, 255, 255, 0.05); /* Very subtle border */
+  --glass-shadow: rgba(0, 0, 0, 0.4);
 }
 
 @theme inline {

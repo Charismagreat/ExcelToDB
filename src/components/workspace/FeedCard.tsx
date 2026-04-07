@@ -45,8 +45,8 @@ export default function FeedCard({
         <div 
             onClick={() => onClassify?.(id)}
             className={`
-                bg-white rounded-2xl shadow-sm border overflow-hidden mb-4 hover:shadow-md transition-all group cursor-pointer active:scale-[0.99]
-                ${isUnclassified ? 'border-amber-200 bg-amber-50/30' : 'border-gray-100'}
+                glass rounded-2xl shadow-sm overflow-hidden mb-4 hover:shadow-md transition-all group cursor-pointer active:scale-[0.99]
+                ${isUnclassified ? 'border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10' : ''}
                 ${isDeleted ? 'opacity-60 grayscale-[0.5]' : ''}
             `}
         >
@@ -57,12 +57,12 @@ export default function FeedCard({
                         e.stopPropagation();
                         if (imageUrl) onImageClick?.(imageUrl);
                     }}
-                    className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-xl bg-gray-50 flex-shrink-0 overflow-hidden border border-gray-100 flex items-center justify-center cursor-zoom-in active:scale-95 transition-transform"
+                    className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-xl bg-secondary flex-shrink-0 overflow-hidden border border-border flex items-center justify-center cursor-zoom-in active:scale-95 transition-transform"
                 >
                     {imageUrl ? (
                         <img src={imageUrl} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     ) : (
-                        <div className="flex flex-col items-center justify-center text-gray-300">
+                        <div className="flex flex-col items-center justify-center text-muted-foreground/30">
                             {isUnclassified ? <Clock size={32} /> : (type === 'ACTIVITY' ? <ImageIcon size={32} /> : <FileText size={32} />)}
                         </div>
                     )}
@@ -79,18 +79,18 @@ export default function FeedCard({
                     <div>
                         <div className="flex items-start justify-between">
                             <div className="flex flex-col">
-                                <h3 className={`font-black text-base sm:text-lg line-clamp-1 transition-colors ${isUnclassified ? 'text-amber-900 group-hover:text-amber-700' : 'text-gray-900 group-hover:text-blue-700'}`}>
+                                <h3 className={`font-black text-base sm:text-lg line-clamp-1 transition-colors ${isUnclassified ? 'text-amber-600 dark:text-amber-400 group-hover:text-amber-500' : 'text-foreground group-hover:text-blue-500'}`}>
                                     {title}
                                 </h3>
                             </div>
                             {(isTask || isCompleted) && (
-                                <button className={`p-1 rounded-full ${isCompleted ? 'text-green-500 bg-green-50' : 'text-gray-200'}`}>
+                                <button className={`p-1 rounded-full ${isCompleted ? 'text-green-500 bg-green-500/10' : 'text-muted-foreground/30'}`}>
                                     <CheckCircle size={18} fill={isCompleted ? 'currentColor' : 'none'} className={isCompleted ? 'text-green-500' : ''} />
                                 </button>
                             )}
                         </div>
                         
-                        <p className={`text-sm font-bold line-clamp-2 mt-1.5 leading-snug ${isUnclassified ? 'text-amber-700' : 'text-gray-700'}`}>
+                        <p className={`text-sm font-bold line-clamp-2 mt-1.5 leading-snug ${isUnclassified ? 'text-amber-600/80 dark:text-amber-400/80' : 'text-foreground/70'}`}>
                             {content}
                         </p>
 
@@ -103,7 +103,7 @@ export default function FeedCard({
                     </div>
 
                     <div className="flex items-center justify-between mt-3">
-                        <div className="flex items-center text-[10px] text-gray-400 font-medium">
+                        <div className="flex items-center text-[10px] text-muted-foreground font-medium">
                             <span className="flex items-center">
                                 <Clock size={10} className="mr-1" />
                                 {timestamp}
@@ -117,15 +117,15 @@ export default function FeedCard({
                                        e.stopPropagation();
                                        onClassify?.(id);
                                    }}
-                                   className="px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg text-[10px] font-black transition-colors flex items-center gap-1 shadow-sm"
+                                   className="px-3 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-lg text-[10px] font-black transition-colors flex items-center gap-1 shadow-sm"
                                >
                                    <FileText size={12} />
                                    제출하기
                                </button>
                            ) : (
-                               <div className="flex items-center text-gray-400">
+                               <div className="flex items-center text-muted-foreground">
                                     {isDeleted ? (
-                                        <span className="text-[10px] font-bold text-gray-400">삭제 처리됨</span>
+                                        <span className="text-[10px] font-bold text-muted-foreground">삭제 처리됨</span>
                                     ) : isCompleted ? (
                                         <span className="text-[10px] font-bold text-green-600 flex items-center gap-1">
                                             <CheckCircle size={12} /> 완료
@@ -136,7 +136,7 @@ export default function FeedCard({
                                                 e.stopPropagation();
                                                 onClassify?.(id);
                                             }}
-                                            className="flex items-center text-gray-400 hover:text-blue-500 transition-colors"
+                                            className="flex items-center text-muted-foreground hover:text-blue-500 transition-colors"
                                         >
                                             <Eye size={14} className="mr-1" />
                                             <span className="text-[10px] font-bold">보기</span>

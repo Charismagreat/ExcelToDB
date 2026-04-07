@@ -15,37 +15,38 @@ interface NotificationItemProps {
 
 export default function NotificationItem({ icon, title, description, time, unread, type }: NotificationItemProps) {
     const typeStyles = {
-        checkin: 'bg-emerald-50 text-emerald-500',
-        task: 'bg-orange-50 text-orange-500',
-        system: 'bg-blue-50 text-blue-500',
-        approval: 'bg-purple-50 text-purple-500',
+        checkin: 'bg-emerald-500/10 text-emerald-500',
+        task: 'bg-orange-500/10 text-orange-500',
+        system: 'bg-blue-500/10 text-blue-500',
+        approval: 'bg-purple-500/10 text-purple-500',
     };
 
     return (
         <motion.div 
-            whileHover={{ scale: 1.01, backgroundColor: 'rgba(255, 255, 255, 0.9)' }}
+            whileHover={{ scale: 1.01 }}
             className={`
                 relative flex items-start space-x-4 p-4 rounded-2xl 
-                bg-white/70 backdrop-blur-md border border-white/40 
+                glass hover:bg-white/10 dark:hover:bg-white/5
                 shadow-sm transition-all cursor-pointer group
-                ${unread ? 'ring-1 ring-blue-500/10' : ''}
+                ${unread ? 'ring-1 ring-blue-500/20' : ''}
+                ${!unread ? 'opacity-70' : ''}
             `}
         >
             <div className={`
                 flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center
-                ${type ? typeStyles[type] : 'bg-gray-50 text-gray-500'}
+                ${type ? typeStyles[type] : 'bg-muted text-muted-foreground'}
             `}>
                 {icon}
             </div>
 
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-0.5">
-                    <h4 className={`text-sm font-bold truncate ${unread ? 'text-gray-900' : 'text-gray-600'}`}>
+                    <h4 className={`text-sm font-bold truncate ${unread ? 'text-foreground' : 'text-muted-foreground'}`}>
                         {title}
                     </h4>
-                    <span className="text-[10px] text-gray-400 font-medium">{time}</span>
+                    <span className="text-[10px] text-muted-foreground/60 font-medium">{time}</span>
                 </div>
-                <p className={`text-xs leading-relaxed ${unread ? 'text-gray-600' : 'text-gray-400'}`}>
+                <p className={`text-xs leading-relaxed ${unread ? 'text-foreground/70' : 'text-muted-foreground/50'}`}>
                     {description}
                 </p>
             </div>
