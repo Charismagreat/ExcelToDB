@@ -12,15 +12,24 @@ export default async function ArchivePage() {
   });
   const allDeletedReports = rawAllDeletedReports.filter((r: any) => String(r.isDeleted) === '1');
 
-  const deletedReports = await Promise.all(allDeletedReports.map(async (r: any) => {
-    const rowCountResult = await aggregateTable('report_row', 'id', 'COUNT', { 
+  const deletedReports: any[] = [];
+  for (const r of allDeletedReports) {
+    try {
+      const rowCountResult = await aggregateTable('report_row', 'id', 'COUNT', { 
         filters: { reportId: r.id } 
-    });
-    return {
+      });
+      deletedReports.push({
         ...r,
         _count: { rows: Number(rowCountResult) || 0 }
-    };
-  }));
+      });
+    } catch (err) {
+      console.warn(`Failed to count rows for report ${r.id}:`, err);
+      deletedReports.push({
+        ...r,
+        _count: { rows: 0 }
+      });
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-8 font-[family-name:var(--font-geist-sans)]">

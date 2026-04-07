@@ -8,14 +8,17 @@ import { ColumnRecommendation } from '@/lib/ai-vision';
 
 interface SchemaEditorProps {
   reportId: string;
+  initialName: string;
   initialColumns: ColumnDefinition[];
   onClose: () => void;
 }
 
-export default function SchemaEditor({ reportId, initialColumns, onClose }: SchemaEditorProps) {
+export default function SchemaEditor({ reportId, initialName, initialColumns, onClose }: SchemaEditorProps) {
+  const [displayName, setDisplayName] = useState(initialName);
   const [columns, setColumns] = useState<ColumnDefinition[]>(() => {
     return initialColumns.map(col => ({
       ...col,
+      id: col.id || `col_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
       originalName: col.originalName || col.name
     }));
   });
@@ -62,6 +65,7 @@ export default function SchemaEditor({ reportId, initialColumns, onClose }: Sche
 
   const handleAddColumn = () => {
     const newField: ColumnDefinition = {
+        id: `col_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
         name: `새 필드 ${columns.length + 1}`,
         type: 'string',
         isRequired: false
@@ -137,7 +141,7 @@ export default function SchemaEditor({ reportId, initialColumns, onClose }: Sche
     }
     setIsSaving(true);
     try {
-      await updateReportSchemaAction(reportId, columns, convertExistingData);
+      await updateReportSchemaAction(reportId, columns, convertExistingData, displayName);
       onClose();
     } catch (error) {
       alert('설정 저장 중 오류가 발생했습니다.');
@@ -150,9 +154,18 @@ export default function SchemaEditor({ reportId, initialColumns, onClose }: Sche
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white w-full max-w-2xl rounded-[32px] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 max-h-[90vh] flex flex-col my-auto">
         <div className="bg-gray-50 px-8 py-6 border-b flex items-center justify-between shrink-0">
-            <div>
-                <h3 className="text-xl font-black text-gray-900 tracking-tight">테이블 구조 수정</h3>
-                <p className="text-gray-400 text-xs font-bold mt-0.5 uppercase tracking-wider">Configure schema for this database</p>
+            <div className="flex flex-col gap-1 w-full max-w-xs">
+                <div className="flex items-center gap-1.5 text-gray-400 mb-0.5">
+                    <Edit3 size={12} />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Table Name</span>
+                </div>
+                <input 
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="text-xl font-black text-gray-900 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-500 focus:outline-none transition-all py-0.5 px-0 w-full"
+                    placeholder="테이블 명칭"
+                />
             </div>
             <div className="flex items-center gap-3">
                 <button 

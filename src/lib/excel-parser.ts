@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { isSubtotalRow } from './data-utils';
 
 export interface ColumnDefinition {
+  id?: string;   // 추가: 고유 식별자 (필드명 변경 추적용)
   name: string;
   originalName?: string; // 추가: 이름 변경 추적을 위함
   type: string; // string, number, date, currency, select, boolean, textarea, file, email, phone, auto

@@ -263,6 +263,7 @@ export default function ReportHeader({
       {showConfig && (
         <SchemaEditor 
           reportId={reportId}
+          initialName={name}
           initialColumns={initialColumns}
           onClose={() => setShowConfig(false)}
         />
