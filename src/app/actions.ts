@@ -11,7 +11,8 @@ import {
     aggregateTable,
     createTable,
     listTables,
-    deleteTable
+    deleteTable,
+    renameTable
 } from '@/egdesk-helpers';
 import { EGDESK_CONFIG } from '@/egdesk.config';
 import { parseExcelWorkbook } from '@/lib/excel-parser';
@@ -106,6 +107,22 @@ const SYSTEM_TABLES = [
             { name: 'changeType', type: 'TEXT' },
             { name: 'changedById', type: 'TEXT' },
             { name: 'changedAt', type: 'TEXT' }
+        ] as any[]
+    },
+    {
+        tableName: 'workspace_item', displayName: 'Workspace Image Items', schema: [
+            { name: 'id', type: 'TEXT', notNull: true },
+            { name: 'creatorId', type: 'TEXT' },
+            { name: 'imageUrl', type: 'TEXT' },
+            { name: 'originalText', type: 'TEXT' },
+            { name: 'suggestedTitle', type: 'TEXT' },
+            { name: 'suggestedSummary', type: 'TEXT' },
+            { name: 'aiData', type: 'TEXT' },
+            { name: 'status', type: 'TEXT', defaultValue: 'pending' },
+            { name: 'reportId', type: 'TEXT' },
+            { name: 'rowId', type: 'TEXT' },
+            { name: 'createdAt', type: 'TEXT', notNull: true },
+            { name: 'updatedAt', type: 'TEXT', notNull: true }
         ] as any[]
     }
 ];
@@ -596,7 +613,7 @@ export async function addRowAction(reportId: string, rowData: any) {
   const creatorId = user.id;
 
   // 6. 저장 (가상 테이블)
-  await insertRows('report_row', [{
+  const vRes = await insertRows('report_row', [{
     id: generateNumericId(),
     reportId,
     data: JSON.stringify(finalData),
@@ -606,6 +623,11 @@ export async function addRowAction(reportId: string, rowData: any) {
     updatedAt: new Date().toISOString(),
     isDeleted: 0
   }]);
+    
+  if (!vRes?.success) {
+      console.error("[Virtual Sync Error] Failed to insert into report_row:", vRes);
+      throw new Error(`가상 테이블(report_row) 저장에 실패하여 처리가 중단되었습니다. (원인: ${vRes?.error || '알 수 없음'})`);
+  }
     
   // 7. 최대 일련번호 업데이트
   try {
@@ -716,13 +738,25 @@ export async function restoreRowsAction(reportId: string, rowIds: string[]) {
         // 2. 순차적 서비스 처리 (안정성 최우선)
         for (const row of validRows) {
             try {
-                // A. 물리 복구
+                // A. 중복 체크 (활성 데이터 중 동일 해시 존재 여부)
+                const rowData = JSON.parse(row.data);
+                const columns = report.columns ? JSON.parse(report.columns) : [];
+                const hash = await generateContentHash(rowData, columns);
+                
+                const existingResult: any = await queryTable('report_row', {
+                    filters: { reportId: sReportId, contentHash: hash, isDeleted: '0' }
+                });
+                const existing = existingResult.rows || existingResult;
+                if (existing.length > 0) {
+                    throw new Error(`이미 동일한 내용의 데이터(${hash.substring(0, 8)})가 활성 상태로 존재합니다.`);
+                }
+
+                // B. 물리 복구
                 if (report?.tableName) {
                     try {
-                        console.log(`[Restore] Step A: Physically restoring row into ${report.tableName}`);
-                        const rowData = JSON.parse(row.data);
+                        console.log(`[Restore] Step B: Physically restoring row into ${report.tableName}`);
                         const pRes = await insertRows(report.tableName, [rowData]);
-                        console.log(`[Restore] Step A result:`, pRes);
+                        console.log(`[Restore] Step B result:`, pRes);
                     } catch (pErr: any) {
                         const msg = String(pErr.message || pErr);
                         console.warn(`[Restore] Physical restore warning for row ${row.id}:`, msg);
@@ -732,14 +766,16 @@ export async function restoreRowsAction(reportId: string, rowIds: string[]) {
                     }
                 }
 
-                // B. 가상 상태 업데이트
-                console.log(`[Restore] Step B: Updating virtual status for row ${row.id}`);
+                // C. 가상 상태 업데이트 (해시 다시 할당)
+                console.log(`[Restore] Step C: Updating virtual status for row ${row.id}`);
                 const vRes = await updateRows('report_row', {
                     isDeleted: 0,
+                    contentHash: hash,
                     deletedAt: null,
                     updaterId: updaterId,
                     updatedAt: new Date().toISOString()
                 }, { filters: { id: String(row.id) } });
+                console.log(`[Restore] Step C result:`, vRes);
                 console.log(`[Restore] Step B result:`, vRes);
 
                 // C. 이력 기록 (실패해도 중단하지 않음)
@@ -867,9 +903,10 @@ export async function deleteRowsAction(reportId: string, rowIds: string[]) {
         let syncWarning: string | undefined;
         for (const row of validRows) {
             try {
-                // 논리적 삭제 및 이력 생성
+                // 논리적 삭제 및 이력 생성 (해시 해제)
                 await updateRows('report_row', {
-                    isDeleted: 1, // Ensure integer type to match SQLite schema
+                    isDeleted: 1,
+                    contentHash: null, // 해시를 null로 비워 동일 내용 재입력 허용
                     deletedAt: new Date().toISOString(),
                     updaterId: updaterId
                 }, { filters: { id: String(row.id) } });
@@ -1230,7 +1267,8 @@ export async function updateReportSchemaAction(
                     name: c.name,
                     type: ((c.type === 'number' || c.type === 'currency') ? 'INTEGER' : 'TEXT') as 'TEXT' | 'INTEGER'
                 }));
-                await createTable(report.name + ' (Sync)', tableSchema, { tableName: newTableName });
+                const finalDisplayName = (newName || report.name) + ' (Sync)';
+                await createTable(finalDisplayName, tableSchema, { tableName: newTableName });
                 await logInfo(`Step 2: Successfully created new table ${newTableName}.`);
 
                 // 3) 기존 데이터 읽기 및 이관
@@ -1286,16 +1324,31 @@ export async function updateReportSchemaAction(
 
                 await logInfo(`Blue-Green Migration COMPLETED successfully for report ${reportId}.`);
             } else {
-                await logInfo(`No schema structure change detected. Metadata only update.`);
+                await logInfo(`No schema structure change detected. Metadata configuration update.`);
+                // 비구조적 변경(중복체크, 필수여부, 옵션 등) 시에도 메타데이터 업데이트 수행
+                const updateValues: any = { columns: JSON.stringify(columns) };
+                if (newName) updateValues.name = newName;
+                await updateRows('report', updateValues, { filters: { id: String(reportId) } });
             }
         } catch (err: any) {
             await logError(`CRITICAL: Blue-Green Migration FAILED: ${err.message}`);
             // 마이그레이션 실패 시 메타데이터는 구 테이블을 유지함 (트랜잭션 효과)
             throw new Error(`물리 스키마 동기화 중 오류가 발생했습니다: ${err.message}`);
         }
-    } else if (newName) {
-        // 이름만 바뀌는 경우 (물리 테이블 변경 없음)
-        await updateRows('report', { name: newName }, { filters: { id: String(reportId) } });
+    } else {
+        // 물리 테이블 정보가 부족하거나 이름만 바뀌는 경우에도 columns 메타데이터는 항상 최신화
+        const updateValues: any = { columns: JSON.stringify(columns) };
+        if (newName) updateValues.name = newName;
+        await updateRows('report', updateValues, { filters: { id: String(reportId) } });
+
+        if (newName && report.tableName) {
+            try {
+                // 물리 테이블의 표시 이름을 새 이름으로 변경 (물리 ID는 유지)
+                await renameTable(report.tableName, report.tableName, newName);
+            } catch (err) {
+                console.warn(`[Sync Warning] Failed to update physical table display name for ${report.tableName}:`, err);
+            }
+        }
     }
 
     // 3. 기존 데이터 변환 로직 (사용자가 선택한 경우)
@@ -2556,7 +2609,9 @@ export async function checkSyncStatusAction(reportId: string) {
             physicalIds.forEach(id => { if (!virtualIds.has(id)) missingInVirtual.push(id); });
         }
 
-        const isSynced = virtualCount === physicalCount && missingInPhysical.length === 0 && missingInVirtual.length === 0;
+        const isCountMatched = virtualCount === physicalCount;
+        const isIdsMatched = missingInPhysical.length === 0 && missingInVirtual.length === 0;
+        const isSynced = isCountMatched && isIdsMatched;
 
         return {
             status: isSynced ? 'synced' as const : 'mismatch' as const,

@@ -273,7 +273,7 @@ export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntr
           ) : (
             <Save size={16} />
           )}
-          {isSubmitting ? '저장 중...' : '데이터 저장하기'}
+          {isSubmitting ? '제출 중...' : '제출하기'}
         </button>
       </div>
     </form>

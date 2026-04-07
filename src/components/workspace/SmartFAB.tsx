@@ -23,20 +23,19 @@ export default function SmartFAB() {
         setActiveMode(null);
     };
 
-    const handleSubmit = async (text: string, file?: File | null) => {
+    const handleSubmit = async (text: string, files: File[]) => {
         try {
             const formData = new FormData();
             formData.append('text', text);
-            if (file) {
+            files.forEach(file => {
                 formData.append('image', file);
-            }
+            });
             
             const result = await submitWorkspaceDataAction(formData);
-            if (result.success) {
-                alert(result.message || '데이터가 성공적으로 등록되었습니다.');
-            }
+            return result; // 결과를 반환하여 Overlay에서 처리하게 함
         } catch (error: any) {
-            alert(error.message || '요청 처리 중 오류가 발생했습니다.');
+            console.error('Submit handling error:', error);
+            return { success: false, message: error.message || '요청 처리 중 오류가 발생했습니다.' };
         }
     };
 

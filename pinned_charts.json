@@ -6,20 +6,28 @@
       "type": "bar",
       "data": [
         {
-          "label": "2026-04",
-          "value": 931133
+          "label": "2025122",
+          "value": 0
         },
         {
-          "label": "2026-03",
-          "value": 8922916
+          "label": "2025111",
+          "value": 4400
         },
         {
-          "label": "2026-02",
-          "value": 10841634
+          "label": "2025103",
+          "value": 19000
         },
         {
-          "label": "2026-01",
-          "value": 2714329
+          "label": "2025102",
+          "value": 0
+        },
+        {
+          "label": "2025092",
+          "value": 0
+        },
+        {
+          "label": "2025091",
+          "value": 0
         }
       ],
       "xAxis": "label",
@@ -46,7 +54,7 @@
     },
     "createdAt": "2026-04-02T00:49:02.461Z",
     "updatedAt": "2026-04-02T01:45:00.000Z",
-    "refreshedAt": "2026-04-06T07:28:45.898Z"
+    "refreshedAt": "2026-04-07T08:44:07.632Z"
   },
   {
     "id": "1775106429854-xjtomn6jx",
@@ -298,7 +306,7 @@
       ],
       "title": "최근 10일간 카드 사용 상세 내역",
       "showLabels": true,
-      "sourceDescription": "2026-03-27부터 2026-04-06까지 승인된 카드 사용 내역입니다.",
+      "sourceDescription": "2026-03-28부터 2026-04-07까지 승인된 카드 사용 내역입니다.",
       "refreshMetadata": {
         "tool": "get_card_usage_by_approval_date",
         "args": {

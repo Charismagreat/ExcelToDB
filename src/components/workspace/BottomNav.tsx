@@ -3,15 +3,15 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Search, LayoutGrid, Settings } from 'lucide-react';
+import { Home, ClipboardList, Bell, Settings } from 'lucide-react';
 
 export default function BottomNav() {
     const pathname = usePathname();
 
     const tabs = [
         { name: '홈', href: '/workspace', icon: <Home size={24} /> },
-        { name: '할 일', href: '/workspace/todo', icon: <LayoutGrid size={24} /> },
-        { name: '검색', href: '/workspace/search', icon: <Search size={24} /> },
+        { name: '할일', href: '/workspace/todo', icon: <ClipboardList size={24} /> },
+        { name: '알림', href: '/workspace/notifications', icon: <Bell size={24} /> },
         { name: '설정', href: '/workspace/settings', icon: <Settings size={24} /> },
     ];
 

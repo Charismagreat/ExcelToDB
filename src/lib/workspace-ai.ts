@@ -3,7 +3,7 @@ import { queryTable } from "@/egdesk-helpers";
 
 const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }, { apiVersion: 'v1beta' });
+const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" }, { apiVersion: "v1beta" });
 
 export interface WorkspaceAiResult {
     reportId: string | null;
@@ -11,6 +11,11 @@ export interface WorkspaceAiResult {
     extractedData: Record<string, any> | null;
     confidence: number;
     message: string;
+    isMultiEntity?: boolean;
+    columns?: any[];
+    unclassifiedReason?: string;
+    suggestedTitle?: string;
+    suggestedSummary?: string;
 }
 
 /**
@@ -22,28 +27,57 @@ export async function processWorkspaceInput(
     imageBase64?: string, 
     mimeType?: string
 ): Promise<WorkspaceAiResult> {
-    if (!apiKey) throw new Error("AI API 키가 설정되지 않았습니다.");
+    const fs = require('fs');
+    const log = (msg: string) => {
+        const time = new Date().toISOString();
+        console.log(`[DEBUG_AI] ${msg}`);
+        fs.appendFileSync('ai_debug_trace.txt', `[${time}] ${msg}\n`);
+    };
 
-    // 1. 모든 가용 보고서 스키마 조회
+    log(`>>> Analysis Start | Text: "${text}" | Image Attached: ${!!imageBase64}`);
+
+    if (!apiKey) {
+        log("ERROR: API Key is missing");
+        throw new Error("AI API 키가 설정되지 않았습니다.");
+    }
+
+    log("Step 1: Querying Reports from DB...");
     const reports = await queryTable('report', { filters: { isDeleted: '0' } });
+    log(`Step 1 Result: Found ${reports?.length || 0} reports`);
+
     if (!reports || reports.length === 0) {
+        log("Step 1 Exit: No reports found in DB");
         return { 
             reportId: null, 
-            reportName: null, 
-            extractedData: null, 
-            confidence: 0, 
-            message: "현재 등록된 보고서가 없습니다." 
+            reportName: null,
+            extractedData: null,
+            confidence: 0,
+            message: "등록된 보고서가 없습니다. (데이터베이스에 보고서 정의가 존재하지 않음)"
         };
     }
 
-    // 2. 보고서 식별 (Classification)
-    const reportList = reports.map((r: any) => ({
-        id: r.id,
-        name: r.name,
-        description: r.description || "",
-        columns: JSON.parse(r.columns).map((c: any) => c.name)
-    }));
+    const reportList = reports.map((r: any) => {
+        try {
+            return {
+                id: r.id,
+                name: r.name,
+                description: r.description || "",
+                columns: JSON.parse(r.columns || "[]").map((c: any) => c.name)
+            };
+        } catch (e) {
+            console.error(`Failed to parse columns for report: ${r.name}`, e);
+            return {
+                id: r.id,
+                name: r.name,
+                description: r.description || "",
+                columns: []
+            };
+        }
+    });
 
+    console.log(`[AI Classification] Potential matches found:`, reportList.map((r: any) => r.name));
+
+    log(`Step 2: Preparing AI Classification Prompt with ${reportList.length} reports...`);
     const classificationPrompt = `
         당신은 기업 사내 데이터 관리 도우미입니다. 사용자의 입력(텍스트 또는 이미지)을 분석하여 다음 보고서 목록 중 가장 적합한 보고서를 하나 골라주세요.
         
@@ -54,45 +88,93 @@ export async function processWorkspaceInput(
         사용자 추가 메시지: "${text || "없음"}"
         
         응답 규칙:
-        1. 사진이 영수증이라면 '영수증', '카드', '지출' 등의 키워드가 포함된 보고서를 우선순위로 검토하세요.
-        2. 가장 관련성이 높은 보고서의 ID를 반환하세요.
-        3. 확신도가 낮거나(0.7 미만) 매칭되는 보고서가 전혀 없을 경우 reportId를 null로 반환하세요.
-        4. 반드시 아래 JSON 형식으로만 응답하세요:
-        { "reportId": "선택된 ID 또는 null", "confidence": 0.0~1.0, "reason": "선택 이유" }
+        1. 이미지나 텍스트가 영수증, 결제내역, 카드 사용 내역과 관련이 있다면 반드시 '신용카드영수증' 또는 유사한 이름의 보고서를 선택하세요.
+        2. 이미지 속에 '영수증', '승인번호', '합계', '금액' 등의 텍스트가 보인다면 지출 관련 보고서를 매칭하세요.
+        3. 가장 관련성이 높은 보고서의 ID를 반환하세요.
+        4. 한 장의 사진에 독립된 개체(예: 두 장 이상의 영수증, 여러 개의 명함 등)가 명합히 분리되어 2개 이상 감지될 경우 "isMultiEntity"를 true로 설정하세요.
+        5. 확신도가 매우 낮거나(0.4 미만) 매칭되는 항목이 전혀 없을 경우에만 reportId를 null로 반환하세요.
+        6. reportId가 null인 경우, 사용자가 올린 내용이 무엇인지 요약하여 'suggestedTitle'과 'suggestedSummary' 필드를 채워주세요. (예: "스타벅스 영수증", "명함 (홍길동)")
+        7. 반드시 아래 JSON 형식으로만 응답하세요:
+        { "reportId": "선택된 ID 또는 null", "confidence": 0.0~1.0, "isMultiEntity": true/false, "reason": "선택 이유", "suggestedTitle": "제목", "suggestedSummary": "요약" }
     `;
 
-    let classification: { reportId: string | null, confidence: number };
+    let classification: { 
+        reportId: string | null, 
+        confidence: number, 
+        isMultiEntity?: boolean, 
+        reason?: string,
+        suggestedTitle?: string,
+        suggestedSummary?: string
+    };
+    let rawResponseText = "";
     try {
+        log("Step 3: Sending request to Google Gemini API...");
         const contents: any[] = [classificationPrompt];
         if (imageBase64 && mimeType) {
             contents.push({ inlineData: { data: imageBase64, mimeType } });
         }
         const result = await model.generateContent(contents);
-        const responseText = result.response.text();
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        classification = jsonMatch ? JSON.parse(jsonMatch[0]) : { reportId: null, confidence: 0 };
-    } catch (e) {
+        rawResponseText = result.response.text();
+        log(`Step 4: AI Responded. Raw Length: ${rawResponseText.length}`);
+
+        try {
+            const fs = require('fs');
+            fs.appendFileSync('ai_classification_log.txt', `\n[${new Date().toISOString()}]\n${rawResponseText}\n`);
+        } catch (e) { }
+
+        const cleanedText = rawResponseText.replace(/```json|```/gi, "").trim();
+        const firstBrace = cleanedText.indexOf("{");
+        const lastBrace = cleanedText.lastIndexOf("}");
+        
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            classification = JSON.parse(cleanedText.substring(firstBrace, lastBrace + 1));
+        } else {
+            classification = { reportId: null, confidence: 0, isMultiEntity: false };
+        }
+        
+        log(`Step 5 Parsing: Matching result - ID: ${classification.reportId}, Conf: ${classification.confidence}, Multi: ${classification.isMultiEntity}`);
+    } catch (e: any) {
+        log(`Step 3-5 Error: ${e.message}`);
         console.error("Classification failure:", e);
-        classification = { reportId: null, confidence: 0 };
+        classification = { reportId: null, confidence: 0, isMultiEntity: false, reason: e.message, suggestedTitle: "분류 실패", suggestedSummary: "AI 분석 중 오류가 발생했습니다." };
     }
 
-    if (!classification.reportId || classification.confidence < 0.7) {
+    const unclassifiedData = {
+        reportId: null,
+        reportName: "분류되지 않은 항목",
+        extractedData: null,
+        confidence: classification.confidence,
+        suggestedTitle: classification.suggestedTitle || "알 수 없는 문서",
+        suggestedSummary: classification.suggestedSummary || "매칭되는 테이블을 찾을 수 없는 데이터입니다.",
+        unclassifiedReason: classification.reason || "매칭되는 보고서 형식이 없습니다."
+    };
+
+    if (classification.isMultiEntity) {
+        log("Step 5 Exit: Multiple entities detected in one image");
         return {
-            reportId: null,
-            reportName: null,
-            extractedData: null,
-            confidence: classification.confidence,
-            message: "매칭되는 보고서를 찾을 수 없습니다. 현재 '신용카드영수증' 테이블이 활성화되어 있는지 확인해 주세요."
+            ...unclassifiedData,
+            isMultiEntity: true,
+            message: "한 장의 사진에 여러 개의 영수증이나 명함이 감지되었습니다. 데이터 정확성을 위해 한 장당 하나의 개체만 촬영하여 업로드해 주세요."
+        };
+    }
+
+    if (!classification.reportId || classification.confidence < 0.4) {
+        return {
+            ...unclassifiedData,
+            message: `업로드하신 내용(영수증 등)을 기록할 적당한 항목(보고서)이 워크스페이스에 없습니다.\n(원인: ${classification.reason})`
         };
     }
 
     const selectedReport = reports.find((r: any) => String(r.id) === String(classification.reportId));
     if (!selectedReport) {
+        console.error(`[AI Error] Match found but report could not be located in local list. Target ID: ${classification.reportId}`);
         return { reportId: null, reportName: null, extractedData: null, confidence: 0, message: "보고서 매칭 오류가 발생했습니다." };
     }
     const columns = JSON.parse(selectedReport.columns);
 
     // 3. 데이터 추출 (Extraction) - 시맨틱 매핑 강화
+    log(`Step 6: Starting Data Extraction for report [${selectedReport.name}]...`);
+    console.log(`[AI Extraction] Starting for ${selectedReport.name}...`);
     const extractionPrompt = `
         사용자의 입력(이미지 및 텍스트)을 분석하여 보고서 '${selectedReport.name}'의 컬럼 정의에 맞는 데이터를 추출하세요.
         
@@ -112,6 +194,7 @@ export async function processWorkspaceInput(
 
     let extractedData: any = null;
     try {
+        log("Step 7: Sending Extraction Request to Gemini 3...");
         const contents: any[] = [extractionPrompt];
         if (imageBase64 && mimeType) {
             contents.push({ inlineData: { data: imageBase64, mimeType } });
@@ -119,17 +202,31 @@ export async function processWorkspaceInput(
         
         const result = await model.generateContent(contents);
         const responseText = result.response.text();
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        extractedData = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+        log(`Step 8: Extraction Response Received (Length: ${responseText.length})`);
+        console.log(`[AI Extraction Raw]:`, responseText);
+        
+        const cleanedText = responseText.replace(/```json|```/gi, "").trim();
+        const firstBrace = cleanedText.indexOf("{");
+        const lastBrace = cleanedText.lastIndexOf("}");
+        
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            extractedData = JSON.parse(cleanedText.substring(firstBrace, lastBrace + 1));
+            log(`Step 9: JSON Parsing Success. Extracted ${Object.keys(extractedData).length} fields.`);
+        } else {
+            log("Step 9 Error: Could not find JSON braces in response");
+            extractedData = null;
+        }
+        console.log(`[AI Extraction Success]:`, extractedData);
     } catch (e) {
         console.error("Extraction failure:", e);
     }
 
     return {
-        reportId: selectedReport.id,
+        reportId: String(selectedReport.id),
         reportName: selectedReport.name,
         extractedData,
         confidence: classification.confidence,
+        columns: columns,
         message: extractedData ? `[${selectedReport.name}]에 데이터를 기록했습니다.` : "데이터 추출에 실패했습니다."
     };
 }

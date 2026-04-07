@@ -33,7 +33,7 @@ export default function MobileLayout({ children, user }: MobileLayoutProps) {
       {/* Mobile Top Header */}
       <header className="sticky top-0 z-40 glass border-b px-6 py-4 flex items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-[10px] font-black tracking-widest text-primary uppercase">My Workspace</span>
+          <span className="text-[10px] font-black tracking-widest text-primary uppercase">Won Conductor</span>
           <h1 className="text-xl font-black tracking-tight">마이 워크스페이스 2.0</h1>
         </div>
         <div className="flex items-center gap-3">

@@ -3,8 +3,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
 
-// 사용자의 요청에 따라 최신 모델인 gemini-2.5-flash 사용 (v1 API 유지)
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }, { apiVersion: 'v1beta' });
+// 사용자의 요청에 따라 최신 모델인 gemini-3-flash-preview 사용 (v1 API 유지)
+const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" }, { apiVersion: "v1beta" });
 
 export interface ColumnRecommendation {
   name: string;
@@ -216,14 +216,19 @@ export async function extractDataFromImage(imageBase64: string, mimeType: string
     // 로깅 추가 (디버깅용)
     console.log("Raw AI Response:", text);
 
-    // 정규식을 이용해 첫 번째 { 와 마지막 } 사이의 내용을 추출 (더 강력한 파싱)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    // 마크다운 블록(```json 등) 제거 및 양쪽 공백 제거
+    const cleanedText = text.replace(/```json|```/gi, "").trim();
+
+    // 첫 번째 { 와 마지막 } 기호 위치를 찾아 JSON 문자열만 추출
+    const firstBrace = cleanedText.indexOf("{");
+    const lastBrace = cleanedText.lastIndexOf("}");
+    
+    if (firstBrace === -1 || lastBrace === -1) {
       console.error("No JSON found in AI response:", text);
       throw new Error("AI 응답에서 유효한 데이터 형식을 찾을 수 없습니다.");
     }
     
-    const jsonStr = jsonMatch[0];
+    const jsonStr = cleanedText.substring(firstBrace, lastBrace + 1);
     return JSON.parse(jsonStr);
   } catch (error) {
     console.error("Gemini Vision Data Extraction Error:", error);
