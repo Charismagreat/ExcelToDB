@@ -343,10 +343,10 @@ export default async function ReportDetailPage({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-[family-name:var(--font-geist-sans)]">
+    <div className="p-8 font-[family-name:var(--font-geist-sans)]">
       <header className="max-w-6xl mx-auto flex justify-between items-center mb-8">
         <Link
-          href="/"
+          href="/dashboard"
           className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
         >
           <ArrowLeft size={18} />

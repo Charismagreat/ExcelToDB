@@ -22,7 +22,6 @@ import NewTableSection from '@/components/NewTableSection';
 import { redirect } from 'next/navigation';
 import LogoutButton from '@/components/LogoutButton';
 import { queryTable, aggregateTable, listTables } from '@/egdesk-helpers';
-import NavigationSidebar from '@/components/NavigationSidebar';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 
 export default async function DashboardPage() {
@@ -128,9 +127,7 @@ export default async function DashboardPage() {
   const isStaff = user.role === 'VIEWER';
 
   return (
-    <div className="flex min-h-screen bg-[#f8fafc]">
-      <NavigationSidebar user={user} />
-      <div className="flex-1 ml-72 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <main className="max-w-6xl mx-auto p-8 md:p-12 space-y-16 w-full overflow-y-auto">
           {!isStaff && <NewTableSection userId={user.id} />}
 
@@ -276,6 +273,5 @@ export default async function DashboardPage() {
           </section>
         </main>
       </div>
-    </div>
   );
 }

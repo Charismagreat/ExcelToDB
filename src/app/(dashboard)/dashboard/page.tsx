@@ -1,9 +1,8 @@
 import React from 'react';
 import { getSessionAction, getPinnedChartsAction } from '@/app/actions';
 import { redirect } from 'next/navigation';
-import { LayoutDashboard, Compass, Star, Sparkles, Plus, Image as ImageIcon } from 'lucide-react';
+import { Sparkles, Plus, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
-import LogoutButton from '@/components/LogoutButton';
 import GalleryClient from './GalleryClient';
 
 export default async function ReportGalleryPage() {

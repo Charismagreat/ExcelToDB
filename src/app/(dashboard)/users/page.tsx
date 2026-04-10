@@ -17,11 +17,11 @@ export default async function UsersPage() {
     const users = await getUsersAction();
 
     return (
-        <div className="min-h-screen bg-gray-50 p-8 font-[family-name:var(--font-geist-sans)]">
+        <div className="p-8 font-[family-name:var(--font-geist-sans)]">
             <header className="max-w-6xl mx-auto flex justify-between items-center mb-12">
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-3">
-                        <Link href="/" className="bg-blue-600 p-2 rounded-xl text-white hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">
+                        <Link href="/dashboard" className="bg-blue-600 p-2 rounded-xl text-white hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">
                             <LayoutDashboard size={24} />
                         </Link>
                         <h1 className="text-2xl font-black text-gray-900 tracking-tight">System Administration</h1>

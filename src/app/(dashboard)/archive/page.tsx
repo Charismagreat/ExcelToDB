@@ -32,11 +32,11 @@ export default async function ArchivePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-[family-name:var(--font-geist-sans)]">
+    <div className="p-8 font-[family-name:var(--font-geist-sans)]">
       <header className="max-w-6xl mx-auto flex justify-between items-center mb-12">
         <div className="flex items-center gap-4">
           <Link 
-            href="/" 
+            href="/dashboard" 
             className="p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm"
           >
             <ArrowLeft size={20} />

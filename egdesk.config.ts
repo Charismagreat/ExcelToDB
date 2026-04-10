@@ -1,13 +1,13 @@
 /**
  * EGDesk User Data Configuration
- * Generated at: 2026-04-07T08:06:24.392Z
+ * Generated at: 2026-04-10T12:05:07.240Z
  *
  * This file contains type-safe definitions for your EGDesk tables.
  */
 
 export const EGDESK_CONFIG = {
   apiUrl: 'http://localhost:8080',
-  apiKey: '7a406902-a90d-4aef-a983-c64320c77084',
+  apiKey: 'c5205e32-9f8a-4fd8-8f7e-1291db2a56f9',
 } as const;
 
 export interface TableDefinition {
@@ -22,61 +22,106 @@ export interface TableDefinition {
 
 export const TABLES = {
   table1: {
-    name: 'workspace_item',
-    displayName: 'Workspace Image Items',
-    rowCount: 3,
-    columnCount: 12,
-    columns: ['id', 'creatorId', 'imageUrl', 'originalText', 'suggestedTitle', 'suggestedSummary', 'status', 'reportId', 'rowId', 'aiData', 'createdAt', 'updatedAt']
+    name: 'action_task',
+    displayName: 'Action Tasks',
+    columnCount: 11,
+    columns: ['id', 'instanceId', 'title', 'description', 'type', 'status', 'result', 'assigneeId', 'assigneeRole', 'dueAt', 'completedAt']
   } as TableDefinition,
   table2: {
-    name: 'tb_944447372_1h23k',
-    displayName: '신용카드영수증 (Sync)',
-    rowCount: 3,
-    columnCount: 10,
-    columns: ['id', '데이터ID', '승인일시', '가맹점명', '사용금액', '지출목적', '승인번호', '카드종류', '카드번호', '영수증사진']
+    name: 'workflow_instance',
+    displayName: 'Workflow Instances',
+    columnCount: 6,
+    columns: ['id', 'templateId', 'triggerRowId', 'status', 'startedAt', 'completedAt']
   } as TableDefinition,
   table3: {
-    name: 'report',
-    displayName: 'System Reports',
-    rowCount: 1,
-    columnCount: 14,
-    columns: ['id', 'name', 'sheetName', 'description', 'tableName', 'columns', 'uiConfig', 'aiConfig', 'isDeleted', 'deletedAt', 'ownerId', 'lastSerial', 'createdAt', 'updatedAt']
+    name: 'workflow_template',
+    displayName: 'Workflow Templates',
+    columnCount: 6,
+    columns: ['id', 'name', 'triggerReportId', 'triggerCondition', 'tasks', 'createdAt']
   } as TableDefinition,
   table4: {
-    name: 'user_data_files',
-    displayName: 'user_data_files',
-    description: 'Imported from user_database_export_2026-04-06.sql',
-    columnCount: 15,
-    columns: ['id', 'table_id', 'row_id', 'column_name', 'filename', 'mime_type', 'size_bytes', 'storage_type', 'file_data', 'file_path', 'is_compressed', 'compression_type', 'original_size', 'created_at', 'updated_at']
+    name: 'department',
+    displayName: 'Organization Departments',
+    columnCount: 5,
+    columns: ['id', 'name', 'description', 'managerId', 'createdAt']
   } as TableDefinition,
   table5: {
+    name: 'ai_studio_session_persistence',
+    displayName: 'AI Studio Session',
+    columnCount: 5,
+    columns: ['id', 'userId', 'data', 'updatedAt', 'isDeleted']
+  } as TableDefinition,
+  table6: {
+    name: 'ai_persistence_test',
+    displayName: 'AI Persistence Test',
+    rowCount: 1,
+    columnCount: 5,
+    columns: ['id', 'userId', 'data', 'updatedAt', 'isDeleted']
+  } as TableDefinition,
+  table7: {
     name: 'ai_studio_session',
     displayName: 'AI Studio Session',
     rowCount: 1,
     columnCount: 4,
     columns: ['id', 'userId', 'data', 'updatedAt']
   } as TableDefinition,
-  table6: {
+  table8: {
+    name: 'tb_sheet1_69d5af80_e94',
+    displayName: 'Sheet1',
+    description: 'Created from Excel: 2025 입고 내역.xlsx - Sheet1',
+    rowCount: 92,
+    columnCount: 11,
+    columns: ['id', '데이터ID', '구 분', '규 격', '단 가', '주문 수량', '금 액', '발 주 일', '입고요청일', '입고일자', '비 고']
+  } as TableDefinition,
+  table9: {
+    name: 'workspace_item',
+    displayName: 'Workspace Image Items',
+    rowCount: 5,
+    columnCount: 12,
+    columns: ['id', 'creatorId', 'imageUrl', 'originalText', 'suggestedTitle', 'suggestedSummary', 'status', 'reportId', 'rowId', 'aiData', 'createdAt', 'updatedAt']
+  } as TableDefinition,
+  table10: {
+    name: 'tb_944447372_1h23k',
+    displayName: '신용카드영수증 (Sync)',
+    rowCount: 3,
+    columnCount: 10,
+    columns: ['id', '데이터ID', '승인일시', '가맹점명', '사용금액', '지출목적', '승인번호', '카드종류', '카드번호', '영수증사진']
+  } as TableDefinition,
+  table11: {
+    name: 'report',
+    displayName: 'System Reports',
+    rowCount: 2,
+    columnCount: 14,
+    columns: ['id', 'name', 'sheetName', 'description', 'tableName', 'columns', 'uiConfig', 'aiConfig', 'isDeleted', 'deletedAt', 'ownerId', 'lastSerial', 'createdAt', 'updatedAt']
+  } as TableDefinition,
+  table12: {
+    name: 'user_data_files',
+    displayName: 'user_data_files',
+    description: 'Imported from user_database_export_2026-04-06.sql',
+    columnCount: 15,
+    columns: ['id', 'table_id', 'row_id', 'column_name', 'filename', 'mime_type', 'size_bytes', 'storage_type', 'file_data', 'file_path', 'is_compressed', 'compression_type', 'original_size', 'created_at', 'updated_at']
+  } as TableDefinition,
+  table13: {
     name: 'report_access',
     displayName: 'ReportAccess',
     columnCount: 3,
     columns: ['id', 'reportId', 'userId']
   } as TableDefinition,
-  table7: {
+  table14: {
     name: 'report_row_history',
     displayName: 'ReportRowHistory',
     rowCount: 15,
     columnCount: 7,
     columns: ['id', 'rowId', 'oldData', 'newData', 'changeType', 'changedById', 'changedAt']
   } as TableDefinition,
-  table8: {
+  table15: {
     name: 'report_row',
     displayName: 'ReportRow',
-    rowCount: 896,
+    rowCount: 1003,
     columnCount: 10,
     columns: ['id', 'data', 'contentHash', 'reportId', 'creatorId', 'createdAt', 'updaterId', 'updatedAt', 'isDeleted', 'deletedAt']
   } as TableDefinition,
-  table9: {
+  table16: {
     name: 'user',
     displayName: 'User',
     rowCount: 1,
@@ -97,13 +142,20 @@ export function getTableByName(tableName: string): TableDefinition | undefined {
 
 // Export table names for easy access
 export const TABLE_NAMES = {
-  table1: 'workspace_item',
-  table2: 'tb_944447372_1h23k',
-  table3: 'report',
-  table4: 'user_data_files',
-  table5: 'ai_studio_session',
-  table6: 'report_access',
-  table7: 'report_row_history',
-  table8: 'report_row',
-  table9: 'user'
+  table1: 'action_task',
+  table2: 'workflow_instance',
+  table3: 'workflow_template',
+  table4: 'department',
+  table5: 'ai_studio_session_persistence',
+  table6: 'ai_persistence_test',
+  table7: 'ai_studio_session',
+  table8: 'tb_sheet1_69d5af80_e94',
+  table9: 'workspace_item',
+  table10: 'tb_944447372_1h23k',
+  table11: 'report',
+  table12: 'user_data_files',
+  table13: 'report_access',
+  table14: 'report_row_history',
+  table15: 'report_row',
+  table16: 'user'
 } as const;
