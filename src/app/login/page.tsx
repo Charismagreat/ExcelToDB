@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { loginAction } from '@/app/actions';
+import { loginAction, logoutAction } from '@/app/actions';
 import { LayoutDashboard, LogIn, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -12,6 +12,20 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const router = useRouter();
 
+  React.useEffect(() => {
+    // 세션 킬 스위치: 로그인 페이지에 진입하면 무조건 이전 세션을 파기
+    const killSession = async () => {
+      try {
+        await logoutAction();
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch (e) {
+        console.error("Session kill failed:", e);
+      }
+    };
+    killSession();
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -20,7 +34,12 @@ export default function LoginPage() {
     try {
       const result = await loginAction(username, password);
       if (result.success) {
-        router.push('/');
+        // 권한에 따른 리다이렉션 경로 설정
+        if (result.user.role === 'VIEWER') {
+          router.push('/workspace');
+        } else {
+          router.push('/');
+        }
         router.refresh(); // 세션 정보를 위해 강제 새로고침
       }
     } catch (err: any) {

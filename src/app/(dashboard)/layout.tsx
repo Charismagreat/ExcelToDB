@@ -14,6 +14,11 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
+  // VIEWER 권한은 대시보드 접근 불가 -> 워크스페이스로 리다이렉트
+  if (user.role === 'VIEWER') {
+    redirect('/workspace');
+  }
+
   // Fetch all departments for sidebar
   const deptRes = await queryTable('department', { orderBy: 'name' });
   const departments = Array.isArray(deptRes) ? deptRes : (deptRes?.rows || []);

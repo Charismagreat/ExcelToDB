@@ -2,11 +2,19 @@ import React from 'react';
 import BottomNav from '@/components/workspace/BottomNav';
 import SmartFAB from '@/components/workspace/SmartFAB';
 
-export default function WorkspaceLayout({
+import { getSessionAction } from '@/app/actions';
+import { redirect } from 'next/navigation';
+
+export default async function WorkspaceLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const user = await getSessionAction();
+    if (!user) {
+        redirect('/login');
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col relative w-full overflow-hidden mobile-shell">
             {/* Header (Optional, but usually needed for mobile shell) */}

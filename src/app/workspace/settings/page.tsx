@@ -5,10 +5,42 @@ import { User, Bell, MapPin, Shield, HelpCircle, LogOut, Moon, Clock, Smartphone
 import { motion } from 'framer-motion';
 import SettingsItem from '@/components/workspace/SettingsItem';
 import { useTheme } from '@/components/ThemeProvider';
+import { getSessionAction, logoutAction } from '@/app/actions';
 
 export default function SettingsPage() {
     const { theme, toggleTheme } = useTheme();
+    const [user, setUser] = React.useState<any>(null);
+    const [isLoggingOut, setIsLoggingOut] = React.useState(false);
     const isDarkMode = theme === 'dark' || (theme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+    React.useEffect(() => {
+        getSessionAction().then(setUser);
+    }, []);
+
+    const handleLogout = async () => {
+        if (confirm('정말 로그아웃 하시겠습니까?')) {
+            setIsLoggingOut(true);
+            try {
+                // 1. 서버 세션 종료
+                await logoutAction();
+                
+                // 2. 클라이언트 사이드 보조 청소
+                localStorage.clear();
+                sessionStorage.clear();
+
+                // 3. 브라우저 경로에 기반한 강제 이동
+                const currentHref = window.location.href;
+                const loginUrl = currentHref.includes('/workspace') 
+                    ? currentHref.split('/workspace')[0] + '/login'
+                    : '/login';
+
+                window.location.replace(loginUrl);
+            } catch (error) {
+                console.error('Logout failed:', error);
+                window.location.replace('/login');
+            }
+        }
+    };
 
     const sections = [
         {
@@ -74,10 +106,18 @@ export default function SettingsPage() {
             <div className="px-4 pt-4 mb-8">
                 <div className="bg-white/40 backdrop-blur-md border border-white/60 p-6 rounded-3xl shadow-sm flex flex-col items-center">
                     <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-orange-400 flex items-center justify-center text-white mb-4 border-4 border-white shadow-xl">
-                        <User size={40} />
+                        {user?.avatarUrl ? (
+                            <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                            <User size={40} />
+                        )}
                     </div>
-                    <h2 className="text-xl font-black text-gray-900 mb-1 tracking-tight">김주원 매니저</h2>
-                    <p className="text-xs font-bold text-gray-500 mb-4">솔루션 개발팀 | 사번: WN-240407</p>
+                    <h2 className="text-xl font-black text-gray-900 mb-1 tracking-tight">
+                        {user?.fullName || '사용자'} 님
+                    </h2>
+                    <p className="text-xs font-bold text-gray-500 mb-4">
+                        {user?.role === 'ADMIN' ? '관리자' : user?.role === 'EDITOR' ? '편집자' : '사원'} | 사번: {user?.employeeId || '미등록'}
+                    </p>
                     
                     <button className="px-6 py-2 bg-white/80 border border-gray-100 rounded-xl text-xs font-black text-gray-600 shadow-sm hover:bg-white transition-all">
                         프로필 관리
@@ -118,9 +158,19 @@ export default function SettingsPage() {
 
             {/* Logout Section */}
             <div className="px-4 mt-8">
-                <button className="w-full p-4 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center space-x-2 font-bold hover:bg-red-100 transition-all border border-red-100/50">
-                    <LogOut size={18} />
-                    <span>원 컨덕터 로그아웃</span>
+                <button 
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="w-full p-4 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center space-x-2 font-bold hover:bg-red-100 transition-all border border-red-100/50 disabled:opacity-50"
+                >
+                    {isLoggingOut ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-500"></div>
+                    ) : (
+                        <>
+                            <LogOut size={18} />
+                            <span>원 컨덕터 로그아웃</span>
+                        </>
+                    )}
                 </button>
                 <p className="text-center text-[10px] text-gray-400 mt-6 font-medium">
                     (C) 2024 Won Conductor. All Rights Reserved.
