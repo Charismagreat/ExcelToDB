@@ -65,7 +65,7 @@ export default async function DepartmentWorkspacePage({
 
     return (
         <div className="flex-1 overflow-y-auto bg-[#fafafa]">
-            <header className="p-8 md:p-12 pb-0">
+            <header className="p-8 md:p-8 pb-0">
                 <div className="max-w-[1600px] mx-auto">
                     <PageHeader 
                         title={`${department.name} Workspace`}
@@ -85,7 +85,7 @@ export default async function DepartmentWorkspacePage({
                     />
 
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                         {[
                             { label: '전체 과업', count: stats.total, icon: Briefcase, color: 'text-blue-600', bg: 'bg-blue-50' },
                             { label: '진행 대기', count: stats.todo, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
@@ -111,7 +111,7 @@ export default async function DepartmentWorkspacePage({
 
                     {/* CEO를 위한 대체 섹션 (보고 요약) */}
                     {(session?.role === 'CEO' || session?.role === 'ADMIN') && (
-                        <div className="bg-white p-8 rounded-[40px] border border-blue-100 shadow-sm mb-12 flex flex-col md:flex-row items-center justify-between gap-6 border-l-8 border-l-blue-600">
+                        <div className="bg-white p-6 rounded-[32px] border border-blue-100 shadow-sm mb-8 flex flex-col md:flex-row items-center justify-between gap-6 border-l-8 border-l-blue-600">
                             <div>
                                 <h3 className="text-xl font-black text-slate-800 mb-1 tracking-tight">현장 지휘 센터 (Commander View)</h3>
                                 <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">부서 실무진의 보고 데이터와 과업 흐름을 실시간으로 모니터링 중입니다.</p>
@@ -125,7 +125,7 @@ export default async function DepartmentWorkspacePage({
                 </div>
             </header>
 
-            <main className="max-w-[1600px] mx-auto p-8 md:p-12 pt-0 grid grid-cols-1 lg:grid-cols-3 gap-10">
+            <main className="max-w-[1600px] mx-auto p-8 md:p-8 pt-0 grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Active Tasks List */}
                 <div className="lg:col-span-2 space-y-6">
                     <div className="flex items-center justify-between mb-4">

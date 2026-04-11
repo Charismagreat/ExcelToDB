@@ -19,7 +19,7 @@ export default function DashboardHubClient({ user, isStaff, reports }: Dashboard
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <main className="max-w-[1600px] mx-auto p-8 md:p-12 space-y-16 w-full overflow-y-auto">
+      <main className="max-w-[1600px] mx-auto p-8 md:p-12 space-y-12 w-full overflow-y-auto">
         <PageHeader 
           title={isStaff ? "Employee Hub" : "Data Center"}
           description={isStaff ? "부서별로 공유된 데이터 테이블과 입력 양식을 확인할 수 있습니다." : "조직의 모든 데이터를 관리하고 분석할 수 있는 데이터 센터입니다."}

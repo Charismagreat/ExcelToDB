@@ -155,10 +155,7 @@ export default function NavigationSidebar({ user, departments }: NavigationSideb
             <p className="text-xs font-black text-slate-900 truncate uppercase">{user?.username}</p>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{user?.role}</p>
           </div>
-          <LogoutButton className="p-1 hover:bg-red-50 hover:text-red-500 rounded-lg transition-colors border-none shadow-none text-transparent" />
-        </div>
-        <div className="mt-4 flex justify-center">
-            <LogoutButton />
+          <LogoutButton className="px-3 py-1.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all border-none" />
         </div>
       </div>
     </aside>
