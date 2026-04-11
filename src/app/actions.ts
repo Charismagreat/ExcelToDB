@@ -24,6 +24,7 @@ import { notifyNewDataRow, notifyBulkUpload } from '@/lib/notifications';
 import { getVisualizationRecommendation } from '@/lib/dashboard-ai';
 import { runAITool } from '@/lib/ai-tools';
 import { normalizeTableName, mapToPhysicalType, castToPhysicalValue } from '@/lib/db-utils';
+import { triggerWorkflow } from '@/lib/workflow/engine';
 
 // Password Security Utilities
 const SALT_SIZE = 16;
@@ -638,6 +639,11 @@ export async function addRowAction(reportId: string, rowData: any) {
     
   // 슬랙 알림 발송 - 비동기로 처리하여 사용자 응답 속도에 영향을 주지 않음
   notifyNewDataRow(report.name, user.fullName || user.username, finalData, columns, report.slackWebhookUrl).catch(console.error);
+
+  // 8. 워크플로우 트리거
+  await triggerWorkflow(reportId, finalData, creatorId).catch(err => {
+      console.error("[Workflow Trigger Error]", err);
+  });
 
   revalidatePath(`/report/${reportId}`);
   revalidatePath(`/report/${reportId}/input`);

@@ -3,9 +3,10 @@ import { getSessionAction } from '@/app/actions';
 import { redirect } from 'next/navigation';
 import { queryTable } from '@/egdesk-helpers';
 import DashboardClient from '../DashboardClient';
-import { LayoutDashboard, Compass, Star, Bot } from 'lucide-react';
+import { LayoutDashboard, Compass, Star, Bot, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
+import PageHeader from '@/components/PageHeader';
 
 export default async function DataAnalysisStudioPage() {
   const user = await getSessionAction();
@@ -50,15 +51,16 @@ export default async function DataAnalysisStudioPage() {
   return (
     <div className="flex-1 overflow-y-auto">
       <main className="max-w-[1600px] mx-auto p-8 md:p-12">
+        <PageHeader 
+          title="Analysis Studio"
+          description="테이블 데이터를 AI가 분석하여 최적의 차트와 인사이트를 생성합니다."
+          icon={Bot}
+        />
         <DashboardClient 
           allTables={allTables}
           user={user}
         />
       </main>
-      
-      <footer className="max-w-[1600px] mx-auto px-6 py-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">
-        &copy; 2026 Data Analysis Studio &bull; Creative Builder
-      </footer>
     </div>
   );
 }

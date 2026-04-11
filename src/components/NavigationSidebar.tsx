@@ -18,9 +18,10 @@ import LogoutButton from './LogoutButton';
 
 interface NavigationSidebarProps {
   user: any;
+  departments: any[];
 }
 
-export default function NavigationSidebar({ user }: NavigationSidebarProps) {
+export default function NavigationSidebar({ user, departments }: NavigationSidebarProps) {
   const pathname = usePathname();
 
   const menuItems = [
@@ -102,6 +103,38 @@ export default function NavigationSidebar({ user }: NavigationSidebarProps) {
             )}
           </Link>
         ))}
+
+        {/* Departments (ORG) Section */}
+        <div className="pt-8 pb-4">
+            <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Work Office (ORG)</p>
+            <div className="space-y-1">
+                {(Array.isArray(departments) ? departments : []).map((dept) => {
+                    const isActive = pathname === `/workspace/${dept.id}`;
+                    return (
+                        <Link
+                            key={dept.id}
+                            href={`/workspace/${dept.id}`}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+                                isActive 
+                                ? 'bg-indigo-50 text-indigo-700 font-bold' 
+                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                            }`}
+                        >
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                                isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-white'
+                            }`}>
+                                <Layers size={14} />
+                            </div>
+                            <span className="text-[11px] uppercase tracking-tight font-black">{dept.name}</span>
+                            {isActive && <div className="ml-auto w-1 h-1 bg-indigo-600 rounded-full" />}
+                        </Link>
+                    );
+                })}
+                {departments.length === 0 && (
+                    <p className="px-4 text-[10px] text-slate-300 italic">부서 정보가 없습니다.</p>
+                )}
+            </div>
+        </div>
       </nav>
 
       {/* User Support / Misc (Optional) */}

@@ -3,6 +3,7 @@ import { queryTable, aggregateTable } from '@/egdesk-helpers';
 import Link from 'next/link';
 import { FileSpreadsheet, ArrowLeft, Archive } from 'lucide-react';
 import ArchiveActions from '@/components/ArchiveActions';
+import PageHeader from '@/components/PageHeader';
 
 export default async function ArchivePage() {
   const rawAllDeletedReports = await queryTable('report', {
@@ -32,26 +33,15 @@ export default async function ArchivePage() {
   }
 
   return (
-    <div className="p-8 font-[family-name:var(--font-geist-sans)]">
-      <header className="max-w-6xl mx-auto flex justify-between items-center mb-12">
-        <div className="flex items-center gap-4">
-          <Link 
-            href="/dashboard" 
-            className="p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm"
-          >
-            <ArrowLeft size={20} />
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="bg-gray-800 p-2 rounded-lg text-white">
-              <Archive size={24} />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Deleted Tables</h1>
-          </div>
-        </div>
-      </header>
+    <div className="flex-1 overflow-y-auto">
+      <main className="max-w-[1600px] mx-auto p-8 md:p-12">
+        <PageHeader 
+          title="Data Archive"
+          description="삭제된 테이블과 리포트들을 복구하거나 영구 삭제할 수 있는 공간입니다."
+          icon={Archive}
+        />
 
-      <main className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8 pb-4 border-b border-gray-200">
+        <div className="flex items-center justify-between mb-8 pb-4 border-b border-gray-200 mt-12">
           <div className="flex items-center gap-2">
             <Archive size={18} className="text-gray-400" />
             <h2 className="text-sm font-black text-gray-600 uppercase tracking-widest">Archive List</h2>

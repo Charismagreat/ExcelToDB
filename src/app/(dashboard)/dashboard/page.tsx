@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { Sparkles, Plus, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import GalleryClient from './GalleryClient';
+import PageHeader from '@/components/PageHeader';
 
 export default async function ReportGalleryPage() {
   const user = await getSessionAction();
@@ -13,25 +14,25 @@ export default async function ReportGalleryPage() {
 
   const pinnedCharts = await getPinnedChartsAction();
 
+  const headerRight = (
+    <Link 
+      href="/dashboard/studio" 
+      className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all"
+    >
+      <Plus size={18} />
+      새 분석 시작하기
+    </Link>
+  );
+
   return (
     <div className="flex-1 overflow-y-auto">
       <main className="max-w-[1600px] mx-auto p-8 md:p-12">
-        <div className="flex items-center justify-between mb-12">
-          <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-               My Dashboard
-               <Sparkles className="text-blue-500" />
-            </h1>
-            <p className="text-slate-500 font-medium mt-2">분석 스튜디오에서 완성하여 핀으로 고정한 핵심 차트 리포트입니다.</p>
-          </div>
-          <Link 
-            href="/dashboard/studio" 
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all"
-          >
-            <Plus size={18} />
-            새 분석 도구 시작하기
-          </Link>
-        </div>
+        <PageHeader 
+          title="My Dashboard"
+          description="분석 스튜디오에서 완성하여 핀으로 고정한 핵심 차트 리포트입니다."
+          icon={Sparkles}
+          rightElement={headerRight}
+        />
 
         {pinnedCharts.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-20 bg-white rounded-[40px] border border-dashed border-slate-200 text-center">
