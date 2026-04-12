@@ -5,57 +5,18 @@ export class SystemTableService {
     private static initializedTables = new Set<string>();
 
     /**
-     * 지정된 시스템 테이블이 서버에 존재하는지 안전하게 확인하고 없으면 생성합니다.
+     * [관리자 점검 중] 수동 데이터 복구 작업을 위해 모든 자동 테이블 생성 기능을 일시 중지합니다.
      */
     static async ensureTable(tableName: string): Promise<void> {
-        // 이미 이번 세션에서 확인된 테이블은 스킵
-        if (this.initializedTables.has(tableName)) return;
-
-        const tableDef = SYSTEM_TABLES.find(t => t.tableName === tableName);
-        if (!tableDef) {
-            console.warn(`[SystemTableService] No definition for: ${tableName}`);
-            return;
-        }
-
-        try {
-            const tablesResult = await listTables();
-            const tables = Array.isArray(tablesResult) ? tablesResult : (tablesResult?.rows || []);
-            
-            const exists = tables.some((t: any) => {
-                const name = typeof t === 'string' ? t : (t.name || t.tableName);
-                return name === tableName;
-            });
-
-            if (!exists) {
-                console.info(`[SystemTableService] Table '${tableName}' missing. Creating...`);
-                await createTable(tableDef.displayName, tableDef.schema, { tableName: tableDef.tableName });
-            }
-            
-            this.initializedTables.add(tableName);
-        } catch (err: any) {
-            console.error(`[SystemTableService] Check failed for ${tableName}:`, err.message);
-            
-            // Aggressive Fallback
-            try {
-                await createTable(tableDef.displayName, tableDef.schema, { tableName: tableDef.tableName });
-                this.initializedTables.add(tableName);
-            } catch (createErr: any) {
-                const msg = String(createErr.message || createErr);
-                if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('exists')) {
-                    this.initializedTables.add(tableName);
-                } else {
-                    throw createErr;
-                }
-            }
-        }
+        console.log(`[SystemTableService] Auto-ensure for ${tableName} is temporarily disabled.`);
+        return;
     }
 
     /**
-     * 모든 필수 시스템 테이블을 보장합니다.
+     * [관리자 점검 중] 모든 필수 시스템 테이블 보장 기능을 일시 중지합니다.
      */
     static async ensureAllSystemTables(): Promise<void> {
-        for (const table of SYSTEM_TABLES) {
-            await this.ensureTable(table.tableName);
-        }
+        console.log('[SystemTableService] Global auto-ensure is temporarily disabled.');
+        return;
     }
 }
