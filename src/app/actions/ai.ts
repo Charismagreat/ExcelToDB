@@ -16,108 +16,11 @@ import { getSessionAction } from './auth';
 import { analyzeExcelImage, extractDataFromImage } from '@/lib/ai-vision';
 import { getVisualizationRecommendation } from '@/lib/dashboard-ai';
 import { runAITool } from '@/lib/ai-tools';
-import fs from 'fs/promises';
-import path from 'path';
+import { ChartService } from '@/lib/services/chart-service';
 
 /**
- * 핀 고정된 차트 목록을 관리하기 위한 영구 저장소 경로
+ * 시각화 추천을 가져옵니다.
  */
-const PINNED_CHARTS_PATH = path.join(process.cwd(), 'pinned_charts.json');
-
-/**
- * 동적 플레이스홀더($TODAY, $TODAY-N 등)를 실제 날짜 값으로 변환합니다.
- */
-function resolveDynamicValue(val: any): any {
-    if (typeof val !== 'string') return val;
-    const today = new Date();
-    const kstTodayStr = today.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
-    if (val === '$TODAY') return kstTodayStr;
-    const match = val.match(/^\$TODAY-(\d+)$/);
-    if (match) {
-        const days = parseInt(match[1], 10);
-        const targetDate = new Date(today);
-        targetDate.setDate(today.getDate() - days);
-        return targetDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
-    }
-    return val;
-}
-
-/**
- * 인자 객체 전체를 순회하며 동적 플레이스홀더를 치환합니다.
- */
-function resolveDynamicArgs(args: any): any {
-    if (!args || typeof args !== 'object') return args;
-    const resolvedArgs: any = Array.isArray(args) ? [] : {};
-    for (const [key, value] of Object.entries(args)) {
-        if (value && typeof value === 'object') {
-            resolvedArgs[key] = resolveDynamicArgs(value);
-        } else {
-            resolvedArgs[key] = resolveDynamicValue(value);
-        }
-    }
-    return resolvedArgs;
-}
-
-/**
- * 차트 설명 내의 날짜 정보를 동적으로 변환합니다.
- */
-function resolveDynamicDescription(desc: string, args: any): string {
-    if (!desc) return desc;
-    let resolvedDesc = desc;
-    resolvedDesc = resolvedDesc.replace(/\$TODAY(?:-(\d+))?/g, (match) => resolveDynamicValue(match));
-    if (args?.startDate && args?.endDate) {
-        const sDate = resolveDynamicValue(args.startDate);
-        const eDate = resolveDynamicValue(args.endDate);
-        resolvedDesc = resolvedDesc.replace(/\d{4}-\d{2}-\d{2}/g, (match, offset) => {
-            return offset < resolvedDesc.indexOf('부터') ? sDate : eDate;
-        });
-    }
-    return resolvedDesc;
-}
-
-/**
- * 툴 호출 결과를 차트 데이터 형식으로 변환합니다.
- */
-function mapRefreshedData(rawData: any, mapping: any): any[] {
-    let newData: any[] = [];
-    const records = (rawData && rawData.result && Array.isArray(rawData.result)) ? rawData.result :
-                  (rawData && rawData.transactions && Array.isArray(rawData.transactions)) ? rawData.transactions : 
-                  (rawData && rawData.summary && Array.isArray(rawData.summary)) ? rawData.summary : null;
-
-    if (records) {
-        newData = records.map((row: any) => {
-            if (mapping && typeof mapping === 'object' && !mapping.label && !mapping.value) {
-                const mappedRow: any = {};
-                for (const [targetKey, sourceKey] of Object.entries(mapping)) {
-                    mappedRow[targetKey] = row[sourceKey as string] ?? row[targetKey] ?? '';
-                }
-                return mappedRow;
-            }
-            return {
-                label: mapping?.label && row[mapping.label] !== undefined ? row[mapping.label] : (row.yearMonth || row.month || row.name || row.label || row.date || Object.values(row)[0]),
-                value: mapping?.value && row[mapping.value] !== undefined ? row[mapping.value] : (row.totalWithdrawals || row.amount || row.value || row.count || row.total || Object.values(row)[1])
-            };
-        });
-    } else if (Array.isArray(rawData)) {
-        newData = rawData.map(row => {
-            if (mapping && typeof mapping === 'object' && !mapping.label && !mapping.value) {
-                const mappedRow: any = {};
-                for (const [targetKey, sourceKey] of Object.entries(mapping)) {
-                    mappedRow[targetKey] = row[sourceKey as string] ?? row[targetKey] ?? '';
-                }
-                return mappedRow;
-            }
-            return {
-                label: mapping?.label && row[mapping.label] !== undefined ? row[mapping.label] : (row.yearMonth || row.month || row.name || row.label || row.date),
-                value: mapping?.value && row[mapping.value] !== undefined ? row[mapping.value] : (row.totalWithdrawals || row.amount || row.value || row.count || row.total)
-            };
-        });
-    } else if (rawData && rawData.categorySummary) {
-        newData = Object.entries(rawData.categorySummary).map(([label, value]) => ({ label, value }));
-    } 
-    return newData;
-}
-
 export async function getVisualizationRecommendationAction(tableIds: string[], messages: any[]) {
     const user = await getSessionAction();
     if (!user) throw new Error('인증이 필요합니다.');
@@ -139,6 +42,9 @@ export async function getVisualizationRecommendationAction(tableIds: string[], m
     }
 }
 
+/**
+ * 엑셀 스크린샷 이미지를 분석합니다.
+ */
 export async function analyzeExcelScreenshotAction(formData: FormData) {
   const image = formData.get('image') as File;
   if (!image) throw new Error('이미지 파일이 없습니다.');
@@ -149,6 +55,9 @@ export async function analyzeExcelScreenshotAction(formData: FormData) {
   return await analyzeExcelImage(base64, mimeType);
 }
 
+/**
+ * 이미지에서 데이터를 추출합니다.
+ */
 export async function analyzeImageAndExtractDataAction(formData: FormData, columnsJson: string) {
     try {
         const image = formData.get('image') as File;
@@ -167,17 +76,22 @@ export async function analyzeImageAndExtractDataAction(formData: FormData, colum
     }
 }
 
+/**
+ * 차트를 핀 보드에 저장합니다.
+ */
 export async function savePinnedChartAction(chartId: string, config: any) {
     const user = await getSessionAction();
     if (!user) throw new Error('인증이 필요합니다.');
-    let pinned: any[] = [];
-    try {
-        const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
-        pinned = JSON.parse(fileContent);
-    } catch (e) {}
+    
+    const pinned = await ChartService.loadAllPinnedCharts();
     const existingIndex = pinned.findIndex(p => p.id === chartId);
+    
     if (existingIndex > -1) {
-        pinned[existingIndex] = { ...pinned[existingIndex], config, updatedAt: new Date().toISOString() };
+        pinned[existingIndex] = { 
+            ...pinned[existingIndex], 
+            config, 
+            updatedAt: new Date().toISOString() 
+        };
     } else {
         pinned.push({
             id: chartId,
@@ -187,116 +101,87 @@ export async function savePinnedChartAction(chartId: string, config: any) {
             updatedAt: new Date().toISOString()
         });
     }
-    await fs.writeFile(PINNED_CHARTS_PATH, JSON.stringify(pinned, null, 2));
+    
+    await ChartService.saveAllPinnedCharts(pinned);
     revalidatePath('/dashboard');
     return { success: true };
 }
 
+/**
+ * 핀 고정된 차트 목록을 가져옵니다. (필요 시 자동 새로고침 포함)
+ */
 export async function getPinnedChartsAction() {
     const user = await getSessionAction();
     if (!user) return [];
-    try {
-        const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
-        const pinned = JSON.parse(fileContent);
-        const userPinned = pinned.filter((p: any) => String(p.userId) === String(user.id));
-        let hasChanges = false;
-        const refreshedCharts = await Promise.all(userPinned.map(async (item: any) => {
-            if (item.config.refreshMetadata) {
-                try {
-                    const { tool, args: originalArgs, mapping } = item.config.refreshMetadata;
-                    const args = resolveDynamicArgs(originalArgs);
-                    if (item.config.sourceDescription) {
-                        item.config.sourceDescription = resolveDynamicDescription(item.config.sourceDescription, originalArgs);
-                    }
-                    const rawData = await runAITool(tool, args);
-                    const newData = mapRefreshedData(rawData, mapping);
-                    if (newData.length > 0) {
-                        item.config.data = newData;
-                        item.refreshedAt = new Date().toISOString();
-                        hasChanges = true;
-                    }
-                } catch (e) {
-                    console.error(`[Refresh Error] Chart ${item.id}:`, e);
-                }
-            }
-            return item;
-        }));
-        if (hasChanges) {
-            const updatedPinned = pinned.map((p: any) => refreshedCharts.find((rc: any) => rc.id === p.id) || p);
-            await fs.writeFile(PINNED_CHARTS_PATH, JSON.stringify(updatedPinned, null, 2));
-        }
-        return refreshedCharts;
-    } catch (e) {
-        return [];
-    }
+    
+    const { charts } = await ChartService.refreshUserCharts(user.id);
+    return charts;
 }
 
+/**
+ * 핀 고정된 차트를 삭제합니다.
+ */
 export async function deletePinnedChartAction(chartId: string) {
     const user = await getSessionAction();
     if (!user) throw new Error('인증이 필요합니다.');
-    try {
-        const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
-        let pinned = JSON.parse(fileContent);
-        pinned = pinned.filter((p: any) => p.id !== chartId);
-        await fs.writeFile(PINNED_CHARTS_PATH, JSON.stringify(pinned, null, 2));
+    
+    let pinned = await ChartService.loadAllPinnedCharts();
+    const originalLength = pinned.length;
+    pinned = pinned.filter(p => p.id !== chartId);
+    
+    if (pinned.length !== originalLength) {
+        await ChartService.saveAllPinnedCharts(pinned);
         revalidatePath('/dashboard');
-        return { success: true };
-    } catch (e) {
-        return { success: false };
     }
+    return { success: true };
 }
 
+/**
+ * 개별 차트를 수동으로 새로고침합니다.
+ */
 export async function refreshIndividualChartAction(chartId: string) {
     const user = await getSessionAction();
     if (!user) throw new Error('인증이 필요합니다.');
-    try {
-        const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
-        let pinned = JSON.parse(fileContent);
-        const chartIndex = pinned.findIndex((p: any) => p.id === chartId);
-        if (chartIndex === -1) throw new Error('차트를 찾을 수 없습니다.');
-        const item = pinned[chartIndex];
-        if (!item.config.refreshMetadata) return { success: true, item };
-        const { tool, args: originalArgs, mapping } = item.config.refreshMetadata;
-        const args = resolveDynamicArgs(originalArgs);
-        if (item.config.sourceDescription) {
-            item.config.sourceDescription = resolveDynamicDescription(item.config.sourceDescription, originalArgs);
-        }
-        const rawData = await runAITool(tool, args);
-        const newData = mapRefreshedData(rawData, mapping);
-        if (newData.length > 0) {
-            item.config.data = newData;
-            item.refreshedAt = new Date().toISOString();
-            pinned[chartIndex] = item;
-            await fs.writeFile(PINNED_CHARTS_PATH, JSON.stringify(pinned, null, 2));
-        }
+    
+    const pinned = await ChartService.loadAllPinnedCharts();
+    const chartIndex = pinned.findIndex(p => p.id === chartId);
+    if (chartIndex === -1) throw new Error('차트를 찾을 수 없습니다.');
+    
+    const updatedItem = await ChartService.refreshSingleChart(pinned[chartIndex]);
+    
+    if (updatedItem.refreshedAt) {
+        pinned[chartIndex] = updatedItem;
+        await ChartService.saveAllPinnedCharts(pinned);
         revalidatePath('/dashboard');
-        return { success: true, item };
-    } catch (e) {
-        console.error('Refresh Action Error:', e);
-        return { success: false };
     }
+    
+    return { success: true, item: updatedItem };
 }
 
+/**
+ * 차트 레이아웃 설정을 업데이트합니다.
+ */
 export async function updateChartLayoutAction(chartId: string, layout: any) {
     const user = await getSessionAction();
     if (!user) throw new Error('인증이 필요합니다.');
-    try {
-        const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
-        let pinned = JSON.parse(fileContent);
-        const chartIndex = pinned.findIndex((p: any) => p.id === chartId);
-        if (chartIndex === -1) throw new Error('차트를 찾을 수 없습니다.');
-        pinned[chartIndex].layout = layout;
-        pinned[chartIndex].updatedAt = new Date().toISOString();
-        await fs.writeFile(PINNED_CHARTS_PATH, JSON.stringify(pinned, null, 2));
-        revalidatePath('/dashboard');
-        return { success: true };
-    } catch (e) {
-        return { success: false };
-    }
+    
+    const pinned = await ChartService.loadAllPinnedCharts();
+    const chartIndex = pinned.findIndex(p => p.id === chartId);
+    if (chartIndex === -1) throw new Error('차트를 찾을 수 없습니다.');
+    
+    pinned[chartIndex].layout = layout;
+    pinned[chartIndex].updatedAt = new Date().toISOString();
+    
+    await ChartService.saveAllPinnedCharts(pinned);
+    revalidatePath('/dashboard');
+    return { success: true };
 }
 
 let isAIStudioSessionTableInitialized = false;
 
+/**
+ * AI Studio 세션을 저장합니다.
+ */
 export async function saveAIStudioSessionAction(data: any) {
     const user = await getSessionAction();
     if (!user) throw new Error('인증이 필요합니다.');
@@ -324,11 +209,15 @@ export async function saveAIStudioSessionAction(data: any) {
         }
         return { success: true };
     } catch (e) {
+        console.error('[Session Save Error Detail]:', e);
         isAIStudioSessionTableInitialized = false;
         return { success: false };
     }
 }
 
+/**
+ * AI Studio 세션을 가져옵니다.
+ */
 export async function getAIStudioSessionAction() {
     const user = await getSessionAction();
     if (!user) return null;
@@ -340,6 +229,9 @@ export async function getAIStudioSessionAction() {
     return null;
 }
 
+/**
+ * AI Studio 세션을 삭제합니다.
+ */
 export async function clearAIStudioSessionAction() {
     const user = await getSessionAction();
     if (!user) return { success: false };

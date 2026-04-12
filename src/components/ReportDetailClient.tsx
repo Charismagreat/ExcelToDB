@@ -68,6 +68,9 @@ export default function ReportDetailClient({
                 isReadOnly={isReadOnly || report.isReadOnly}
                 initialColumns={columns}
                 initialSlackWebhookUrl={report.slackWebhookUrl}
+                assigneeId={report.assigneeId}
+                autoTodo={report.autoTodo}
+                dueDays={report.dueDays}
                 onToggleAccessManager={() => setShowAccessManager(true)}
             />
 

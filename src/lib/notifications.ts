@@ -172,3 +172,33 @@ export async function notifyBulkUpload(
         blocks
     }, customWebhookUrl);
 }
+
+/**
+ * 인앱 알림을 생성하여 DB에 저장합니다.
+ */
+export async function createInAppNotification(data: {
+    userId: string;
+    title: string;
+    message?: string;
+    link?: string;
+    type?: 'INFO' | 'WARNING' | 'ALERT';
+}) {
+    const { insertRows } = await import('@/egdesk-helpers');
+    const { generateId } = await import('@/app/actions/shared');
+
+    try {
+        await insertRows('notification', [{
+            id: generateId(),
+            userId: data.userId,
+            title: data.title,
+            message: data.message || null,
+            link: data.link || null,
+            type: data.type || 'INFO',
+            isRead: 0,
+            createdAt: new Date().toISOString()
+        }]);
+        console.log(`[Notification] In-app alert created for user: ${data.userId}`);
+    } catch (err) {
+        console.error('[Notification] Failed to create in-app alert:', err);
+    }
+}

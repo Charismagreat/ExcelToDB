@@ -5,6 +5,7 @@ import { FileText, Edit2, Check, X, Settings, ShieldCheck, Share2, Bell, Loader2
 import { renameReportAction, updateReportWebhookAction } from '@/app/actions';
 import { ColumnDefinition } from '@/lib/excel-parser';
 import SchemaEditor from './SchemaEditor';
+import WorkflowSettingsModal from './WorkflowSettingsModal';
 
 interface ReportHeaderProps {
   reportId: string;
@@ -17,6 +18,9 @@ interface ReportHeaderProps {
   isReadOnly?: boolean;
   initialColumns: ColumnDefinition[];
   initialSlackWebhookUrl?: string | null;
+  assigneeId?: string | null;
+  autoTodo?: number;
+  dueDays?: number;
   onToggleAccessManager?: () => void;
 }
 
@@ -31,11 +35,15 @@ export default function ReportHeader({
   isReadOnly = false,
   initialColumns, 
   initialSlackWebhookUrl,
+  assigneeId,
+  autoTodo,
+  dueDays,
   onToggleAccessManager
 }: ReportHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [showSlackConfig, setShowSlackConfig] = useState(false);
+  const [showWorkflowConfig, setShowWorkflowConfig] = useState(false);
   const [slackUrl, setSlackUrl] = useState(initialSlackWebhookUrl || '');
   const [isSavingSlack, setIsSavingSlack] = useState(false);
   const [name, setName] = useState(initialName);
@@ -207,6 +215,15 @@ export default function ReportHeader({
                   알림 설정
                 </button>
 
+                <button 
+                  onClick={() => setShowWorkflowConfig(true)}
+                  className="flex items-center gap-2 px-4 py-3.5 bg-white text-gray-500 font-black rounded-[18px] border border-gray-100 hover:text-blue-600 hover:border-blue-100 hover:bg-blue-50/30 transition-all shadow-sm active:scale-95 text-[11px] uppercase tracking-widest"
+                  title="담당자 및 사후 프로세스 설정"
+                >
+                  <Share2 size={18} className="text-gray-400 group-hover:text-blue-500" />
+                  사후 프로세스
+                </button>
+
                 {showSlackConfig && (
                   <div className="absolute top-full mt-4 right-0 w-80 bg-white border border-gray-100 shadow-2xl rounded-[24px] p-6 z-[100] animate-in fade-in zoom-in-95 duration-300">
                     <div className="flex items-center justify-between mb-4">
@@ -266,6 +283,19 @@ export default function ReportHeader({
           initialName={name}
           initialColumns={initialColumns}
           onClose={() => setShowConfig(false)}
+        />
+      )}
+
+      {showWorkflowConfig && (
+        <WorkflowSettingsModal 
+          report={{ 
+            id: reportId, 
+            name: name, 
+            assigneeId, 
+            autoTodo, 
+            dueDays 
+          }}
+          onClose={() => setShowWorkflowConfig(false)}
         />
       )}
     </>

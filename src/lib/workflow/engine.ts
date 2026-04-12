@@ -16,15 +16,48 @@ function substituteVariables(template: string, data: any): string {
  */
 export async function triggerWorkflow(reportId: string, rowData: any, creatorId: string) {
     console.log(`[Workflow Engine] Triggering for Report: ${reportId}`);
+    const { createInAppNotification } = await import('@/lib/notifications');
 
     try {
+        // 0. 레포트 설정 확인 (담당자 지정 및 자동 할 일 생성 여부)
+        const reports = await queryTable('report', { filters: { id: reportId } });
+        const report = reports[0];
+        
+        if (report && report.assigneeId && report.autoTodo === 1) {
+            console.log(`[Workflow Engine] Auto-Todo enabled for report. Assignee: ${report.assigneeId}`);
+            
+            const dueDays = report.dueDays || 1;
+            const dueAt = new Date(Date.now() + (dueDays * 86400000)).toISOString();
+            
+            // 공통 할 일 생성
+            await insertRows('action_task', [{
+                id: `task-auto-${Date.now()}`,
+                reportId: reportId,
+                title: `[${report.name}] 신규 데이터 확인 요청`,
+                description: `새로운 데이터가 등록되었습니다. 내용을 확인하고 조치해 주세요.`,
+                status: 'TODO',
+                assigneeId: report.assigneeId,
+                dueAt: dueAt,
+                createdAt: new Date().toISOString()
+            }]);
+
+            // 인앱 알림 발송
+            await createInAppNotification({
+                userId: report.assigneeId,
+                title: `🔔 신규 업무 배정: ${report.name}`,
+                message: `새로운 데이터가 등록되어 담당자로 배정되었습니다. 마감: ${new Date(dueAt).toLocaleDateString()}`,
+                link: `/report/${reportId}`,
+                type: 'ALERT'
+            });
+        }
+
         // 1. 해당 레포트에 걸려있는 워크플로우 템플릿 조회
         const templates = await queryTable('workflow_template', { 
             filters: { triggerReportId: reportId } 
         });
 
         if (templates.length === 0) {
-            console.log(`[Workflow Engine] No templates found for report ${reportId}`);
+            console.log(`[Workflow Engine] No specific templates found for report ${reportId}`);
             return;
         }
 

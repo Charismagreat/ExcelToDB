@@ -15,6 +15,7 @@ import {
   Archive
 } from 'lucide-react';
 import LogoutButton from './LogoutButton';
+import NotificationCenter from './NotificationCenter';
 
 interface NavigationSidebarProps {
   user: any;
@@ -58,7 +59,7 @@ export default function NavigationSidebar({ user, departments }: NavigationSideb
   return (
     <aside className="fixed left-0 top-0 h-screen w-72 bg-white border-r border-slate-100 flex flex-col z-[100] shadow-2xl shadow-slate-200/50">
       {/* Logo Section */}
-      <div className="p-8">
+      <div className="p-8 pb-4">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="bg-blue-600 p-2.5 rounded-2xl text-white shadow-xl shadow-blue-500/30 group-hover:scale-110 transition-transform duration-500">
             <Layers size={24} strokeWidth={2.5} />
@@ -137,8 +138,10 @@ export default function NavigationSidebar({ user, departments }: NavigationSideb
         </div>
       </nav>
 
-      {/* User Support / Misc (Optional) */}
-      <div className="px-8 py-6 border-b border-dashed border-slate-100">
+      {/* User Support / Misc */}
+      <div className="px-6 py-4 space-y-3">
+         <NotificationCenter variant="card" />
+         
          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100/50 group cursor-help transition-all hover:bg-white hover:shadow-lg">
             <p className="text-[10px] font-black text-slate-800 uppercase mb-1">AI Help Center</p>
             <p className="text-[9px] text-slate-400 font-medium">데이터 분석이 어렵다면 언제든 AI에게 물어보세요.</p>

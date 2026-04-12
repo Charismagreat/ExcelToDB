@@ -254,5 +254,3 @@ export async function renameTable(
     newDisplayName
   });
 }
-
-

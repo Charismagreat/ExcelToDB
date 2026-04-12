@@ -1,6 +1,6 @@
-import React from 'react';
 import BottomNav from '@/components/workspace/BottomNav';
 import SmartFAB from '@/components/workspace/SmartFAB';
+import NotificationCenter from '@/components/NotificationCenter';
 
 import { getSessionAction } from '@/app/actions';
 import { redirect } from 'next/navigation';
@@ -19,12 +19,17 @@ export default async function WorkspaceLayout({
         <div className="min-h-screen bg-gray-50 flex flex-col relative w-full overflow-hidden mobile-shell">
             {/* Header (Optional, but usually needed for mobile shell) */}
             <header className="fixed top-0 w-full bg-white bg-opacity-90 backdrop-blur-md border-b border-gray-100 z-40 h-14 flex items-center justify-between px-6">
-                <h1 className="text-lg font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-                    Won Conductor
-                </h1>
-                <span className="text-[10px] font-black tracking-widest text-blue-600 uppercase border-b-2 border-blue-600 pb-0.5">
-                    My Workspace
-                </span>
+                <div className="flex items-center gap-2">
+                    <h1 className="text-lg font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                        Won Conductor
+                    </h1>
+                </div>
+                <div className="flex items-center gap-4">
+                    <span className="text-[10px] font-black tracking-widest text-blue-600 uppercase border-b-2 border-blue-600 pb-0.5">
+                        Work
+                    </span>
+                    <NotificationCenter />
+                </div>
             </header>
 
             {/* Main Content Scroll Area */}

@@ -75,11 +75,13 @@ export const SYSTEM_TABLES = [
     {
         tableName: 'user', displayName: 'System Users', schema: [
             { name: 'id', type: 'TEXT', notNull: true },
-            { name: 'email', type: 'TEXT', notNull: true },
-            { name: 'passwordHash', type: 'TEXT', notNull: true },
-            { name: 'salt', type: 'TEXT', notNull: true },
-            { name: 'role', type: 'TEXT', notNull: true, defaultValue: 'USER' },
-            { name: 'fullName', type: 'TEXT', notNull: true },
+            { name: 'username', type: 'TEXT', notNull: true },
+            { name: 'email', type: 'TEXT' },
+            { name: 'password', type: 'TEXT' },
+            { name: 'role', type: 'TEXT', notNull: true, defaultValue: 'VIEWER' },
+            { name: 'fullName', type: 'TEXT' },
+            { name: 'employeeId', type: 'TEXT' },
+            { name: 'isActive', type: 'INTEGER', defaultValue: 1 },
             { name: 'createdAt', type: 'TEXT', notNull: true }
         ] as any[]
     },
@@ -93,6 +95,11 @@ export const SYSTEM_TABLES = [
             { name: 'columns', type: 'TEXT', notNull: true },
             { name: 'uiConfig', type: 'TEXT' },
             { name: 'aiConfig', type: 'TEXT' },
+            { name: 'slackWebhookUrl', type: 'TEXT' },
+            // 사후 프로세스 설정 필드 추가
+            { name: 'assigneeId', type: 'TEXT' },
+            { name: 'autoTodo', type: 'INTEGER', defaultValue: 0 },
+            { name: 'dueDays', type: 'INTEGER', defaultValue: 1 },
             { name: 'isDeleted', type: 'INTEGER', defaultValue: 0 },
             { name: 'deletedAt', type: 'TEXT' },
             { name: 'ownerId', type: 'TEXT', notNull: true },
@@ -148,6 +155,63 @@ export const SYSTEM_TABLES = [
             { name: 'rowId', type: 'TEXT' },
             { name: 'createdAt', type: 'TEXT', notNull: true },
             { name: 'updatedAt', type: 'TEXT', notNull: true }
+        ] as any[]
+    },
+    {
+        tableName: 'notification', displayName: 'User Notifications', schema: [
+            { name: 'id', type: 'TEXT', notNull: true },
+            { name: 'userId', type: 'TEXT', notNull: true },
+            { name: 'title', type: 'TEXT', notNull: true },
+            { name: 'message', type: 'TEXT' },
+            { name: 'link', type: 'TEXT' },
+            { name: 'type', type: 'TEXT', defaultValue: 'INFO' },
+            { name: 'isRead', type: 'INTEGER', defaultValue: 0 },
+            { name: 'createdAt', type: 'TEXT', notNull: true }
+        ] as any[]
+    },
+    {
+        tableName: 'workflow_template', displayName: 'Workflow Templates', schema: [
+            { name: 'id', type: 'TEXT', notNull: true },
+            { name: 'name', type: 'TEXT', notNull: true },
+            { name: 'triggerReportId', type: 'TEXT', notNull: true },
+            { name: 'triggerCondition', type: 'TEXT' }, // JSON string
+            { name: 'tasks', type: 'TEXT' }, // JSON string of task templates
+            { name: 'createdAt', type: 'TEXT', notNull: true }
+        ] as any[]
+    },
+    {
+        tableName: 'workflow_instance', displayName: 'Workflow Instances', schema: [
+            { name: 'id', type: 'TEXT', notNull: true },
+            { name: 'templateId', type: 'TEXT', notNull: true },
+            { name: 'triggerRowId', type: 'TEXT', notNull: true },
+            { name: 'status', type: 'TEXT', defaultValue: 'RUNNING' },
+            { name: 'startedAt', type: 'TEXT', notNull: true },
+            { name: 'completedAt', type: 'TEXT' }
+        ] as any[]
+    },
+    {
+        tableName: 'action_task', displayName: 'Action Tasks', schema: [
+            { name: 'id', type: 'TEXT', notNull: true },
+            { name: 'instanceId', type: 'TEXT' }, // 워크플로우 인스턴스와 배정된 경우
+            { name: 'reportId', type: 'TEXT' }, // 특정 보고서와 직접 연결된 경우
+            { name: 'title', type: 'TEXT', notNull: true },
+            { name: 'description', type: 'TEXT' },
+            { name: 'type', type: 'TEXT', defaultValue: 'TASK' },
+            { name: 'status', type: 'TEXT', defaultValue: 'TODO' },
+            { name: 'assigneeId', type: 'TEXT' },
+            { name: 'assigneeRole', type: 'TEXT' },
+            { name: 'dueAt', type: 'TEXT' },
+            { name: 'completedAt', type: 'TEXT' },
+            { name: 'createdAt', type: 'TEXT', notNull: true }
+        ] as any[]
+    },
+    {
+        tableName: 'department', displayName: 'Organization Departments', schema: [
+            { name: 'id', type: 'TEXT', notNull: true },
+            { name: 'name', type: 'TEXT', notNull: true },
+            { name: 'description', type: 'TEXT' },
+            { name: 'icon', type: 'TEXT' },
+            { name: 'createdAt', type: 'TEXT', notNull: true }
         ] as any[]
     }
 ];
