@@ -113,6 +113,7 @@ export const SYSTEM_TABLES = [
             { name: 'id', type: 'TEXT', notNull: true },
             { name: 'reportId', type: 'TEXT', notNull: true },
             { name: 'data', type: 'TEXT', notNull: true },
+            { name: 'contentHash', type: 'TEXT' },
             { name: 'isDeleted', type: 'INTEGER', defaultValue: 0 },
             { name: 'deletedAt', type: 'TEXT' },
             { name: 'creatorId', type: 'TEXT' },
