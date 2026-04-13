@@ -62,11 +62,15 @@ export async function loginAction(username: string, password?: string) {
 
     // 비밀번호 검증
     if (user.password && password) {
+        console.log(`[AUTH_DEBUG] Verifying password for ${trimmedUsername}`);
         const isValid = verifyPassword(password, user.password);
+        console.log(`[AUTH_DEBUG] Result: ${isValid ? 'SUCCESS' : 'FAILURE'}`);
+        
         if (!isValid) {
             throw new Error('비밀번호가 일치하지 않습니다.');
         }
     } else if (user.password && !password) {
+        console.log(`[AUTH_DEBUG] Password missing for ${trimmedUsername}`);
         throw new Error('비밀번호를 입력해 주세요.');
     }
 

@@ -93,19 +93,37 @@ export async function createUserAction(data: any) {
         if (existingEmps.length > 0) throw new Error('이미 존재하는 사번입니다.');
     }
 
-    await insertRows('user', [{ 
-        id: generateId(),
-        username: trimmedUsername, 
-        role, 
-        fullName: fullName?.trim(), 
-        employeeId: finalEmployeeId, 
-        isActive: 1,
-        password: password ? hashPassword(password) : undefined
-    }]);
+    try {
+        const result = await insertRows('user', [{ 
+            id: generateId(),
+            username: trimmedUsername, 
+            role, 
+            fullName: fullName?.trim(), 
+            employeeId: finalEmployeeId, 
+            isActive: 1,
+            password: password ? hashPassword(password) : undefined,
+            createdAt: new Date().toISOString() // 필수 필드 누락 해결
+        }]);
 
-    revalidatePath('/users');
-    revalidatePath('/');
-    return { success: true };
+        // Validate insert result more strictly
+        const isActuallyInserted = result && (
+            result.success === true || 
+            (result.message && result.message.includes('1 rows inserted'))
+        );
+
+        if (!isActuallyInserted) {
+            throw new Error('데이터베이스에 기록되지 않았습니다. (필드 제약 조건 확인 필요)');
+        }
+
+        console.log(`[USER_ACTION] New user created: ${trimmedUsername}`);
+
+        revalidatePath('/users');
+        revalidatePath('/');
+        return { success: true };
+    } catch (error: any) {
+        console.error(`[USER_ACTION] Registration failed: ${error.message}`);
+        throw error;
+    }
 }
 
 /**

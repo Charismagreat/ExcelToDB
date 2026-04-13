@@ -118,7 +118,7 @@ export default async function DashboardPage() {
         _count: { rows: t.rowCount !== null && t.rowCount !== undefined ? t.rowCount : 'N/A' },
         isSystemTable: true,
         ownerId: 'system',
-        isReadOnly: true
+        isReadOnly: t.tableName === 'user' ? false : true // user 테이블은 관리 가능하도록 예외 처리
       }));
     reports = [...reports, ...mappedSystemTables];
   }
