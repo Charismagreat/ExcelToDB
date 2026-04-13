@@ -30,12 +30,14 @@ export function NotificationCenter({ variant = 'icon' }: NotificationCenterProps
         return () => clearInterval(timer);
     }, []);
 
-    const isActive = pathname === '/notifications';
+    const isWorkspace = pathname?.startsWith('/workspace') || false;
+    const targetUrl = isWorkspace ? '/workspace/notifications' : '/notifications';
+    const isActive = pathname === targetUrl;
 
     if (variant === 'icon') {
         return (
             <Link 
-                href="/notifications"
+                href={targetUrl}
                 className={`relative p-3 rounded-2xl transition-all duration-300 group ${
                     isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'
                 }`}
@@ -52,7 +54,7 @@ export function NotificationCenter({ variant = 'icon' }: NotificationCenterProps
 
     return (
         <Link 
-            href="/notifications"
+            href={targetUrl}
             className={`w-full text-left p-4 bg-slate-50 rounded-2xl border border-slate-100/50 group transition-all hover:bg-white hover:shadow-lg relative overflow-hidden flex flex-col ${
                 isActive ? 'bg-white shadow-xl border-blue-200' : ''
             }`}

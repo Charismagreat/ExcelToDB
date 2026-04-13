@@ -105,7 +105,8 @@ export async function triggerWorkflow(reportId: string, rowData: any, creatorId:
                     status: 'TODO',
                     assigneeId: t.assigneeId || 'UNASSIGNED',
                     assigneeRole: t.assigneeRole || 'MANAGER',
-                    dueAt: t.dueDays ? new Date(Date.now() + (t.dueDays * 86400000)).toISOString() : null
+                    dueAt: t.dueDays ? new Date(Date.now() + (t.dueDays * 86400000)).toISOString() : null,
+                    createdAt: new Date().toISOString()
                 }));
 
                 await insertRows('action_task', tasksToInsert);

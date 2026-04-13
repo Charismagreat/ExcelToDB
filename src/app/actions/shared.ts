@@ -207,6 +207,16 @@ export const SYSTEM_TABLES = [
         ] as any[]
     },
     {
+        tableName: 'action_task_history', displayName: 'Action Task History', schema: [
+            { name: 'id', type: 'TEXT', notNull: true },
+            { name: 'taskId', type: 'TEXT', notNull: true },
+            { name: 'oldStatus', type: 'TEXT' },
+            { name: 'newStatus', type: 'TEXT', notNull: true },
+            { name: 'changedById', type: 'TEXT', notNull: true },
+            { name: 'changedAt', type: 'TEXT', notNull: true }
+        ] as any[]
+    },
+    {
         tableName: 'department', displayName: 'Organization Departments', schema: [
             { name: 'id', type: 'TEXT', notNull: true },
             { name: 'name', type: 'TEXT', notNull: true },
