@@ -61,12 +61,7 @@ export async function addRowAction(reportId: string, rowData: any) {
   }
 
   // 4. 저장 (물리 + 가상 테이블)
-  let syncWarning: string | undefined;
-  try {
-      await RowService.saveRow(reportId, report.tableName, columns, cleanedData, hash, user.id);
-  } catch (err: any) {
-      syncWarning = `데이터 저장 중 동기화 경고: ${err.message}`;
-  }
+  await RowService.saveRow(reportId, report.tableName, columns, cleanedData, hash, user.id);
 
   // 5. 알림 및 워크플로우
   notifyNewDataRow(report.name, user.fullName || user.username, cleanedData, columns, report.slackWebhookUrl).catch(console.error);
