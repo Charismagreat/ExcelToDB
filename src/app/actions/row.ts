@@ -38,14 +38,17 @@ export async function addRowAction(reportId: string, rowData: any) {
   const { isValid, error, cleanedData } = ValidationService.validateRowData(rowData, columns);
   if (!isValid) throw new Error(error);
 
+  let syncWarning: string | null = null;
+  const hash = await RowService.generateContentHash(cleanedData, columns);
+
   // 2. 중복 체크
   try {
-      const hash = await RowService.generateContentHash(cleanedData, columns);
       const existingRows: any = await queryTable('report_row', {
           filters: { reportId: String(reportId), contentHash: String(hash), isDeleted: '0' }
       });
       if (existingRows.length > 0) throw new Error('이미 동일한 내용의 데이터가 존재합니다. (중복 방지)');
   } catch (err: any) {
+      if (err.message.includes('중복 방지')) throw err;
       // 컬럼이 없거나 쿼리 오류 발생 시 로그를 남기고 진행합니다.
       console.warn(`중복 체크 스킵 (스키마 누락 등): ${err.message}`);
   }
@@ -61,7 +64,10 @@ export async function addRowAction(reportId: string, rowData: any) {
   }
 
   // 4. 저장 (물리 + 가상 테이블)
-  await RowService.saveRow(reportId, report.tableName, columns, cleanedData, hash, user.id);
+  const saveResult: any = await RowService.saveRow(reportId, report.tableName, columns, cleanedData, hash, user.id);
+  if (saveResult?.syncError) {
+      syncWarning = saveResult.syncError;
+  }
 
   // 5. 알림 및 워크플로우
   notifyNewDataRow(report.name, user.fullName || user.username, cleanedData, columns, report.slackWebhookUrl).catch(console.error);
