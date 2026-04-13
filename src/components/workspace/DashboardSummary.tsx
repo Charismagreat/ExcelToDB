@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ClipboardList, Clock, Bell, LogOut, Loader2, MapPin } from 'lucide-react';
+import { ClipboardList, Clock, Bell, Loader2, MapPin } from 'lucide-react';
 import { checkInAction } from '@/app/workspace/attendance-actions';
+import LogoutButton from '@/components/LogoutButton';
 
 interface SummaryProps {
     user: any;
@@ -84,10 +85,9 @@ export default function DashboardSummary({ user, attendance: initialAttendance, 
                         <span className="text-muted-foreground text-sm">님의 업무 공간</span>
                     </div>
                 </div>
-                <button className="flex items-center space-x-1.5 px-3 py-1.5 bg-secondary text-muted-foreground rounded-lg text-xs font-semibold hover:bg-accent hover:text-accent-foreground transition-all">
-                    <LogOut size={14} />
-                    <span>로그아웃</span>
-                </button>
+                <LogoutButton 
+                    className="bg-secondary text-muted-foreground rounded-lg font-semibold hover:bg-accent hover:text-accent-foreground shadow-none" 
+                />
             </div>
 
             <div className="space-y-4 relative z-10">

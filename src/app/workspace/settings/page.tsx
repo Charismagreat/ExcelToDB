@@ -6,8 +6,10 @@ import { motion } from 'framer-motion';
 import SettingsItem from '@/components/workspace/SettingsItem';
 import { useTheme } from '@/components/ThemeProvider';
 import { getSessionAction, logoutAction } from '@/app/actions';
+import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
+    const router = useRouter();
     const { theme, toggleTheme } = useTheme();
     const [user, setUser] = React.useState<any>(null);
     const [isLoggingOut, setIsLoggingOut] = React.useState(false);
@@ -17,29 +19,9 @@ export default function SettingsPage() {
         getSessionAction().then(setUser);
     }, []);
 
-    const handleLogout = async () => {
-        if (confirm('정말 로그아웃 하시겠습니까?')) {
-            setIsLoggingOut(true);
-            try {
-                // 1. 서버 세션 종료
-                await logoutAction();
-                
-                // 2. 클라이언트 사이드 보조 청소
-                localStorage.clear();
-                sessionStorage.clear();
-
-                // 3. 브라우저 경로에 기반한 강제 이동
-                const currentHref = window.location.href;
-                const loginUrl = currentHref.includes('/workspace') 
-                    ? currentHref.split('/workspace')[0] + '/login'
-                    : '/login';
-
-                window.location.replace(loginUrl);
-            } catch (error) {
-                console.error('Logout failed:', error);
-                window.location.replace('/login');
-            }
-        }
+    const handleLogout = () => {
+        alert('로그아웃 버튼이 클릭되었습니다! (이벤트 연결 확인)');
+        console.log('[DEBUG] Logout button clicked successfully.');
     };
 
     const sections = [
@@ -137,19 +119,10 @@ export default function SettingsPage() {
                         <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">
                             {section.title}
                         </h3>
-                        <div>
-                            {section.items.map((item: any, idx) => (
-                                <motion.div key={`${section.title}-${idx}`} variants={itemVariant}>
-                                    <SettingsItem 
-                                        icon={item.icon}
-                                        title={item.title}
-                                        subtitle={item.subtitle}
-                                        type={item.type || 'arrow'}
-                                        isOn={item.isOn}
-                                        onToggle={item.onToggle}
-                                        value={item.value}
-                                    />
-                                </motion.div>
+                        <h3 className="text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-4 ml-1">{section.title}</h3>
+                        <div className="space-y-2">
+                            {section.items.map((item) => (
+                                <SettingsItem key={item.id} {...item} />
                             ))}
                         </div>
                     </div>
@@ -159,6 +132,7 @@ export default function SettingsPage() {
             {/* Logout Section */}
             <div className="px-4 mt-8">
                 <button 
+                    type="button"
                     onClick={handleLogout}
                     disabled={isLoggingOut}
                     className="w-full p-4 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center space-x-2 font-bold hover:bg-red-100 transition-all border border-red-100/50 disabled:opacity-50"
@@ -172,9 +146,6 @@ export default function SettingsPage() {
                         </>
                     )}
                 </button>
-                <p className="text-center text-[10px] text-gray-400 mt-6 font-medium">
-                    (C) 2024 Won Conductor. All Rights Reserved.
-                </p>
             </div>
         </div>
     );

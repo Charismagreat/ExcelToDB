@@ -14,17 +14,26 @@ export default function LogoutButton({ className }: LogoutButtonProps) {
     const router = useRouter();
 
     const handleLogout = async () => {
-        if (!confirm('로그아웃 하시겠습니까?')) return;
+        if (!confirm('정말 로그아웃 하시겠습니까?')) return;
         
         setIsLoading(true);
+        console.log('[CLIENT DEBUG] Shared LogoutButton: starting process...');
         try {
+            // 1. 서버 세션 종료 (쿠키 파기)
             await logoutAction();
-            // logoutAction calls redirect(), so code below may not execute
-            router.push('/login');
+            
+            // 2. 클라이언트 사이드 보조 청소
+            localStorage.clear();
+            sessionStorage.clear();
+
+            // 3. 리다이렉트 및 새로고침
+            console.log('[CLIENT DEBUG] Shared LogoutButton: redirecting...');
+            router.replace('/login');
             router.refresh();
         } catch (error) {
-            console.error('Logout failed:', error);
-            alert('로그아웃 중 오류가 발생했습니다.');
+            console.error('[CLIENT DEBUG] Shared LogoutButton error:', error);
+            // 에러가 발생해도 세션 만료를 가정하고 로그인 페이지로 시도
+            router.replace('/login');
         } finally {
             setIsLoading(false);
         }
@@ -42,7 +51,7 @@ export default function LogoutButton({ className }: LogoutButtonProps) {
             ) : (
                 <LogOut size={14} />
             )}
-            <span>LOGOUT</span>
+            <span>로그아웃</span>
         </button>
     );
 }

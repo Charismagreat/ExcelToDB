@@ -109,3 +109,9 @@
 [2026-04-07T07:46:26.948Z] [INFO] No schema structure change detected. Metadata only update.
 [2026-04-07T07:47:25.462Z] [INFO] No schema structure change detected. Metadata only update.
 [2026-04-07T08:08:13.686Z] [INFO] No schema structure change detected. Metadata configuration update.
+[2026-04-13T00:44:22.162Z] [INFO] Starting Blue-Green Migration for report 2.
+[2026-04-13T00:44:22.166Z] [INFO] Step 1: Generated new table name: tb_2_gzq52
+[2026-04-13T00:44:22.189Z] [INFO] Step 2: Created new table tb_2_gzq52.
+[2026-04-13T00:44:22.238Z] [INFO] Step 3: Migrated 92 rows.
+[2026-04-13T00:44:22.264Z] [INFO] Step 4: Deleted old table tb_sheet1_69d5af80_e94.
+[2026-04-13T00:44:22.279Z] [INFO] Blue-Green Migration COMPLETED for report 2.

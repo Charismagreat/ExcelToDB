@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { 
     queryTable, 
+    insertRows, 
     updateRows, 
     deleteRows
 } from '@/egdesk-helpers';

@@ -52,13 +52,6 @@ export default async function DataInputPage({
             해당 테이블에 대한 접근 권한이 없습니다.<br />
             관리자에게 권한 부여를 요청해 주세요.
           </p>
-          <Link
-            href="/"
-            className="flex items-center justify-center gap-3 w-full py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-black transition-all active:scale-95"
-          >
-            <Home size={20} />
-            My DB로 돌아가기
-          </Link>
         </div>
       </div>
     );

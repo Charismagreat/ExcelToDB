@@ -15,12 +15,14 @@ export default function LoginPage() {
   React.useEffect(() => {
     // 세션 킬 스위치: 로그인 페이지에 진입하면 무조건 이전 세션을 파기
     const killSession = async () => {
+      console.log('[CLIENT DEBUG] LoginPage mounted: executing session kill switch...');
       try {
         await logoutAction();
         localStorage.clear();
         sessionStorage.clear();
+        console.log('[CLIENT DEBUG] Session kill switch completed: auth cookies & storage cleared.');
       } catch (e) {
-        console.error("Session kill failed:", e);
+        console.error("[CLIENT DEBUG] Session kill switch failed:", e);
       }
     };
     killSession();

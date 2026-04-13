@@ -1,6 +1,7 @@
 'use server';
 
 import { cookies } from 'next/headers';
+import { revalidatePath as flushCache } from 'next/cache';
 import { queryTable, insertRows, updateRows } from '@/egdesk-helpers';
 import { 
     generateId, 
@@ -13,23 +14,35 @@ import {
  */
 export async function getSessionAction() {
     const cookieStore = await cookies();
-    const userId = cookieStore.get('session_user_id')?.value;
+    const allCookies = cookieStore.getAll();
+    
+    console.log(`[SERVER DEBUG] Total Cookies Received: ${allCookies.length}`);
+    allCookies.forEach(c => {
+        console.log(`   - Cookie: name=${c.name}, value=${c.name.includes('id') ? c.value : '***'}`);
+    });
 
-    if (!userId || userId === '') {
+    const sessionId = cookieStore.get('session_user_id')?.value;
+    const sessionRole = cookieStore.get('session_user_role')?.value;
+
+    console.log(`[SERVER DEBUG] Checking session: ID=${sessionId || 'NONE'}, ROLE=${sessionRole || 'NONE'}`);
+
+    if (!sessionId || sessionId === '') {
         return null;
     }
 
     try {
-        const users = await queryTable('user', { filters: { id: String(userId) } });
+        const users = await queryTable('user', { filters: { id: String(sessionId) } });
         const user = users[0];
 
         if (!user || user.isActive === 0) {
+            console.log(`[SERVER DEBUG] User not found or inactive for ID: ${sessionId}`);
             return null;
         }
 
+        console.log(`[SERVER DEBUG] Session Verified Case: ${user.username} (${user.role})`);
         return user;
     } catch (err) {
-        console.error("Session fetch failed:", err);
+        console.error("[SERVER DEBUG] Session fetch failed:", err);
         return null;
     }
 }
@@ -39,9 +52,6 @@ export async function getSessionAction() {
  */
 export async function loginAction(username: string, password?: string) {
     const trimmedUsername = username.trim();
-
-    // [보안 지침] 데이터 복구 기간 동안 자동 계정 생성 기능을 비활성화합니다.
-    // 기존에 존재하던 admin_user / employee_user 로직은 백업 데이터 복원 후 처리됩니다.
 
     const users = await queryTable('user', { filters: { username: trimmedUsername } });
     const user = users[0];
@@ -62,21 +72,16 @@ export async function loginAction(username: string, password?: string) {
 
     const cookieStore = await cookies();
     
-    cookieStore.set('session_user_id', user.id, {
+    const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: 'lax' as const,
         maxAge: 60 * 60 * 24 * 7, // 1 week
         path: '/' 
-    });
+    };
 
-    cookieStore.set('session_user_role', user.role, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7, // 1 week
-        path: '/'
-    });
+    cookieStore.set('session_user_id', String(user.id), cookieOptions);
+    cookieStore.set('session_user_role', user.role, cookieOptions);
 
     return { success: true, user };
 }
@@ -86,13 +91,32 @@ export async function loginAction(username: string, password?: string) {
  */
 export async function logoutAction() {
     const cookieStore = await cookies();
-    const options = { path: '/', maxAge: 0, httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const };
     
-    cookieStore.delete('session_user_id');
-    cookieStore.delete('session_user_role');
+    console.log('[SERVER DEBUG] Initiating logout: setting expiration...');
+
+    const options = { 
+        path: '/', 
+        expires: new Date(0), 
+        httpOnly: true, 
+        secure: process.env.NODE_ENV === 'production', 
+        sameSite: 'lax' as const 
+    };
     
-    cookieStore.set('session_user_id', '', options);
-    cookieStore.set('session_user_role', '', options);
+    try {
+        // 모든 세션 쿠키를 과거 날짜로 명시적 만료 처리
+        cookieStore.set('session_user_id', '', options);
+        cookieStore.set('session_user_role', '', options);
+        
+        cookieStore.delete('session_user_id');
+        cookieStore.delete('session_user_role');
+        
+        console.log('[SERVER DEBUG] Logout headers sent: Force expiration.');
+        
+        // 캐시 무효화 (별칭 사용)
+        flushCache('/', 'layout');
+    } catch (e) {
+        console.error('[SERVER DEBUG] Error during logout clearing:', e);
+    }
     
     return { success: true };
 }
