@@ -63,21 +63,93 @@ export default async function ReportDetailPage({
     columns = JSON.parse(report.columns);
   } else if (id === 'finance-hub-card-table' || id === 'finance-hub-bank-table') {
     const isCard = id === 'finance-hub-card-table';
+    
+    // 1. 필요한 API 함수 임포트 및 호출
+    const { 
+        queryCardTransactions, 
+        queryTransactions, 
+        listAccounts,
+        listBanks
+    } = await import('@/financehub-helpers');
+
     const txData = isCard 
         ? await queryCardTransactions({ limit: 1000, orderBy: 'date', orderDir: 'desc' })
         : await queryTransactions({ limit: 1000, orderBy: 'date', orderDir: 'desc' });
     
     const transactions = Array.isArray(txData) ? txData : (txData?.transactions || []);
 
-    // 1. 결과 행이 있을 경우 첫 번째 행의 키를 기반으로 물리 컬럼 동적 생성
-    const physicalKeys = transactions.length > 0 ? Object.keys(transactions[0]) : [];
+    // 2. 은행/계좌 정보 조인 및 데이터 정규화
+    let joinedTransactions = transactions;
+    let extraColumns: any[] = [];
     
-    const financeColumns = physicalKeys.map(key => ({
-        name: key,
-        type: (key === 'amount' || key === 'foreignAmountUsd' || key === 'withdrawal' || key === 'deposit' || key === 'balance') 
-            ? 'currency' 
-            : inferColumnType(key)
-    }));
+    try {
+        const [accountData, bankData] = await Promise.all([
+            listAccounts(),
+            listBanks()
+        ]);
+        
+        const accounts = Array.isArray(accountData) ? accountData : (accountData.accounts || []);
+        const accountMap = new Map(accounts.map((a: any) => [a.id, a]));
+        
+        const banks = bankData.banks || [];
+        const bankMap = new Map(banks.map((b: any) => [b.id, b.nameKo || b.name]));
+        
+        joinedTransactions = transactions.map((t: any) => {
+            const acc = accountMap.get(t.accountId);
+            
+            // 날짜 정규화 (YYYYMMDD -> YYYY-MM-DD)
+            let displayDate = t.date;
+            if (t.date && t.date.length === 8 && !t.date.includes('-')) {
+                displayDate = `${t.date.substring(0, 4)}-${t.date.substring(4, 6)}-${t.date.substring(6, 8)}`;
+            }
+
+            return {
+                ...t,
+                date: displayDate, // 원본 date 필드 덮어쓰기 (정렬/표시 일관성)
+                _bankName: bankMap.get(t.bankId) || t.bankId,
+                accountNumber: acc?.accountNumber || '',
+                accountName: acc?.accountName || '',
+                customerName: acc?.customerName || '',
+            };
+        });
+        
+        if (!isCard && joinedTransactions.length > 0) {
+            extraColumns = [
+                { name: '_bankName', type: 'string' },
+                { name: 'accountNumber', type: 'string' },
+                { name: 'accountName', type: 'string' }
+            ];
+        }
+    } catch (err) {
+        console.error('Failed to join finance metadata:', err);
+    }
+
+    // 3. 결과 행이 있을 경우 첫 번째 행의 키를 기반으로 물리 컬럼 동적 생성
+    const sampleRow = joinedTransactions.length > 0 ? joinedTransactions[0] : {};
+    
+    // UI에서 숨길 필드 (내부 ID 등) 및 이미 추가된 필드 제외
+    const hiddenFields = ['id', 'accountId', 'transactionId', 'updatedAt', 'createdAt', 'accountNumber', 'accountName', '_bankName'];
+    const physicalKeys = Object.keys(sampleRow).filter(k => !hiddenFields.includes(k));
+    
+    // 거래일자와 거래내용을 우선 배치
+    const priorityKeys = ['date', 'description', 'withdrawal', 'deposit', 'balance'];
+    const remainingKeys = physicalKeys.filter(k => !priorityKeys.includes(k));
+
+    const financeColumns = [
+        ...extraColumns,
+        ...priorityKeys.map(key => ({
+            name: key,
+            type: (key === 'amount' || key === 'foreignAmountUsd' || key === 'withdrawal' || key === 'deposit' || key === 'balance' || key === 'availableBalance') 
+                ? 'currency' 
+                : inferColumnType(key)
+        })),
+        ...remainingKeys.map(key => ({
+            name: key,
+            type: (key === 'amount' || key === 'foreignAmountUsd' || key === 'withdrawal' || key === 'deposit' || key === 'balance' || key === 'availableBalance') 
+                ? 'currency' 
+                : inferColumnType(key)
+        }))
+    ];
 
     report = {
       id: id,
@@ -88,7 +160,7 @@ export default async function ReportDetailPage({
       isReadOnly: true,
     };
 
-    rows = transactions.map((t: any, idx: number) => ({
+    rows = joinedTransactions.map((t: any, idx: number) => ({
       ...t,
       id: t.id || `tx-${idx}`,
       updatedAt: t.updatedAt || t.createdAt || new Date().toISOString(),
