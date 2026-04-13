@@ -1,6 +1,6 @@
 import React from 'react';
 import { queryTable } from '@/egdesk-helpers';
-import { getSessionAction } from '@/app/actions';
+import { getSessionAction } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
 import { 
     Users, 
@@ -18,8 +18,8 @@ import {
     Compass
 } from 'lucide-react';
 import Link from 'next/link';
-import FieldReportSection from '@/components/FieldReportSection';
-import PageHeader from '@/components/PageHeader';
+import { FieldReportSection } from '@/components/FieldReportSection';
+import { PageHeader } from '@/components/PageHeader';
 
 export default async function DepartmentWorkspacePage({
     params

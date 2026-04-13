@@ -55,7 +55,7 @@ const mockData: TimelineItem[] = [
   }
 ];
 
-export default function TimelineFeed() {
+export function TimelineFeed() {
   return (
     <div className="px-6 space-y-6">
       <div className="flex items-center justify-between">

@@ -17,7 +17,8 @@ import {
   AlignLeft, 
   LayoutList 
 } from 'lucide-react';
-import { uploadFileAction } from '@/app/actions';
+import { uploadFileAction } from '@/app/actions/file';
+import { addRowAction } from '@/app/actions/row';
 
 interface Column {
   name: string;
@@ -37,7 +38,7 @@ interface DynamicFormProps {
   onStatusShow?: (title: string, message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-export default function DynamicForm({ columns, initialData = {}, onSubmit, onCancel, onStatusShow }: DynamicFormProps) {
+export function DynamicForm({ columns, initialData = {}, onSubmit, onCancel, onStatusShow }: DynamicFormProps) {
   const [formData, setFormData] = React.useState(initialData);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 

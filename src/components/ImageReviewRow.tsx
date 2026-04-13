@@ -20,7 +20,7 @@ interface ImageReviewRowProps {
   errorMessage?: string;
 }
 
-export default function ImageReviewRow({ 
+export function ImageReviewRow({ 
   imagePreview, 
   data, 
   columns, 

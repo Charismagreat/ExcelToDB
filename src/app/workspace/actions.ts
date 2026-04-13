@@ -1,6 +1,8 @@
 'use server';
 
-import { getSessionAction, addRowAction, uploadFileAction } from '@/app/actions';
+import { getSessionAction } from '@/app/actions/auth';
+import { addRowAction } from '@/app/actions/row';
+import { uploadFileAction } from '@/app/actions/file';
 import { queryTable, executeSQL, insertRows, updateRows, deleteRows } from '@/egdesk-helpers';
 import { revalidatePath } from 'next/cache';
 import fs from 'fs/promises';

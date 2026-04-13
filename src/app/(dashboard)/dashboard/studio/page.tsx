@@ -1,12 +1,12 @@
 import React from 'react';
-import { getSessionAction } from '@/app/actions';
+import { getSessionAction } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
 import { queryTable } from '@/egdesk-helpers';
-import DashboardClient from '../DashboardClient';
+import { DashboardClient } from '../DashboardClient';
 import { LayoutDashboard, Compass, Star, Bot, Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import LogoutButton from '@/components/LogoutButton';
-import PageHeader from '@/components/PageHeader';
+import { LogoutButton } from '@/components/LogoutButton';
+import { PageHeader } from '@/components/PageHeader';
 
 export default async function DataAnalysisStudioPage() {
   const user = await getSessionAction();

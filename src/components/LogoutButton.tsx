@@ -2,14 +2,14 @@
 
 import React from 'react';
 import { LogOut, Loader2 } from 'lucide-react';
-import { logoutAction } from '@/app/actions';
+import { logoutAction } from '@/app/actions/auth';
 import { useRouter } from 'next/navigation';
 
 interface LogoutButtonProps {
     className?: string;
 }
 
-export default function LogoutButton({ className }: LogoutButtonProps) {
+export function LogoutButton({ className }: LogoutButtonProps) {
     const [isLoading, setIsLoading] = React.useState(false);
     const router = useRouter();
 
@@ -55,3 +55,5 @@ export default function LogoutButton({ className }: LogoutButtonProps) {
         </button>
     );
 }
+
+

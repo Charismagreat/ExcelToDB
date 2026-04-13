@@ -1,15 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import SmartChart from '@/components/SmartChart';
-import { deletePinnedChartAction, refreshIndividualChartAction, updateChartLayoutAction } from '@/app/actions';
+import { SmartChart } from '@/components/SmartChart';
+import { deletePinnedChartAction, refreshIndividualChartAction, updateChartLayoutAction } from '@/app/actions/ai';
 import { useRouter } from 'next/navigation';
 
 interface GalleryClientProps {
   initialCharts: any[];
 }
 
-export default function GalleryClient({ initialCharts }: GalleryClientProps) {
+export function GalleryClient({ initialCharts }: GalleryClientProps) {
   const router = useRouter();
   const [charts, setCharts] = useState(initialCharts);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);

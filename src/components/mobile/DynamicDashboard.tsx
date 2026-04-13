@@ -22,7 +22,7 @@ interface DynamicDashboardProps {
   user: any;
 }
 
-export default function DynamicDashboard({ user }: DynamicDashboardProps) {
+export function DynamicDashboard({ user }: DynamicDashboardProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {

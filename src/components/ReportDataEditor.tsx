@@ -2,8 +2,8 @@
 
 import React from 'react';
 import { Plus, LayoutDashboard } from 'lucide-react';
-import DynamicForm from './DynamicForm';
-import { addRowAction } from '@/app/actions';
+import { DynamicForm } from './DynamicForm';
+import { addRowAction } from '@/app/actions/row';
 
 interface Column {
   name: string;
@@ -18,7 +18,7 @@ interface ReportDataEditorProps {
   onStatusShow: (title: string, message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-export default function ReportDataEditor({ reportId, columns, onStatusShow }: ReportDataEditorProps) {
+export function ReportDataEditor({ reportId, columns, onStatusShow }: ReportDataEditorProps) {
   return (
     <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -76,3 +76,4 @@ export default function ReportDataEditor({ reportId, columns, onStatusShow }: Re
     </section>
   );
 }
+

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { ColumnDefinition } from '@/lib/excel-parser';
 import { GripVertical, Check, X, AlertCircle, Edit3, Save, Trash2, Plus } from 'lucide-react';
-import { updateReportSchemaAction, getSchemaRecommendationAction } from '@/app/actions';
+import { updateReportSchemaAction, getSchemaRecommendationAction } from '@/app/actions/report';
 import { ColumnRecommendation } from '@/lib/ai-vision';
 
 interface SchemaEditorProps {
@@ -13,7 +13,7 @@ interface SchemaEditorProps {
   onClose: () => void;
 }
 
-export default function SchemaEditor({ reportId, initialName, initialColumns, onClose }: SchemaEditorProps) {
+export function SchemaEditor({ reportId, initialName, initialColumns, onClose }: SchemaEditorProps) {
   const [displayName, setDisplayName] = useState(initialName);
   const [columns, setColumns] = useState<ColumnDefinition[]>(() => {
     return initialColumns.map(col => ({

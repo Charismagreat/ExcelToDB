@@ -1,10 +1,10 @@
 import React from 'react';
 import { Metadata } from 'next';
 import { Bell } from 'lucide-react';
-import NotificationPageClient from '@/components/NotificationPageClient';
+import { NotificationPageClient } from '@/components/NotificationPageClient';
 import { getAllNotificationsAction, getAdminNotificationLogsAction } from '@/app/actions/notification';
-import { getSessionAction } from '@/app/actions';
-import PageHeader from '@/components/PageHeader';
+import { getSessionAction } from '@/app/actions/auth';
+import { PageHeader } from '@/components/PageHeader';
 import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {

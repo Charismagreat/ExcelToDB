@@ -3,9 +3,9 @@
 import React from 'react';
 import { User, Bell, MapPin, Shield, HelpCircle, LogOut, Moon, Clock, Smartphone } from 'lucide-react';
 import { motion } from 'framer-motion';
-import SettingsItem from '@/components/workspace/SettingsItem';
+import { SettingsItem } from '@/components/workspace/SettingsItem';
 import { useTheme } from '@/components/ThemeProvider';
-import { getSessionAction, logoutAction } from '@/app/actions';
+import { getSessionAction, logoutAction } from '@/app/actions/auth';
 import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {

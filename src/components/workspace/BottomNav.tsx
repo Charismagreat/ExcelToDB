@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, ClipboardList, Bell, Settings } from 'lucide-react';
 
-export default function BottomNav() {
+export function BottomNav() {
     const pathname = usePathname();
 
     const tabs = [
@@ -35,3 +35,4 @@ export default function BottomNav() {
         </nav>
     );
 }
+

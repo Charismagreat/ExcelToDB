@@ -2,13 +2,13 @@
 
 import React, { useState } from 'react';
 import { RotateCcw, Trash2, Loader2 } from 'lucide-react';
-import { restoreReportAction, permanentDeleteReportAction } from '@/app/actions';
+import { restoreReportAction, permanentDeleteReportAction } from '@/app/actions/report';
 
 interface ArchiveActionsProps {
   reportId: string;
 }
 
-export default function ArchiveActions({ reportId }: ArchiveActionsProps) {
+export function ArchiveActions({ reportId }: ArchiveActionsProps) {
   const [isRestoring, setIsRestoring] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 

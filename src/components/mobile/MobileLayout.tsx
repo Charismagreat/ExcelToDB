@@ -3,8 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { Home, ListTodo, Archive, User, Search } from 'lucide-react';
-import ThemeToggle from '../ThemeToggle';
-import AIFAB from './AI-FAB';
+import { ThemeToggle } from '../ThemeToggle';
+import { AIFAB } from './AI-FAB';
 import { usePathname } from 'next/navigation';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -18,7 +18,7 @@ interface MobileLayoutProps {
   user?: any;
 }
 
-export default function MobileLayout({ children, user }: MobileLayoutProps) {
+export function MobileLayout({ children, user }: MobileLayoutProps) {
   const pathname = usePathname();
 
   const navItems = [

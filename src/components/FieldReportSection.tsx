@@ -7,7 +7,7 @@ interface FieldReportSectionProps {
     deptId: string;
 }
 
-export default function FieldReportSection({ deptId }: FieldReportSectionProps) {
+export function FieldReportSection({ deptId }: FieldReportSectionProps) {
     const [isRecording, setIsRecording] = useState(false);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [imageFile, setImageFile] = useState<File | null>(null);

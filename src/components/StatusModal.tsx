@@ -11,7 +11,7 @@ interface StatusModalProps {
   type?: 'success' | 'error' | 'info';
 }
 
-export default function StatusModal({ 
+export function StatusModal({ 
   isOpen, 
   onClose, 
   title, 
@@ -73,3 +73,4 @@ export default function StatusModal({
     </div>
   );
 }
+

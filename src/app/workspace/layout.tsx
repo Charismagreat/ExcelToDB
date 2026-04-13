@@ -1,8 +1,8 @@
-import BottomNav from '@/components/workspace/BottomNav';
-import SmartFAB from '@/components/workspace/SmartFAB';
-import NotificationCenter from '@/components/NotificationCenter';
+import { BottomNav } from '@/components/workspace/BottomNav';
+import { SmartFAB } from '@/components/workspace/SmartFAB';
+import { NotificationCenter } from '@/components/NotificationCenter';
 
-import { getSessionAction } from '@/app/actions';
+import { getSessionAction } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
 
 export default async function WorkspaceLayout({

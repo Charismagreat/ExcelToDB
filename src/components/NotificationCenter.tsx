@@ -10,7 +10,7 @@ interface NotificationCenterProps {
     variant?: 'icon' | 'card';
 }
 
-export default function NotificationCenter({ variant = 'icon' }: NotificationCenterProps) {
+export function NotificationCenter({ variant = 'icon' }: NotificationCenterProps) {
     const pathname = usePathname();
     const [unreadCount, setUnreadCount] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -53,24 +53,30 @@ export default function NotificationCenter({ variant = 'icon' }: NotificationCen
     return (
         <Link 
             href="/notifications"
-            className={`w-full text-left p-4 bg-slate-50 rounded-2xl border border-slate-100/50 group transition-all hover:bg-white hover:shadow-lg relative overflow-hidden ${
-                isActive ? 'ring-2 ring-blue-500/20 bg-white shadow-lg border-blue-100' : ''
+            className={`w-full text-left p-4 bg-slate-50 rounded-2xl border border-slate-100/50 group transition-all hover:bg-white hover:shadow-lg relative overflow-hidden flex flex-col ${
+                isActive ? 'bg-white shadow-xl border-blue-200' : ''
             }`}
         >
             <div className="flex items-center justify-between mb-1">
                 <p className={`text-[10px] font-black uppercase tracking-tight ${isActive ? 'text-blue-600' : 'text-slate-800'}`}>
                     Alert Center
                 </p>
-                <Bell size={12} className={unreadCount > 0 ? 'text-blue-600 fill-blue-600 animate-pulse' : 'text-slate-300'} />
+                <div className="relative">
+                    <Bell size={12} className={unreadCount > 0 ? 'text-blue-600 fill-blue-600 animate-pulse' : 'text-slate-300'} />
+                    {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full" />
+                    )}
+                </div>
             </div>
-            <p className="text-[9px] text-slate-400 font-medium leading-normal">
+            <p className="text-[9px] text-slate-400 font-medium leading-tight">
                 {unreadCount > 0 
                     ? `새로운 알림이 ${unreadCount}건 있습니다.` 
                     : '현재 새로운 알림이 없습니다.'}
             </p>
             {unreadCount > 0 && (
-                <div className="absolute top-0 right-0 w-1.5 h-full bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.5)]" />
+                <div className="absolute top-0 left-0 w-1 h-full bg-blue-600 shadow-sm" />
             )}
         </Link>
     );
 }
+

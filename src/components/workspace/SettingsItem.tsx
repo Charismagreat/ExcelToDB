@@ -15,7 +15,7 @@ interface SettingsItemProps {
     onClick?: () => void;
 }
 
-export default function SettingsItem({ 
+export function SettingsItem({ 
     icon, 
     title, 
     subtitle, 

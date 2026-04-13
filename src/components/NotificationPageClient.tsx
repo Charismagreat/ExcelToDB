@@ -32,7 +32,7 @@ interface NotificationPageClientProps {
 
 type TabType = 'personal' | 'organization';
 
-export default function NotificationPageClient({ user, initialNotifications, initialAdminLogs = [] }: NotificationPageClientProps) {
+export function NotificationPageClient({ user, initialNotifications, initialAdminLogs = [] }: NotificationPageClientProps) {
     const [activeTab, setActiveTab] = useState<TabType>('personal');
     const [notifications, setNotifications] = useState(initialNotifications);
     const [adminLogs, setAdminLogs] = useState(initialAdminLogs);

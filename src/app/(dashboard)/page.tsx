@@ -1,6 +1,6 @@
 import React from 'react';
-import { getSessionAction } from '@/app/actions';
-import DeleteReportButton from '@/components/DeleteReportButton';
+import { getSessionAction } from '@/app/actions/auth';
+import { DeleteReportButton } from '@/components/DeleteReportButton';
 import Link from 'next/link';
 import { 
   FileSpreadsheet, 
@@ -18,13 +18,13 @@ import {
   Star,
   Compass
 } from 'lucide-react';
-import NewTableSection from '@/components/NewTableSection';
+import { NewTableSection } from '@/components/NewTableSection';
 import { redirect } from 'next/navigation';
-import LogoutButton from '@/components/LogoutButton';
+import { LogoutButton } from '@/components/LogoutButton';
 import { queryTable, aggregateTable, listTables } from '@/egdesk-helpers';
-import SyncStatusBadge from '@/components/SyncStatusBadge';
-import PageHeader from '@/components/PageHeader';
-import DashboardHubClient from './DashboardHubClient';
+import { SyncStatusBadge } from '@/components/SyncStatusBadge';
+import { PageHeader } from '@/components/PageHeader';
+import { DashboardHubClient } from './DashboardHubClient';
 
 export default async function DashboardPage() {
   // 실제 세션 사용자 정보 가져오기

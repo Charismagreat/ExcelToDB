@@ -1,16 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import DynamicForm from './DynamicForm';
-import { addRowAction } from '@/app/actions';
-import StatusModal from './StatusModal';
+import { DynamicForm } from './DynamicForm';
+import { addRowAction } from '@/app/actions/row';
+import { StatusModal } from './StatusModal';
 
 interface InputFormWrapperProps {
   reportId: string;
   columns: any[];
 }
 
-export default function InputFormWrapper({ reportId, columns }: InputFormWrapperProps) {
+export function InputFormWrapper({ reportId, columns }: InputFormWrapperProps) {
   const [modal, setModal] = useState({ 
     isOpen: false, 
     title: '', 

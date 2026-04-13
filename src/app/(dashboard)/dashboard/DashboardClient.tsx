@@ -21,8 +21,8 @@ import {
   saveAIStudioSessionAction,
   getAIStudioSessionAction,
   clearAIStudioSessionAction
-} from '@/app/actions';
-import SmartChart from '@/components/SmartChart';
+} from '@/app/actions/ai';
+import { SmartChart } from '@/components/SmartChart';
 
 // 저장소 키 (하위 호환성 및 로그 확인용)
 const STORAGE_KEY = 'egdesk_ai_studio_state';
@@ -39,7 +39,7 @@ interface ChatMessage {
   chartConfig?: any;
 }
 
-export default function DashboardClient({ allTables, user }: DashboardClientProps) {
+export function DashboardClient({ allTables, user }: DashboardClientProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([

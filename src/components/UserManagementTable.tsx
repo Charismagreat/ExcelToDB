@@ -18,9 +18,9 @@ import {
   Trash2,
   Loader2
 } from 'lucide-react';
-import { updateUserAction, createUserAction, deleteUserAction, getUsersAction } from '@/app/actions';
-import StatusModal from './StatusModal';
-import UserBulkUploadModal from './UserBulkUploadModal';
+import { updateUserAction, createUserAction, deleteUserAction, getUsersAction } from '@/app/actions/user';
+import { StatusModal } from './StatusModal';
+import { UserBulkUploadModal } from './UserBulkUploadModal';
 import { FileSpreadsheet } from 'lucide-react';
 
 interface User {
@@ -39,7 +39,7 @@ interface UserManagementTableProps {
   users: User[];
 }
 
-export default function UserManagementTable({ users: initialUsers }: UserManagementTableProps) {
+export function UserManagementTable({ users: initialUsers }: UserManagementTableProps) {
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -439,3 +439,4 @@ export default function UserManagementTable({ users: initialUsers }: UserManagem
     </div>
   );
 }
+

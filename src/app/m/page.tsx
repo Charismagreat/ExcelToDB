@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import MobileLayout from '@/components/mobile/MobileLayout';
-import DynamicDashboard from '@/components/mobile/DynamicDashboard';
-import TimelineFeed from '@/components/mobile/TimelineFeed';
+import { MobileLayout } from '@/components/mobile/MobileLayout';
+import { DynamicDashboard } from '@/components/mobile/DynamicDashboard';
+import { TimelineFeed } from '@/components/mobile/TimelineFeed';
 
 export default function MobileDashboardPage() {
   // Mock user for UI demonstration

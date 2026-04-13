@@ -14,7 +14,7 @@ interface TodoItemProps {
     initialCompleted?: boolean;
 }
 
-export default function TodoItem({ 
+export function TodoItem({ 
     title, 
     description, 
     location, 

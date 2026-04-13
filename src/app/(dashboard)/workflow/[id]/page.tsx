@@ -1,6 +1,6 @@
 import React from 'react';
 import { queryTable } from '@/egdesk-helpers';
-import { getSessionAction } from '@/app/actions';
+import { getSessionAction } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
 import { 
     Activity, 

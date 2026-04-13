@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { Plus, Upload, Database, Layout, ArrowRight } from 'lucide-react';
-import UploadWorkflow from './UploadWorkflow';
-import ManualTableModal from './ManualTableModal';
+import { UploadWorkflow } from './UploadWorkflow';
+import { ManualTableModal } from './ManualTableModal';
 
-export default function NewTableSection({ 
+export function NewTableSection({ 
   userId, 
   showManualModal = false, 
   setShowManualModal 
@@ -40,3 +40,5 @@ export default function NewTableSection({
     </div>
   );
 }
+
+

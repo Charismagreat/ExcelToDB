@@ -3,7 +3,7 @@
 import React, { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, Info } from 'lucide-react';
-import { addRowsAction } from '@/app/actions';
+import { addRowsAction } from '@/app/actions/row';
 import { isSubtotalRow } from '@/lib/data-utils';
 
 interface BulkUploadProps {
@@ -12,7 +12,7 @@ interface BulkUploadProps {
   onStatusShow: (title: string, message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-export default function BulkUpload({ reportId, columns, onStatusShow }: BulkUploadProps) {
+export function BulkUpload({ reportId, columns, onStatusShow }: BulkUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [previewData, setPreviewData] = useState<any[] | null>(null);
@@ -266,3 +266,4 @@ export default function BulkUpload({ reportId, columns, onStatusShow }: BulkUplo
     </div>
   );
 }
+

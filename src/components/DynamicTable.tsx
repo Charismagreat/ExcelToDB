@@ -2,12 +2,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Trash2, Edit3, Search, ArrowUpDown, ArrowUp, ArrowDown, FilterX, FileDown, Table as TableIcon, FileText, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CheckCircle2, XCircle, ExternalLink, Eye, History as HistoryIcon, Plus, FileSpreadsheet, Sparkles, RotateCcw, Mail, Phone } from 'lucide-react';
-import { deleteRowsAction, updateSingleRowAction, restoreRowsAction } from '@/app/actions';
+import { deleteRowsAction, updateSingleRowAction, restoreRowsAction } from '@/app/actions/row';
 import * as XLSX from 'xlsx';
 import { Check, X as XIcon } from 'lucide-react';
-import BulkEditModal from './BulkEditModal';
-import StatusModal from './StatusModal';
-import AuditHistoryModal from './AuditHistoryModal';
+import { BulkEditModal } from './BulkEditModal';
+import { StatusModal } from './StatusModal';
+import { AuditHistoryModal } from './AuditHistoryModal';
 
 interface Column {
   name: string;
@@ -32,7 +32,7 @@ interface DynamicTableProps {
   onToggleAIImport?: () => void;
 }
 
-export default function DynamicTable({ 
+export function DynamicTable({ 
     reportId, 
     columns, 
     data, 
@@ -890,3 +890,4 @@ export default function DynamicTable({
     </div>
   );
 }
+

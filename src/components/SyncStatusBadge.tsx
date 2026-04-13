@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { checkSyncStatusAction, repairVirtualTableAction } from '@/app/actions';
+import { checkSyncStatusAction, repairVirtualTableAction } from '@/app/actions/row';
 import { CheckCircle2, AlertTriangle, AlertCircle, Loader2, RotateCcw } from 'lucide-react';
 
 interface SyncStatusBadgeProps {
@@ -18,7 +18,7 @@ interface SyncData {
   message?: string;
 }
 
-export default function SyncStatusBadge({ reportId }: SyncStatusBadgeProps) {
+export function SyncStatusBadge({ reportId }: SyncStatusBadgeProps) {
   const [data, setData] = useState<SyncData>({ status: 'loading' });
   const [showTooltip, setShowTooltip] = useState(false);
   const [isRepairing, setIsRepairing] = useState(false);
@@ -143,3 +143,5 @@ export default function SyncStatusBadge({ reportId }: SyncStatusBadgeProps) {
     </div>
   );
 }
+
+

@@ -13,7 +13,7 @@ interface NotificationItemProps {
     type?: 'checkin' | 'task' | 'system' | 'approval';
 }
 
-export default function NotificationItem({ icon, title, description, time, unread, type }: NotificationItemProps) {
+export function NotificationItem({ icon, title, description, time, unread, type }: NotificationItemProps) {
     const typeStyles = {
         checkin: 'bg-emerald-500/10 text-emerald-500',
         task: 'bg-orange-500/10 text-orange-500',

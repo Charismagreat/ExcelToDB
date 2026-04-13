@@ -16,7 +16,7 @@ import {
   Trash2,
   AlertCircle
 } from 'lucide-react';
-import { getRowHistoryAction } from '@/app/actions';
+import { getRowHistoryAction } from '@/app/actions/row';
 
 interface AuditData {
     id: string;
@@ -34,7 +34,7 @@ interface AuditHistoryModalProps {
     columns?: any[]; // For compatibility
 }
 
-export default function AuditHistoryModal({ rowId, onClose }: AuditHistoryModalProps) {
+export function AuditHistoryModal({ rowId, onClose }: AuditHistoryModalProps) {
     const [auditData, setAuditData] = useState<AuditData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -187,7 +187,7 @@ export default function AuditHistoryModal({ rowId, onClose }: AuditHistoryModalP
                                     );
                                 })}
 
-                                {history.length === 0 && !isLoading && (
+                                {auditData?.histories.length === 0 && !isLoading && (
                                      <div className="relative group">
                                          <div className="absolute -left-10 top-1.5 w-8 h-8 bg-gray-100 text-gray-400 rounded-xl flex items-center justify-center z-10">
                                              <Info size={16} />
@@ -228,3 +228,4 @@ export default function AuditHistoryModal({ rowId, onClose }: AuditHistoryModalP
         </div>
     );
 }
+

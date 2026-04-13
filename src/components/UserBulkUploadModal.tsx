@@ -13,14 +13,14 @@ import {
   ChevronsRight,
   Info
 } from 'lucide-react';
-import { bulkCreateUsersAction } from '@/app/actions';
+import { bulkCreateUsersAction } from '@/app/actions/user';
 
 interface UserBulkUploadModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export default function UserBulkUploadModal({ onClose, onSuccess }: UserBulkUploadModalProps) {
+export function UserBulkUploadModal({ onClose, onSuccess }: UserBulkUploadModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -311,3 +311,5 @@ export default function UserBulkUploadModal({ onClose, onSuccess }: UserBulkUplo
     </div>
   );
 }
+
+

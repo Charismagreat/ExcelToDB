@@ -3,10 +3,10 @@
 import React, { useState } from 'react';
 import { Database, Plus, FileSpreadsheet, ExternalLink, ShieldCheck, Wallet } from 'lucide-react';
 import Link from 'next/link';
-import PageHeader from '@/components/PageHeader';
-import NewTableSection from '@/components/NewTableSection';
-import SyncStatusBadge from '@/components/SyncStatusBadge';
-import DeleteReportButton from '@/components/DeleteReportButton';
+import { PageHeader } from '@/components/PageHeader';
+import { NewTableSection } from '@/components/NewTableSection';
+import { SyncStatusBadge } from '@/components/SyncStatusBadge';
+import { DeleteReportButton } from '@/components/DeleteReportButton';
 
 interface DashboardHubClientProps {
   user: any;
@@ -14,7 +14,7 @@ interface DashboardHubClientProps {
   reports: any[];
 }
 
-export default function DashboardHubClient({ user, isStaff, reports }: DashboardHubClientProps) {
+export function DashboardHubClient({ user, isStaff, reports }: DashboardHubClientProps) {
   const [showManualModal, setShowManualModal] = useState(false);
 
   return (

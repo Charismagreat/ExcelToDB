@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { MessageSquare, Heart, CheckCircle, Clock, Eye, FileText, ImageIcon } from 'lucide-react';
+import { MessageSquare, Heart, CheckCircle, Clock, Eye, FileText, Camera } from 'lucide-react';
 
 interface FeedCardProps {
     id: string;
@@ -21,7 +21,7 @@ interface FeedCardProps {
     isAnalyzing?: boolean;
 }
 
-export default function FeedCard({
+export function FeedCard({
     id,
     type,
     title,
@@ -63,7 +63,7 @@ export default function FeedCard({
                         <img src={imageUrl} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     ) : (
                         <div className="flex flex-col items-center justify-center text-muted-foreground/30">
-                            {isUnclassified ? <Clock size={32} /> : (type === 'ACTIVITY' ? <ImageIcon size={32} /> : <FileText size={32} />)}
+                            {isUnclassified ? <Clock size={32} /> : (type === 'ACTIVITY' ? <Camera size={32} /> : <FileText size={32} />)}
                         </div>
                     )}
                     <div className={`
@@ -151,3 +151,4 @@ export default function FeedCard({
         </div>
     );
 }
+

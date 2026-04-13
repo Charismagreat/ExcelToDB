@@ -1,11 +1,11 @@
-import { getSessionAction } from '@/app/actions';
+import { getSessionAction } from '@/app/actions/auth';
 import { getWorkspaceFeedAction } from './actions';
 import { getTodayAttendanceAction } from './attendance-actions';
+import { queryTable } from '@/egdesk-helpers';
 import { redirect } from 'next/navigation';
 import { LayoutGrid } from 'lucide-react';
-import FeedCard from '@/components/workspace/FeedCard';
-import FeedList from '@/components/workspace/FeedList';
-import DashboardSummary from '@/components/workspace/DashboardSummary';
+import { FeedList } from '@/components/workspace/FeedList';
+import { DashboardSummary } from '@/components/workspace/DashboardSummary';
 
 export default async function WorkspacePage() {
     // 세션 확인
@@ -20,9 +20,15 @@ export default async function WorkspacePage() {
         getTodayAttendanceAction()
     ]);
 
-    // 하드코딩된 모의 수치 (실제 서비스 연동 시 SQL 카운트 등으로 변경 가능)
-    const todoCount = 4;
-    const notifCount = 6;
+    // 실시간 수치 데이터 조회 (hardcoded -> SQL query)
+    const [todoRows, notifRows] = await Promise.all([
+        queryTable('action_task', { filters: { assigneeId: String(session.id), status: 'TODO' } }),
+        queryTable('notification', { filters: { userId: String(session.id), isRead: '0' } })
+    ]);
+    
+    // queryTable은 배열을 직접 반환하므로 .rows 없이 체크합니다.
+    const todoCount = Array.isArray(todoRows) ? todoRows.length : 0;
+    const notifCount = Array.isArray(notifRows) ? notifRows.length : 0;
 
     return (
         <div className="pb-24 pt-4">

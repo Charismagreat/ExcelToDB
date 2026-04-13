@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { loginAction, logoutAction } from '@/app/actions';
+import { loginAction, logoutAction } from '@/app/actions/auth';
 import { LayoutDashboard, LogIn, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {

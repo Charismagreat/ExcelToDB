@@ -2,8 +2,8 @@ import React from 'react';
 import { queryTable, aggregateTable } from '@/egdesk-helpers';
 import Link from 'next/link';
 import { FileSpreadsheet, ArrowLeft, Archive } from 'lucide-react';
-import ArchiveActions from '@/components/ArchiveActions';
-import PageHeader from '@/components/PageHeader';
+import { ArchiveActions } from '@/components/ArchiveActions';
+import { PageHeader } from '@/components/PageHeader';
 
 export default async function ArchivePage() {
   const rawAllDeletedReports = await queryTable('report', {

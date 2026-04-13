@@ -1,6 +1,7 @@
 'use server';
 
-import { getSessionAction, addRowAction } from '@/app/actions';
+import { getSessionAction } from '@/app/actions/auth';
+import { addRowAction } from '@/app/actions/row';
 import { executeSQL } from '@/egdesk-helpers';
 
 /**

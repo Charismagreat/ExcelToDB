@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, Loader2, Edit3, Repeat, AlertCircle, ChevronDown, Check } from 'lucide-react';
-import { bulkUpdateRowsAction } from '@/app/actions';
+import { bulkUpdateRowsAction } from '@/app/actions/row';
 
 interface Column {
   name: string;
@@ -20,7 +20,7 @@ interface BulkEditModalProps {
   onStatusShow?: (title: string, message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-export default function BulkEditModal({ 
+export function BulkEditModal({ 
   reportId, 
   selectedIds, 
   columns, 
@@ -262,3 +262,4 @@ export default function BulkEditModal({
     </div>
   );
 }
+

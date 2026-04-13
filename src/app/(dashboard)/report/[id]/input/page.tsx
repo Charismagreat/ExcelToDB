@@ -1,7 +1,7 @@
 import React from 'react';
-import { getSessionAction } from '@/app/actions';
+import { getSessionAction } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
-import DataInputClient from '@/components/DataInputClient';
+import { DataInputClient } from '@/components/DataInputClient';
 import { ShieldAlert, Home } from 'lucide-react';
 import Link from 'next/link';
 import { queryTable } from '@/egdesk-helpers';

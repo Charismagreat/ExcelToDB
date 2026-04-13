@@ -1,10 +1,11 @@
 import React from 'react';
-import { getSessionAction, getPinnedChartsAction } from '@/app/actions';
+import { getSessionAction } from '@/app/actions/auth';
+import { getPinnedChartsAction } from '@/app/actions/ai';
 import { redirect } from 'next/navigation';
 import { Sparkles, Plus, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
-import GalleryClient from './GalleryClient';
-import PageHeader from '@/components/PageHeader';
+import { GalleryClient } from './GalleryClient';
+import { PageHeader } from '@/components/PageHeader';
 
 export default async function ReportGalleryPage() {
   const user = await getSessionAction();

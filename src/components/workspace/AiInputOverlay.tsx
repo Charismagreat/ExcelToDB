@@ -16,7 +16,7 @@ interface AiInputOverlayProps {
     workspaceItemId?: string | null;
 }
 
-export default function AiInputOverlay({ 
+export function AiInputOverlay({ 
     isOpen, 
     onClose, 
     onSubmit, 
@@ -391,3 +391,4 @@ export default function AiInputOverlay({
         </div>
     );
 }
+

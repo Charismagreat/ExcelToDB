@@ -21,7 +21,7 @@ interface WorkflowSettingsModalProps {
     onClose: () => void;
 }
 
-export default function WorkflowSettingsModal({ report, onClose }: WorkflowSettingsModalProps) {
+export function WorkflowSettingsModal({ report, onClose }: WorkflowSettingsModalProps) {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
@@ -183,3 +183,4 @@ export default function WorkflowSettingsModal({ report, onClose }: WorkflowSetti
         </div>
     );
 }
+

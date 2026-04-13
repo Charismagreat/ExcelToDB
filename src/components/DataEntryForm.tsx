@@ -19,7 +19,7 @@ import {
   LayoutList,
   Upload
 } from 'lucide-react';
-import { addRowAction } from '@/app/actions';
+import { addRowAction } from '@/app/actions/row';
 
 interface Column {
   name: string;
@@ -36,7 +36,7 @@ interface DataEntryFormProps {
   onSuccess?: (warning?: string) => void;
 }
 
-export default function DataEntryForm({ reportId, columns, onSuccess }: DataEntryFormProps) {
+export function DataEntryForm({ reportId, columns, onSuccess }: DataEntryFormProps) {
   const router = useRouter();
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);

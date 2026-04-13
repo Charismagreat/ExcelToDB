@@ -1,6 +1,6 @@
 import React from 'react';
-import SmartChart from '@/components/SmartChart';
-import { getPinnedChartsAction } from '@/app/actions';
+import { SmartChart } from '@/components/SmartChart';
+import { getPinnedChartsAction } from '@/app/actions/ai';
 import { notFound } from 'next/navigation';
 
 export default async function SharedChartPage({ params }: { params: Promise<{ id: string }> }) {

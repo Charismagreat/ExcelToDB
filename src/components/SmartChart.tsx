@@ -88,7 +88,7 @@ const formatValue = (val: any) => {
   return val;
 };
 
-export default function SmartChart({ 
+export function SmartChart({ 
   config, 
   isSelected, 
   onSelect, 
@@ -564,3 +564,5 @@ export default function SmartChart({
     </div>
   );
 }
+
+

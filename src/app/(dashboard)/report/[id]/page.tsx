@@ -1,4 +1,4 @@
-import { getSessionAction } from '@/app/actions';
+import { getSessionAction } from '@/app/actions/auth';
 import { queryTable, getTableSchema } from '@/egdesk-helpers';
 import { queryTransactions, queryCardTransactions } from '@/financehub-helpers';
 
@@ -16,11 +16,11 @@ function inferColumnType(name: string): string {
   if (lowercase.includes('phone') || lowercase.includes('tel') || lowercase.includes('mobile')) return 'phone';
   return 'string';
 }
-import ReportDetailClient from '@/components/ReportDetailClient';
+import { ReportDetailClient } from '@/components/ReportDetailClient';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowLeft, User } from 'lucide-react';
-import LogoutButton from '@/components/LogoutButton';
+import { LogoutButton } from '@/components/LogoutButton';
 
 export default async function ReportDetailPage({
   params,

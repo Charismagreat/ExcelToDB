@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { FileText, Edit2, Check, X, Settings, ShieldCheck, Share2, Bell, Loader2, Link } from 'lucide-react';
-import { renameReportAction, updateReportWebhookAction } from '@/app/actions';
+import { renameReportAction, updateReportWebhookAction } from '@/app/actions/report';
 import { ColumnDefinition } from '@/lib/excel-parser';
-import SchemaEditor from './SchemaEditor';
-import WorkflowSettingsModal from './WorkflowSettingsModal';
+import { SchemaEditor } from './SchemaEditor';
+import { WorkflowSettingsModal } from './WorkflowSettingsModal';
 
 interface ReportHeaderProps {
   reportId: string;
@@ -24,7 +24,7 @@ interface ReportHeaderProps {
   onToggleAccessManager?: () => void;
 }
 
-export default function ReportHeader({ 
+export function ReportHeader({ 
   reportId, 
   initialName, 
   sheetName, 
@@ -301,3 +301,4 @@ export default function ReportHeader({
     </>
   );
 }
+

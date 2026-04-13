@@ -5,7 +5,8 @@ import * as XLSX from 'xlsx';
 import { toPng } from 'html-to-image';
 import { ColumnDefinition, TableData } from '@/lib/excel-parser';
 import { RecommendationTable } from '@/lib/ai-vision';
-import { uploadExcelAction, analyzeExcelScreenshotAction } from '@/app/actions';
+import { uploadExcelAction } from '@/app/actions/file';
+import { analyzeExcelScreenshotAction } from '@/app/actions/ai';
 import { isSubtotalRow } from '@/lib/data-utils';
 import { Upload, Check, AlertCircle, FileText, ChevronRight, Save, Camera, Sparkles, Image as ImageIcon, Loader2, RotateCcw, Info, GripVertical, Trash2, Edit3 } from 'lucide-react';
 
@@ -24,7 +25,7 @@ interface ExtendedTableData extends TableData {
     headerRowIndex: number;
 }
 
-export default function UploadWorkflow({ userId }: { userId: string }) {
+export function UploadWorkflow({ userId }: { userId: string }) {
   const [step, setStep] = useState<'upload' | 'analyzing' | 'select' | 'processing'>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [previewTables, setPreviewTables] = useState<ExtendedTableData[]>([]);

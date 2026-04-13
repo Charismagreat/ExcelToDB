@@ -3,7 +3,7 @@
 import React from 'react';
 import { ClipboardList, LayoutGrid, Calendar, CheckSquare, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
-import TodoItem from '@/components/workspace/TodoItem';
+import { TodoItem } from '@/components/workspace/TodoItem';
 
 export default function TodoPage() {
     const todoSections = [

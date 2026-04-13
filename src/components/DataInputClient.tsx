@@ -13,12 +13,12 @@ import {
     ListFilter
 } from 'lucide-react';
 import Link from 'next/link';
-import DataEntryForm from './DataEntryForm';
-import BulkUpload from './BulkUpload';
-import AIPhotoImportSection from './AIPhotoImportSection';
-import StatusModal from './StatusModal';
-import DynamicTable from './DynamicTable';
-import LogoutButton from './LogoutButton';
+import { DataEntryForm } from './DataEntryForm';
+import { BulkUpload } from './BulkUpload';
+import { AIPhotoImportSection } from './AIPhotoImportSection';
+import { StatusModal } from './StatusModal';
+import { DynamicTable } from './DynamicTable';
+import { LogoutButton } from './LogoutButton';
 
 interface DataInputClientProps {
     report: any;
@@ -27,7 +27,7 @@ interface DataInputClientProps {
     rows: any[];
 }
 
-export default function DataInputClient({ report, session, columns, rows }: DataInputClientProps) {
+export function DataInputClient({ report, session, columns, rows }: DataInputClientProps) {
     const [showExcelModal, setShowExcelModal] = useState(false);
     const [showAIModal, setShowAIModal] = useState(false);
     const [showAddRecordForm, setShowAddRecordForm] = useState(true);

@@ -2,8 +2,9 @@
 
 import React, { useState, useRef } from 'react';
 import { Camera, Upload, Trash2, Save, Sparkles, Loader2, Plus, X } from 'lucide-react';
-import ImageReviewRow from './ImageReviewRow';
-import { analyzeImageAndExtractDataAction, addRowsAction } from '@/app/actions';
+import { ImageReviewRow } from './ImageReviewRow';
+import { analyzeImageAndExtractDataAction } from '@/app/actions/ai';
+import { addRowsAction } from '@/app/actions/row';
 
 interface Column {
   name: string;
@@ -28,7 +29,7 @@ interface ReviewItem {
     errorMessage?: string;
 }
 
-export default function AIPhotoImportSection({ reportId, columns, onClose, onStatusShow }: AIPhotoImportSectionProps) {
+export function AIPhotoImportSection({ reportId, columns, onClose, onStatusShow }: AIPhotoImportSectionProps) {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [isSavingAll, setIsSavingAll] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -215,3 +216,4 @@ export default function AIPhotoImportSection({ reportId, columns, onClose, onSta
     </div>
   );
 }
+

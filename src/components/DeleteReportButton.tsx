@@ -2,14 +2,14 @@
 
 import React, { useState } from 'react';
 import { Trash2, Loader2, AlertTriangle } from 'lucide-react';
-import { deleteReportAction } from '@/app/actions';
+import { deleteReportAction } from '@/app/actions/report';
 
 interface DeleteReportButtonProps {
   reportId: string;
   reportName: string;
 }
 
-export default function DeleteReportButton({ reportId, reportName }: DeleteReportButtonProps) {
+export function DeleteReportButton({ reportId, reportName }: DeleteReportButtonProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 

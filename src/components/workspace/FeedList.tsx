@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import FeedCard from './FeedCard';
-import AiInputOverlay from './AiInputOverlay';
+import { FeedCard } from './FeedCard';
+import { AiInputOverlay } from './AiInputOverlay';
 import { getWorkspaceItemDataAction, getWorkspaceFeedAction } from '@/app/workspace/actions';
 import { LayoutGrid, X, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -11,7 +11,7 @@ interface FeedListProps {
     initialFeeds: any[];
 }
 
-export default function FeedList({ initialFeeds }: FeedListProps) {
+export function FeedList({ initialFeeds }: FeedListProps) {
     const [feeds, setFeeds] = useState(initialFeeds);
     const router = useRouter();
     
@@ -150,3 +150,4 @@ export default function FeedList({ initialFeeds }: FeedListProps) {
         </>
     );
 }
+

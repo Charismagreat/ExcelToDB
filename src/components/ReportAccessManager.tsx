@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Shield, Check, X, Users, Search, Loader2 } from 'lucide-react';
-import { getUsersAction, updateReportAccessAction, getAuthorizedUsersForReportAction } from '@/app/actions';
+import { getUsersAction } from '@/app/actions/user';
+import { updateReportAccessAction, getAuthorizedUsersForReportAction } from '@/app/actions/report';
 
 interface User {
     id: string;
@@ -16,7 +17,7 @@ interface ReportAccessManagerProps {
     ownerId: string;
 }
 
-export default function ReportAccessManager({ reportId, ownerId }: ReportAccessManagerProps) {
+export function ReportAccessManager({ reportId, ownerId }: ReportAccessManagerProps) {
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [authorizedUserIds, setAuthorizedUserIds] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -187,3 +188,4 @@ export default function ReportAccessManager({ reportId, ownerId }: ReportAccessM
         </div>
     );
 }
+

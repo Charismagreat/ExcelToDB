@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ClipboardList, Clock, Bell, Loader2, MapPin } from 'lucide-react';
 import { checkInAction } from '@/app/workspace/attendance-actions';
-import LogoutButton from '@/components/LogoutButton';
+import { LogoutButton } from '../LogoutButton';
 
 interface SummaryProps {
     user: any;
@@ -13,7 +13,7 @@ interface SummaryProps {
     notifCount: number;
 }
 
-export default function DashboardSummary({ user, attendance: initialAttendance, todoCount, notifCount }: SummaryProps) {
+export function DashboardSummary({ user, attendance: initialAttendance, todoCount, notifCount }: SummaryProps) {
     const [attendance, setAttendance] = useState(initialAttendance);
     const [isCheckingIn, setIsCheckingIn] = useState(false);
 
@@ -179,3 +179,4 @@ export default function DashboardSummary({ user, attendance: initialAttendance, 
         </div>
     );
 }
+

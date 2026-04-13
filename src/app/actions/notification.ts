@@ -12,13 +12,13 @@ export async function getUnreadNotificationsAction() {
     if (!session) return [];
 
     try {
-        const notifications = await queryTable('notification', { 
+        const result = await queryTable('notification', { 
             filters: { userId: String(session.id), isRead: "0" },
             orderBy: 'createdAt',
             orderDirection: 'DESC',
             limit: 50
         });
-        return notifications;
+        return result || [];
     } catch (err) {
         console.error('[Notification Action] Error fetching unread:', err);
         return [];
@@ -33,13 +33,13 @@ export async function getAllNotificationsAction() {
     if (!session) return [];
 
     try {
-        const notifications = await queryTable('notification', { 
-            filters: { userId: session.id },
+        const result = await queryTable('notification', { 
+            filters: { userId: String(session.id) },
             orderBy: 'createdAt',
             orderDirection: 'DESC',
             limit: 100
         });
-        return notifications;
+        return result || [];
     } catch (err) {
         console.error('[Notification Action] Error fetching all:', err);
         return [];

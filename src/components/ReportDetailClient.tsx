@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import ReportHeader from './ReportHeader';
-import BulkUpload from './BulkUpload';
-import ReportDataEditor from './ReportDataEditor';
-import DynamicTable from './DynamicTable';
+import { ReportHeader } from './ReportHeader';
+import { BulkUpload } from './BulkUpload';
+import { ReportDataEditor } from './ReportDataEditor';
+import { DynamicTable } from './DynamicTable';
 import { X, FileSpreadsheet } from 'lucide-react';
-import ReportAccessManager from './ReportAccessManager';
-import AIPhotoImportSection from './AIPhotoImportSection';
-import StatusModal from './StatusModal';
+import { ReportAccessManager } from './ReportAccessManager';
+import { AIPhotoImportSection } from './AIPhotoImportSection';
+import { StatusModal } from './StatusModal';
 
 interface ReportDetailClientProps {
     report: any;
@@ -22,7 +22,7 @@ interface ReportDetailClientProps {
     id: string;
 }
 
-export default function ReportDetailClient({ 
+export function ReportDetailClient({ 
     report, 
     user, 
     columns, 

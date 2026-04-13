@@ -2,14 +2,14 @@
 
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Save, GripVertical, Edit3, LayoutDashboard } from 'lucide-react';
-import { createManualReportAction } from '@/app/actions';
+import { createManualReportAction } from '@/app/actions/report';
 import { ColumnDefinition } from '@/lib/excel-parser';
 
 interface ManualTableModalProps {
   onClose: () => void;
 }
 
-export default function ManualTableModal({ onClose }: ManualTableModalProps) {
+export function ManualTableModal({ onClose }: ManualTableModalProps) {
   const [name, setName] = useState('');
   const [sheetName, setSheetName] = useState('Table');
   const [columns, setColumns] = useState<ColumnDefinition[]>([
@@ -180,3 +180,5 @@ export default function ManualTableModal({ onClose }: ManualTableModalProps) {
     </div>
   );
 }
+
+

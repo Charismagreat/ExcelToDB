@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, X, Mic, Camera, FileSearch } from 'lucide-react';
-import AiInputOverlay from './AiInputOverlay';
+import { Plus, X, Mic, Camera, Search } from 'lucide-react';
+import { AiInputOverlay } from './AiInputOverlay';
 import { submitWorkspaceDataAction } from '@/app/workspace/actions';
 
-export default function SmartFAB() {
+export function SmartFAB() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isOverlayOpen, setIsOverlayOpen] = useState(false);
     const [activeMode, setActiveMode] = useState<'camera' | 'mic' | 'file' | null>(null);
@@ -89,7 +89,7 @@ export default function SmartFAB() {
                             onClick={() => handleOpenOverlay('file')}
                             className="w-12 h-12 bg-slate-600 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
                         >
-                            <FileSearch size={20} />
+                            <Search size={20} />
                         </button>
                     </div>
                 </div>
@@ -122,3 +122,4 @@ export default function SmartFAB() {
         </>
     );
 }
+
