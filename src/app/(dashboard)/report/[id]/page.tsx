@@ -61,64 +61,42 @@ export default async function ReportDetailPage({
     const rowsData = await queryTable(tableDef.name, { limit: 100 });
     rows = rowsData.map((r: any, idx: number) => ({ ...r, id: String(idx), updatedAt: new Date().toISOString() }));
     columns = JSON.parse(report.columns);
-  } else if (id === 'finance-hub-table') {
-    const txData = await queryCardTransactions({
-      limit: 1000, // Fetch more records for client-side pagination/sorting
-      orderBy: 'date',
-      orderDir: 'desc'
-    });
+  } else if (id === 'finance-hub-card-table' || id === 'finance-hub-bank-table') {
+    const isCard = id === 'finance-hub-card-table';
+    const txData = isCard 
+        ? await queryCardTransactions({ limit: 1000, orderBy: 'date', orderDir: 'desc' })
+        : await queryTransactions({ limit: 1000, orderBy: 'date', orderDir: 'desc' });
+    
     const transactions = Array.isArray(txData) ? txData : (txData?.transactions || []);
 
-    const financeColumns = [
-      { name: 'date', type: 'string' },
-      { name: 'time', type: 'string' },
-      { name: 'merchantName', type: 'string' },
-      { name: 'amount', type: 'currency' },
-      { name: 'cardholderName', type: 'string' },
-      { name: 'departmentName', type: 'string' },
-      { name: 'cardCompanyId', type: 'string' },
-      { name: 'cardNumber', type: 'string' },
-      { name: 'cardType', type: 'string' },
-      { name: 'usageType', type: 'string' },
-      { name: 'salesType', type: 'string' },
-      { name: 'approvalDate', type: 'string' },
-      { name: 'approvalDatetime', type: 'string' },
-      { name: 'billingDate', type: 'string' },
-      { name: 'approvalNumber', type: 'string' },
-      { name: 'transactionBank', type: 'string' },
-      { name: 'foreignAmountUsd', type: 'currency' },
-      { name: 'category', type: 'string' },
-      { name: 'isCancelled', type: 'string' },
-      { name: 'memo', type: 'string' },
-      { name: 'headquartersName', type: 'string' },
-      { name: 'createdAt', type: 'string' },
-      { name: 'updatedAt', type: 'string' },
-      { name: 'id', type: 'string' },
-    ];
+    // 1. 결과 행이 있을 경우 첫 번째 행의 키를 기반으로 물리 컬럼 동적 생성
+    const physicalKeys = transactions.length > 0 ? Object.keys(transactions[0]) : [];
+    
+    const financeColumns = physicalKeys.map(key => ({
+        name: key,
+        type: (key === 'amount' || key === 'foreignAmountUsd' || key === 'withdrawal' || key === 'deposit' || key === 'balance') 
+            ? 'currency' 
+            : inferColumnType(key)
+    }));
 
     report = {
-      id: 'finance-hub-table',
-      name: '금융거래 통합 내역 (FinanceHub)',
-      sheetName: 'FinanceHub',
+      id: id,
+      name: isCard ? '신용카드 거래 내역 (FinanceHub)' : '은행 계좌 거래 내역 (FinanceHub)',
+      sheetName: isCard ? 'FinanceHub Card' : 'FinanceHub Bank',
       columns: JSON.stringify(financeColumns),
       ownerId: 'system',
-      isReadOnly: true, // Mark as Read-Only for UI
+      isReadOnly: true,
     };
 
     rows = transactions.map((t: any, idx: number) => ({
       ...t,
       id: t.id || `tx-${idx}`,
-      updatedAt: new Date().toISOString(),
+      updatedAt: t.updatedAt || t.createdAt || new Date().toISOString(),
     }));
 
-    columns = financeColumns.map(c => ({
-        ...c,
-        type: c.name === 'amount' || c.name === 'foreignAmountUsd' ? 'currency' : (c.name.includes('Date') || c.name.includes('At') || c.name === 'date' ? 'date' : 'string')
-    }));
-    report.columns = JSON.stringify(columns);
-
-    // SERVER DEBUG LOG
-    console.log('>>> [SERVER DEBUG] FinanceHub Transactions count:', rows.length);
+    columns = financeColumns;
+    
+    console.log(`>>> [SERVER DEBUG] FinanceHub ${isCard?'Card':'Bank'} count:`, rows.length);
   } else {
     const { getTableByName } = await import('@/egdesk.config');
     const systemTableDef = getTableByName(id);

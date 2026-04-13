@@ -91,9 +91,18 @@ export default async function DashboardPage() {
   // FinanceHub 테이블 추가 (항상 상단)
   if (isAdminOrEditor) {
     reports.push({
-      id: 'finance-hub-table',
-      name: '금융거래 통합 내역 (FinanceHub)',
-      sheetName: 'FinanceHub External',
+      id: 'finance-hub-card-table',
+      name: '신용카드 거래 내역 (FinanceHub)',
+      sheetName: 'Card External',
+      _count: { rows: '연동 중' },
+      isFinanceTable: true,
+      isSystemTable: true,
+      isReadOnly: true
+    });
+    reports.push({
+      id: 'finance-hub-bank-table',
+      name: '은행 계좌 거래 내역 (FinanceHub)',
+      sheetName: 'Bank External',
       _count: { rows: '연동 중' },
       isFinanceTable: true,
       isSystemTable: true,
