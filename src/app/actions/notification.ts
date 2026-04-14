@@ -13,7 +13,7 @@ export async function getUnreadNotificationsAction() {
 
     try {
         const result = await queryTable('notification', { 
-            filters: { userId: String(session.id), isRead: "0" },
+            filters: { userId: String(session.id), isRead: 0 },
             orderBy: 'createdAt',
             orderDirection: 'DESC',
             limit: 50
@@ -82,11 +82,39 @@ export async function getAdminNotificationLogsAction(filters?: { searchTerm?: st
             return acc;
         }, {});
 
-        // 3. 데이터 병합 및 필터링
-        let result = notifications.map((n: any) => ({
-            ...n,
-            user: userMap[n.userId] || { username: 'Unknown', fullName: '알 수 없음', employeeId: '-' }
-        }));
+        // 3. 할 일 상태(Task Status) 연동을 위해 관련 데이터 조회
+        const reportIds = notifications
+            .filter((n: any) => n.link?.startsWith('/report/'))
+            .map((n: any) => n.link.split('/')[2]);
+        
+        const uniqueReportIds = Array.from(new Set(reportIds));
+        let taskMap: Record<string, string> = {};
+
+        if (uniqueReportIds.length > 0) {
+            // 모든 관련 태스크 조회 (최근순)
+            const tasks = await queryTable('action_task', { 
+                orderBy: 'createdAt',
+                orderDirection: 'DESC',
+                limit: 500
+            });
+            
+            // { userId_reportId: status } 맵 생성
+            taskMap = tasks.reduce((acc: any, t: any) => {
+                const key = `${t.assigneeId}_${t.reportId}`;
+                if (!acc[key]) acc[key] = t.status;
+                return acc;
+            }, {});
+        }
+
+        // 4. 데이터 병합 및 필터링
+        let result = notifications.map((n: any) => {
+            const taskKey = `${n.userId}_${n.link?.startsWith('/report/') ? n.link.split('/')[2] : ''}`;
+            return {
+                ...n,
+                user: userMap[n.userId] || { username: 'Unknown', fullName: '알 수 없음', employeeId: '-' },
+                taskStatus: taskMap[taskKey] || null
+            };
+        });
 
         if (filters?.searchTerm) {
             const term = filters.searchTerm.toLowerCase();
@@ -128,7 +156,7 @@ export async function markAllNotificationsAsReadAction() {
     if (!session) throw new Error('인증이 필요합니다.');
 
     await updateRows('notification', { isRead: 1 }, { 
-        filters: { userId: session.id, isRead: 0 } 
+        filters: { userId: session.id } 
     });
 
     revalidatePath('/');

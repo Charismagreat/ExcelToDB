@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Bell, Loader2 } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getUnreadNotificationsAction } from '@/app/actions/notification';
@@ -10,10 +10,14 @@ interface NotificationCenterProps {
     variant?: 'icon' | 'card';
 }
 
-export function NotificationCenter({ variant = 'icon' }: NotificationCenterProps) {
+/**
+ * 🚀 NotificationCenter
+ * Standardized Default Export for Absolute Module Resolution
+ */
+export default function NotificationCenter({ variant = 'icon' }: NotificationCenterProps) {
     const pathname = usePathname();
+    const [isMounted, setIsMounted] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
-    const [loading, setLoading] = useState(false);
 
     const fetchStatus = async () => {
         try {
@@ -25,14 +29,17 @@ export function NotificationCenter({ variant = 'icon' }: NotificationCenterProps
     };
 
     useEffect(() => {
+        setIsMounted(true);
         fetchStatus();
-        const timer = setInterval(fetchStatus, 60000); // 1분마다 갱신
+        const timer = setInterval(fetchStatus, 60000);
         return () => clearInterval(timer);
     }, []);
 
-    const isWorkspace = pathname?.startsWith('/workspace') || false;
-    const targetUrl = isWorkspace ? '/workspace/notifications' : '/notifications';
-    const isActive = pathname === targetUrl;
+    if (!isMounted) return null;
+
+    const isWorkspace = pathname?.includes('/workspace') || false;
+    const targetUrl = (variant === 'card' || !isWorkspace) ? '/notifications' : '/workspace/notifications';
+    const isActive = pathname?.endsWith(targetUrl);
 
     if (variant === 'icon') {
         return (
@@ -42,7 +49,7 @@ export function NotificationCenter({ variant = 'icon' }: NotificationCenterProps
                     isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'
                 }`}
             >
-                <Bell size={20} className={unreadCount > 0 ? 'animate-bounce' : ''} />
+                <Bell size={20} className={unreadCount > 0 ? 'animate-bounce text-blue-400' : ''} />
                 {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white ring-4 ring-white shadow-lg">
                         {unreadCount > 9 ? '9+' : unreadCount}
@@ -81,4 +88,3 @@ export function NotificationCenter({ variant = 'icon' }: NotificationCenterProps
         </Link>
     );
 }
-

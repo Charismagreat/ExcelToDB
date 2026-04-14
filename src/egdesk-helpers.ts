@@ -53,6 +53,14 @@ export async function callUserDataTool(
       ? `${basePath}/__user_data_proxy`
       : `/__user_data_proxy`;
 
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 [HELPERS DIAGNOSTIC] callUserDataTool (Client):', {
+        basePath,
+        proxyUrl,
+        toolName
+      });
+    }
+
     response = await fetch(proxyUrl, {
       method: 'POST',
       headers,

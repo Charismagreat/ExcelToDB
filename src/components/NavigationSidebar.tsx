@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+// 📦 EXPLICIT NAMED IMPORTS: Absolute stability for icons
 import { 
   LayoutDashboard, 
   Compass, 
@@ -12,10 +13,12 @@ import {
   Layers,
   ChevronRight,
   Database,
-  Archive
+  Archive,
+  Loader2
 } from 'lucide-react';
-import { LogoutButton } from './LogoutButton';
-import { NotificationCenter } from './NotificationCenter';
+// 🚀 DEFAULT IMPORTS: New consistency standard
+import LogoutButton from './LogoutButton';
+import NotificationCenter from './NotificationCenter';
 
 interface NavigationSidebarProps {
   user: any;
@@ -24,15 +27,28 @@ interface NavigationSidebarProps {
   onToggle?: () => void;
 }
 
-export function NavigationSidebar({ user, departments, isCollapsed = false, onToggle }: NavigationSidebarProps) {
+/**
+ * 🚀 NavigationSidebar
+ * Standardized Default Export for Absolute Module Resolution
+ */
+export default function NavigationSidebar({ user, departments, isCollapsed = false, onToggle }: NavigationSidebarProps) {
+  const [isMounted, setIsMounted] = React.useState(false);
   const pathname = usePathname();
+
+  React.useEffect(() => {
+    setIsMounted(true);
+    console.log('[DIAGNOSTIC] NavigationSidebar mounted');
+  }, []);
+
+  // Safe Rendering Guard
+  if (!isMounted) return null;
 
   const menuItems = [
     {
       name: 'DASHBOARD',
       href: '/dashboard',
       icon: Star,
-      active: pathname === '/dashboard',
+      active: pathname === '/dashboard' || pathname?.startsWith('/dashboard/'),
       desc: '주요 리포트 한눈에 보기'
     },
     {
@@ -71,7 +87,9 @@ export function NavigationSidebar({ user, departments, isCollapsed = false, onTo
           className="absolute -right-3 top-24 bg-white border border-slate-200 rounded-full p-1 shadow-md hover:bg-blue-600 hover:text-white transition-all z-[110]"
           title={isCollapsed ? "펼치기" : "접기"}
         >
-          {isCollapsed ? <ChevronRight size={14} /> : <div className="rotate-180"><ChevronRight size={14} /></div>}
+          <div className={isCollapsed ? '' : 'rotate-180'}>
+            <ChevronRight size={14} />
+          </div>
         </button>
       )}
 
@@ -91,7 +109,7 @@ export function NavigationSidebar({ user, departments, isCollapsed = false, onTo
       </div>
 
       {/* Navigation Links */}
-      <nav className={`flex-1 px-4 space-y-2 overflow-y-auto pt-4 ${isCollapsed ? 'px-2' : ''}`}>
+      <nav className={`flex-1 px-4 space-y-2 overflow-y-auto pt-4 custom-scrollbar ${isCollapsed ? 'px-2' : ''}`}>
         {!isCollapsed && <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Main Navigation</p>}
         {menuItems.map((item) => (
           <Link
@@ -164,21 +182,21 @@ export function NavigationSidebar({ user, departments, isCollapsed = false, onTo
 
       {/* User Support / Misc */}
       <div className={`px-6 py-6 space-y-4 border-t border-slate-50 ${isCollapsed ? 'px-2' : ''}`}>
-         {isCollapsed ? (
-             <div className="flex justify-center">
-                 <div className="w-10 h-10 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
+          {isCollapsed ? (
+              <div className="flex flex-col items-center gap-4">
+                  <div className="p-3 bg-slate-50 text-slate-400 rounded-2xl">
                     <Compass size={18} />
+                  </div>
+              </div>
+          ) : (
+              <>
+                 <NotificationCenter variant="card" />
+                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100/50 group cursor-help transition-all hover:bg-white hover:shadow-lg flex flex-col">
+                     <p className="text-[10px] font-black text-slate-800 uppercase mb-1">AI Help Center</p>
+                     <p className="text-[9px] text-slate-400 font-medium leading-tight">데이터 분석이 어렵다면 언제든 AI에게 물어보세요.</p>
                  </div>
-             </div>
-         ) : (
-             <>
-                <NotificationCenter variant="card" />
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100/50 group cursor-help transition-all hover:bg-white hover:shadow-lg flex flex-col">
-                    <p className="text-[10px] font-black text-slate-800 uppercase mb-1">AI Help Center</p>
-                    <p className="text-[9px] text-slate-400 font-medium leading-tight">데이터 분석이 어렵다면 언제든 AI에게 물어보세요.</p>
-                </div>
-             </>
-         )}
+              </>
+          )}
       </div>
 
       {/* User Profile Section */}
@@ -192,8 +210,8 @@ export function NavigationSidebar({ user, departments, isCollapsed = false, onTo
           {!isCollapsed && (
             <>
               <div className="flex-1 overflow-hidden animate-in fade-in slide-in-from-left-2">
-                <p className="text-xs font-black text-slate-900 truncate uppercase">{user?.username}</p>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{user?.role}</p>
+                <p className="text-xs font-black text-slate-900 truncate uppercase">{user?.username || 'GUEST'}</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{user?.role || 'USER'}</p>
               </div>
               <LogoutButton className="px-3 py-1.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all border-none" />
             </>
@@ -203,5 +221,3 @@ export function NavigationSidebar({ user, departments, isCollapsed = false, onTo
     </aside>
   );
 }
-
-

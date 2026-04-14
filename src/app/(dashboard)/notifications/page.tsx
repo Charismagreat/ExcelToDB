@@ -1,15 +1,15 @@
 import React from 'react';
 import { Metadata } from 'next';
 import { Bell } from 'lucide-react';
-import { NotificationPageClient } from '@/components/NotificationPageClient';
+import BusinessWorkflowHub from '@/components/NotificationPageClient';
 import { getAllNotificationsAction, getAdminNotificationLogsAction } from '@/app/actions/notification';
 import { getSessionAction } from '@/app/actions/auth';
 import { PageHeader } from '@/components/PageHeader';
 import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
-    title: 'Alert Center | Won Conductor',
-    description: '시스템 알림 및 전사 업무 배정 내역을 관리합니다.',
+    title: '전사 업무 관제 허브 | Won Conductor',
+    description: '전사 사원들의 업무 흐름과 시스템 상태를 실시간으로 모니터링합니다.',
 };
 
 export default async function NotificationsPage() {
@@ -17,6 +17,10 @@ export default async function NotificationsPage() {
     if (!user) {
         redirect('/login');
     }
+
+    // [DIAGNOSTIC] Verify module resolution before rendering
+    console.log('🔍 [RUNTIME DIAGNOSTIC] BusinessWorkflowHub component type:', typeof BusinessWorkflowHub);
+    const isComponentValid = BusinessWorkflowHub && (typeof BusinessWorkflowHub === 'function' || typeof BusinessWorkflowHub === 'object');
 
     // 기본 본인 알림 로드
     const myNotifications = await getAllNotificationsAction();
@@ -31,18 +35,25 @@ export default async function NotificationsPage() {
         <div className="flex-1 overflow-y-auto">
             <main className="max-w-[1600px] mx-auto p-8 md:p-12 space-y-12">
                 <PageHeader 
-                    title="Alert Center"
+                    title="Enterprise Workflow Hub"
                     description={user.role === 'ADMIN' 
-                        ? "나의 알림 관리 및 전사 사원들의 업무 지시 현황을 모니터링할 수 있습니다." 
-                        : "나에게 배정된 업무 알림과 시스템 메시지를 확인합니다."}
+                        ? "전사 업무 여정을 실시간으로 관제하고 진행 상태를 모니터링합니다." 
+                        : "본인에게 할당된 업무 흐름과 실시간 알림을 확인합니다."}
                     icon={Bell}
                 />
 
-                <NotificationPageClient 
-                    user={user}
-                    initialNotifications={myNotifications} 
-                    initialAdminLogs={adminLogs}
-                />
+                {!isComponentValid ? (
+                    <div className="p-20 bg-red-50 border-2 border-dashed border-red-200 rounded-[32px] text-center">
+                        <p className="text-red-600 font-black uppercase tracking-tight">Component Resolution Failure</p>
+                        <p className="text-red-400 text-xs mt-2 font-bold">BusinessWorkflowHub is undefined. Please check export/import consistency.</p>
+                    </div>
+                ) : (
+                    <BusinessWorkflowHub 
+                        user={user}
+                        initialNotifications={myNotifications} 
+                        initialAdminLogs={adminLogs}
+                    />
+                )}
             </main>
         </div>
     );

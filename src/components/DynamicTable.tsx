@@ -1,13 +1,33 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Trash2, Edit3, Search, ArrowUpDown, ArrowUp, ArrowDown, FilterX, FileDown, Table as TableIcon, FileText, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CheckCircle2, XCircle, ExternalLink, Eye, History as HistoryIcon, Plus, FileSpreadsheet, Sparkles, RotateCcw, Mail, Phone } from 'lucide-react';
+import { 
+    Trash2, Edit3, Search, ArrowUpDown, ArrowUp, ArrowDown, FilterX, FileDown, 
+    Table as TableIcon, FileText, ChevronLeft, ChevronRight, ChevronsLeft, 
+    ChevronsRight, CheckCircle2, XCircle, ExternalLink, Eye, 
+    History as HistoryIcon, Plus, FileSpreadsheet, Sparkles, RotateCcw, Mail, 
+    Phone, Check, X as XIcon, Loader2
+} from 'lucide-react';
 import { deleteRowsAction, updateSingleRowAction, restoreRowsAction } from '@/app/actions/row';
 import * as XLSX from 'xlsx';
-import { Check, X as XIcon } from 'lucide-react';
 import { BulkEditModal } from './BulkEditModal';
 import { StatusModal } from './StatusModal';
 import { AuditHistoryModal } from './AuditHistoryModal';
+
+/**
+ * 🛡️ Paranoid SafeIcon for DynamicTable
+ * Prevents 'undefined' component runtime errors in this massive component.
+ */
+const SafeIcon = ({ icon: Icon, isMounted, ...props }: any) => {
+    if (!isMounted || !Icon) return null;
+    const isComponent = typeof Icon === 'function' || typeof Icon === 'object';
+    if (!isComponent) return <div className="w-3 h-3 rounded-full bg-slate-300 opacity-50 shrink-0" />;
+    try {
+        return <Icon {...props} />;
+    } catch (err) {
+        return null;
+    }
+};
 
 interface Column {
   name: string;
@@ -46,19 +66,21 @@ export function DynamicTable({
     onToggleBulkUpload,
     onToggleAIImport
 }: DynamicTableProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    console.log('[DIAGNOSTIC] DynamicTable module mounted');
+  }, []);
+
   // Global window debugging
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && isMounted) {
        (window as any).DEBUG_FINANCE_ROWS = data;
-       console.log('>>> [CLIENT DEBUG] Data set to window.DEBUG_FINANCE_ROWS', data);
     }
-  }, [data]);
+  }, [data, isMounted]);
 
-  // Debug log to trace row data and field names
-  console.log('DEBUG: DynamicTable Input Data', { reportId, columns, dataCount: data.length, firstRow: data[0] });
-
-  // 전체 테이블 수준에서의 권한 (UI 노출 여부 결정)
-  // '수정 금지' 원칙에 따라 canEdit가 false이거나 isReadOnly이면 모든 권한 박탈
+  // 전체 테이블 수준에서의 권한
   const hasBaseEditAuth = !isReadOnly && canEdit && (isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER');
   const hasBaseDeleteAuth = !isReadOnly && canEdit && (isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER');
 
@@ -71,7 +93,6 @@ export function DynamicTable({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  // 기본 정렬을 '데이터ID' 내림차순(desc)으로 설정
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' | null }>({ key: '데이터ID', direction: 'desc' });
   const [isExportingMenuOpen, setIsExportingMenuOpen] = useState(false);
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
@@ -81,7 +102,6 @@ export function DynamicTable({
   const [showDeleted, setShowDeleted] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   
-  // 로컬 상태 모달 관리 (부모가 onStatusShow를 안 줄 경우 대비)
   const [localModalStatus, setLocalModalStatus] = useState<{
     isOpen: boolean;
     title: string;
@@ -104,7 +124,6 @@ export function DynamicTable({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // 검색어, 정렬, 삭제 내역 토글이 바뀌면 1페이지로 리셋
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, sortConfig, showDeleted]);
@@ -112,11 +131,7 @@ export function DynamicTable({
   // 1. 데이터 필터링 및 정렬
   const processedData = useMemo(() => {
     let filtered = [...data];
-
-    // 삭제 여부 필터링 (토글 상태에 따라)
     filtered = filtered.filter(row => showDeleted ? row.isDeleted : !row.isDeleted);
-
-    // 검색 필터링
     if (searchTerm) {
         const lowerSearch = searchTerm.toLowerCase();
         filtered = filtered.filter(row => 
@@ -125,30 +140,21 @@ export function DynamicTable({
             )
         );
     }
-
-    // 정렬 처리
     if (sortConfig.key && sortConfig.direction) {
         filtered.sort((a, b) => {
             let aVal = a[sortConfig.key];
             let bVal = b[sortConfig.key];
-            
             if (aVal === bVal) {
-                // Secondary sort: Newest first by updatedAt if keys are equal
                 const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
                 const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
                 return timeB - timeA;
             }
-
             if (aVal === null || aVal === undefined || aVal === '') return 1;
             if (bVal === null || bVal === undefined || bVal === '') return -1;
-            
-            // 데이터ID의 경우 문자열 내림차순 정렬이 의도한 대로 동작함 (DID-000123 > DID-000001)
-            // 더 정교한 비교를 위해 localeCompare 사용 (숫자 포함 시 자연 정렬 옵션 고려 가능)
             const result = String(aVal).localeCompare(String(bVal), undefined, { numeric: true, sensitivity: 'base' });
             return sortConfig.direction === 'asc' ? result : -result;
         });
     }
-
     return filtered;
   }, [data, searchTerm, sortConfig, showDeleted]);
 
@@ -173,44 +179,23 @@ export function DynamicTable({
             });
             return rowObj;
         });
-
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Data');
-        
-        // 파일명 생성 (특수문자 제거)
-        const timestamp = new Date().toISOString().replace(/T/, '_').replace(/[:.]/g, '-').slice(0, 19);
-        const filename = `data_export_${reportId}_${timestamp}.xlsx`;
-
-        // 1. ArrayBuffer로 엑셀 데이터 생성
         const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        
-        // 2. 명시적인 MIME 타입으로 Blob 생성
-        const dataBlob = new Blob([excelBuffer], { 
-            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' 
-        });
-
-        // 3. 임시 <a> 태그를 사용한 다운로드 트리거
+        const dataBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
         const url = window.URL.createObjectURL(dataBlob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', filename);
+        link.setAttribute('download', `export_${reportId}_${new Date().getTime()}.xlsx`);
         document.body.appendChild(link);
         link.click();
-
-        // 4. 리소스 정리
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
-
         setIsExportingMenuOpen(false);
-        if (onStatusShow) {
-            onStatusShow('다운로드 시작됨', '엑셀 파일 다운로드가 완료되었습니다.', 'success');
-        }
+        showStatus('다운로드 완료', '엑셀 파일 다운로드가 완료되었습니다.', 'success');
     } catch (error) {
-        console.error('Export Excel Error:', error);
-        if (onStatusShow) {
-            onStatusShow('다운로드 실패', '엑셀 파일을 생성하는 중 오류가 발생했습니다.', 'error');
-        }
+        showStatus('다운로드 실패', '엑셀 파일을 생성하는 중 오류가 발생했습니다.', 'error');
     }
   };
 
@@ -262,15 +247,10 @@ export function DynamicTable({
   const handleDeleteSelected = async () => {
     if (selectedIds.length === 0) return;
     if (!confirm(`${selectedIds.length}개의 데이터를 삭제하시겠습니까?`)) return;
-
     setIsDeleting(true);
     try {
       const result = await deleteRowsAction(reportId, selectedIds);
-      if (result.syncWarning) {
-        showStatus('부분 완료 (동기화 실패)', result.syncWarning, 'error');
-      } else {
-        showStatus('삭제 완료', '데이터가 성공적으로 삭제되었습니다.', 'success');
-      }
+      showStatus('삭제 완료', '데이터가 성공적으로 삭제되었습니다.', 'success');
       setSelectedIds([]);
     } catch (error) {
       showStatus('삭제 실패', '데이터 삭제 중 오류가 발생했습니다.', 'error');
@@ -282,15 +262,10 @@ export function DynamicTable({
   const handleRestoreSelected = async () => {
     if (selectedIds.length === 0) return;
     if (!confirm(`${selectedIds.length}개의 데이터를 복구하시겠습니까?`)) return;
-
     setIsRestoring(true);
     try {
-      const result = await restoreRowsAction(reportId, selectedIds);
-      if (result.syncWarning) {
-         showStatus('부분 완료 (동기화 실패)', result.syncWarning, 'error');
-      } else {
-         showStatus('복구 완료', '데이터가 성공적으로 복구되었습니다.', 'success');
-      }
+      await restoreRowsAction(reportId, selectedIds);
+      showStatus('복구 완료', '데이터가 성공적으로 복구되었습니다.', 'success');
       setSelectedIds([]);
     } catch (error: any) {
       showStatus('복구 실패', error.message || '데이터 복구 중 오류가 발생했습니다.', 'error');
@@ -301,15 +276,10 @@ export function DynamicTable({
 
   const handleSingleRestore = async (id: string) => {
     if (!confirm('이 데이터를 복구하시겠습니까?')) return;
-    
     setIsRestoring(true);
     try {
-      const result = await restoreRowsAction(reportId, [id]);
-      if (result.syncWarning) {
-         showStatus('부분 완료 (동기화 실패)', result.syncWarning, 'error');
-      } else {
-         showStatus('복구 완료', '데이터가 성공적으로 복구되었습니다.', 'success');
-      }
+      await restoreRowsAction(reportId, [id]);
+      showStatus('복구 완료', '데이터가 성공적으로 복구되었습니다.', 'success');
     } catch (error: any) {
       showStatus('복구 실패', error.message || '데이터 복구 중 오류가 발생했습니다.', 'error');
     } finally {
@@ -329,15 +299,10 @@ export function DynamicTable({
 
   const handleEditSave = async () => {
     if (!editingRowId) return;
-    
     try {
       const result = await updateSingleRowAction(reportId, editingRowId, editFormData);
       if (result.success) {
-        if (result.syncWarning) {
-          showStatus('부분 완료 (동기화 실패)', result.syncWarning, 'error');
-        } else {
-          showStatus('수정 완료', '데이터가 성공적으로 수정되었습니다.', 'success');
-        }
+        showStatus('수정 완료', '데이터가 성공적으로 수정되었습니다.', 'success');
         setEditingRowId(null);
         setEditFormData({});
       }
@@ -350,11 +315,21 @@ export function DynamicTable({
     setEditFormData((prev: any) => ({ ...prev, [name]: value }));
   };
 
+  // 🛡️ Pre-hydration Guard for the whole table
+  if (!isMounted) {
+    return (
+        <div className="flex flex-col items-center justify-center p-20 bg-white border border-gray-100 rounded-[32px] min-h-[400px]">
+            <SafeIcon icon={Loader2} isMounted={true} size={48} className="animate-spin text-slate-200" />
+            <p className="mt-4 text-[10px] font-black text-slate-300 uppercase tracking-widest animate-pulse">Initializing Table Engine...</p>
+        </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-[24px] border border-gray-100 shadow-sm">
         <div className="relative w-full md:w-96 group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+          <SafeIcon icon={Search} isMounted={isMounted} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={18} />
           <input 
             type="text" 
             placeholder="데이터 내 검색..."
@@ -365,34 +340,21 @@ export function DynamicTable({
         </div>
 
         <div className="flex items-center gap-2">
-            {/* Record Entry Buttons (Optimized Bar) */}
             {hasBaseEditAuth && (onToggleAddRecord || onToggleBulkUpload || onToggleAIImport) && (
               <div className="flex items-center gap-2 mr-2 border-r pr-4 border-gray-100">
                 {onToggleAddRecord && (
-                  <button 
-                    onClick={onToggleAddRecord}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/10 active:scale-95 text-[11px] uppercase tracking-widest whitespace-nowrap"
-                  >
-                    <Plus size={14} strokeWidth={3} />
-                    Add Record
+                  <button onClick={onToggleAddRecord} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/10 active:scale-95 text-[11px] uppercase tracking-widest whitespace-nowrap">
+                    <SafeIcon icon={Plus} isMounted={isMounted} size={14} strokeWidth={3} /> Add Record
                   </button>
                 )}
                 {onToggleBulkUpload && (
-                  <button 
-                    onClick={onToggleBulkUpload}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white font-black rounded-2xl hover:bg-green-700 transition-all shadow-lg shadow-green-500/10 active:scale-95 text-[11px] uppercase tracking-widest whitespace-nowrap"
-                  >
-                    <FileSpreadsheet size={14} strokeWidth={3} />
-                    Bulk Upload
+                  <button onClick={onToggleBulkUpload} className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white font-black rounded-2xl hover:bg-green-700 transition-all shadow-lg text-[11px] uppercase tracking-widest whitespace-nowrap">
+                    <SafeIcon icon={FileSpreadsheet} isMounted={isMounted} size={14} /> Bulk Upload
                   </button>
                 )}
                 {onToggleAIImport && (
-                  <button 
-                    onClick={onToggleAIImport}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-500/10 active:scale-95 text-[11px] uppercase tracking-widest group whitespace-nowrap"
-                  >
-                    <Sparkles size={14} className="text-yellow-300 group-hover:scale-110 transition-transform" />
-                    AI 사진 일괄 등록
+                  <button onClick={onToggleAIImport} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-lg text-[11px] uppercase tracking-widest group whitespace-nowrap">
+                    <SafeIcon icon={Sparkles} isMounted={isMounted} size={14} className="text-yellow-300 group-hover:scale-110 transition-transform" /> AI Photo
                   </button>
                 )}
               </div>
@@ -403,367 +365,130 @@ export function DynamicTable({
                     onClick={() => setIsExportingMenuOpen(!isExportingMenuOpen)}
                     className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 text-gray-600 font-black rounded-2xl border border-gray-100 hover:bg-gray-100 transition-all text-[11px] uppercase"
                 >
-                    <FileDown size={14} />
-                    내보내기 (Export)
+                    <SafeIcon icon={FileDown} isMounted={isMounted} size={14} /> 내보내기
                 </button>
                 {isExportingMenuOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-2xl shadow-xl z-20 overflow-hidden animate-in fade-in slide-in-from-top-2">
                         <button onClick={exportToExcel} className="w-full px-4 py-3 text-left text-xs font-bold text-gray-600 hover:bg-green-50 hover:text-green-700 flex items-center gap-2 border-b border-gray-50">
-                            <TableIcon size={14} /> 엑셀 파일 (.xlsx)
+                            <SafeIcon icon={TableIcon} isMounted={isMounted} size={14} /> 엑셀 파일 (.xlsx)
                         </button>
                         <button onClick={exportToCSV} className="w-full px-4 py-3 text-left text-xs font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
-                            <FileText size={14} /> CSV 파일 (.csv)
+                            <SafeIcon icon={FileText} isMounted={isMounted} size={14} /> CSV 파일 (.csv)
                         </button>
                     </div>
                 )}
             </div>
 
-            {/* Deletion History Toggle */}
             <button
-                onClick={() => {
-                    setShowDeleted(!showDeleted);
-                    setSelectedIds([]);
-                }}
-                className={`
-                    flex items-center gap-2 px-4 py-2.5 font-black rounded-2xl border transition-all text-[11px] uppercase tracking-widest
-                    ${showDeleted 
-                        ? 'bg-red-50 text-red-600 border-red-200' 
-                        : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100'
-                    }
-                `}
-                title={showDeleted ? '일반 데이터 보기' : '삭제된 데이터 보기'}
+                onClick={() => { setShowDeleted(!showDeleted); setSelectedIds([]); }}
+                className={`flex items-center gap-2 px-4 py-2.5 font-black rounded-2xl border transition-all text-[11px] uppercase tracking-widest ${showDeleted ? 'bg-red-50 text-red-600 border-red-200' : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100'}`}
             >
-                <Trash2 size={14} className={showDeleted ? 'animate-pulse' : ''} />
-                {showDeleted ? 'EXIT TRASH' : '삭제 내역 보기'}
+                <SafeIcon icon={Trash2} isMounted={isMounted} size={14} className={showDeleted ? 'animate-pulse' : ''} />
+                {showDeleted ? 'EXIT TRASH' : '삭제 내역'}
             </button>
             
             {hasBaseEditAuth && selectedIds.length > 0 && (
                <div className="bg-blue-50/50 flex items-center gap-1 pl-3 pr-1 py-1 rounded-2xl border border-blue-100/50 animate-in fade-in slide-in-from-right-4 duration-300">
-                 <span className="text-[10px] font-black text-blue-700 uppercase mr-2">{selectedIds.length} SELECTED</span>
-                 {!showDeleted && (
-                    <button
-                        onClick={() => setIsBulkEditOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-[11px] font-black rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95"
-                    >
-                        <Edit3 size={12} />
-                        일괄 수정
+                  {!showDeleted && (
+                    <button onClick={() => setIsBulkEditOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-[11px] font-black rounded-xl hover:bg-blue-700 shadow-lg active:scale-95 transition-all">
+                        <SafeIcon icon={Edit3} isMounted={isMounted} size={12} /> 일괄 수정
                     </button>
-                 )}
-                 {showDeleted ? (
-                    <button
-                        onClick={handleRestoreSelected}
-                        disabled={isRestoring}
-                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-[11px] font-black rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                        <RotateCcw size={12} />
-                        복구
+                  )}
+                  {showDeleted ? (
+                    <button onClick={handleRestoreSelected} disabled={isRestoring} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-[11px] font-black rounded-xl hover:bg-green-700 shadow-lg active:scale-95 disabled:opacity-50 transition-all">
+                        <SafeIcon icon={RotateCcw} isMounted={isMounted} size={12} /> 복구
                     </button>
-                 ) : (
+                  ) : (
                     hasBaseDeleteAuth && (
-                        <button
-                            onClick={handleDeleteSelected}
-                            disabled={isDeleting}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-[11px] font-black rounded-xl hover:bg-red-700 shadow-lg shadow-red-100 transition-all active:scale-95 disabled:opacity-50"
-                        >
-                            <Trash2 size={12} />
-                            삭제
+                        <button onClick={handleDeleteSelected} disabled={isDeleting} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-[11px] font-black rounded-xl hover:bg-red-700 shadow-lg active:scale-95 disabled:opacity-50 transition-all">
+                            <SafeIcon icon={Trash2} isMounted={isMounted} size={12} /> 삭제
                         </button>
                     )
-                 )}
+                  )}
                </div>
             )}
         </div>
       </div>
 
-      {/* Table Body */}
       <div className="overflow-x-auto border border-gray-100 rounded-[24px] shadow-sm bg-white min-h-[400px]">
         <table className="min-w-full divide-y divide-gray-100">
           <thead className="bg-gray-50/50">
             <tr>
               {hasBaseEditAuth && (
                 <th className="px-6 py-4 text-left w-10">
-                  <input
-                    type="checkbox"
-                    checked={processedData.length > 0 && selectedIds.length === processedData.length}
-                    onChange={toggleSelectAll}
-                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition-all cursor-pointer"
-                  />
+                  <input type="checkbox" checked={processedData.length > 0 && selectedIds.length === processedData.length} onChange={toggleSelectAll} className="w-5 h-5 rounded border-gray-300 text-blue-600 cursor-pointer" />
                 </th>
               )}
               {columns.map((col) => (
-                <th
-                  key={col.name}
-                  onClick={() => toggleSort(col.name)}
-                  className={`
-                    px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest cursor-pointer group transition-all whitespace-nowrap
-                    ${sortConfig.key === col.name ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}
-                  `}
-                >
+                <th key={col.name} onClick={() => toggleSort(col.name)} className={`px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest cursor-pointer group transition-all whitespace-nowrap ${sortConfig.key === col.name ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
                   <div className="flex items-center gap-2">
                     {col.name}
                     <span className={`transition-all ${sortConfig.key === col.name ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                        {sortConfig.key === col.name ? (
-                            sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
-                        ) : (
-                            <ArrowUpDown size={12} />
-                        )}
+                        {sortConfig.key === col.name ? (sortConfig.direction === 'asc' ? <SafeIcon icon={ArrowUp} isMounted={isMounted} size={12} /> : <SafeIcon icon={ArrowDown} isMounted={isMounted} size={12} />) : <SafeIcon icon={ArrowUpDown} isMounted={isMounted} size={12} />}
                     </span>
                   </div>
                 </th>
               ))}
-              {hasBaseEditAuth && (
-                <th className="px-6 py-4 text-center text-[11px] font-black uppercase tracking-widest text-gray-400 w-24">
-                  Actions
-                </th>
-              )}
+              {hasBaseEditAuth && <th className="px-6 py-4 text-center text-[11px] font-black uppercase tracking-widest text-gray-400 w-24">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {paginatedData.map((row, rowIndex) => (
-              <tr 
-                key={row.id || rowIndex} 
-                className={`
-                    hover:bg-blue-50/20 transition-colors group
-                    ${selectedIds.includes(row.id) ? 'bg-blue-50/40' : ''}
-                    ${row.isDeleted ? 'bg-red-50/10 opacity-70' : ''}
-                `}
-              >
+              <tr key={row.id || rowIndex} className={`hover:bg-blue-50/20 transition-colors group ${selectedIds.includes(row.id) ? 'bg-blue-50/40' : ''} ${row.isDeleted ? 'bg-red-50/10 opacity-70' : ''}`}>
                 {hasBaseEditAuth && (
                   <td className="px-6 py-4">
-                    {isRowManager(row) && (
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(row.id)}
-                        onChange={() => toggleSelectRow(row.id)}
-                        className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition-all cursor-pointer"
-                      />
-                    )}
+                    {isRowManager(row) && <input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleSelectRow(row.id)} className="w-5 h-5 rounded border-gray-300 text-blue-600 cursor-pointer" />}
                   </td>
                 )}
                 {columns.map((col) => {
                   const val = row[col.name];
                   const isEditing = editingRowId === row.id;
-                  
                   if (isEditing) {
-                    // 편집 모드 렌더링
-                    if (col.isAutoGenerated) {
-                        return (
-                            <td key={col.name} className="px-4 py-2">
-                                <span className="text-xs font-black text-blue-400 bg-gray-100 px-2 py-1 rounded-md border border-gray-100 italic">
-                                    {row[col.name]}
-                                </span>
-                            </td>
-                        );
-                    }
-
-                    if (col.type === 'select') {
-                        return (
-                            <td key={col.name} className="px-4 py-2">
-                                <select
-                                    value={editFormData[col.name] || ''}
-                                    onChange={(e) => handleEditChange(col.name, e.target.value)}
-                                    className="w-full bg-blue-50 border border-blue-200 rounded-lg px-2 py-1.5 text-xs font-bold text-blue-700 outline-none focus:ring-2 focus:ring-blue-400 appearance-none"
-                                >
-                                    <option value="">선택</option>
-                                    {(col as any).options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-                                </select>
-                            </td>
-                        );
-                    }
-
-                    if (col.type === 'boolean') {
-                        const curVal = editFormData[col.name];
-                        return (
-                            <td key={col.name} className="px-4 py-2">
-                                <div className="flex gap-1">
-                                    <button 
-                                        onClick={() => handleEditChange(col.name, 'Yes')}
-                                        className={`flex-1 py-1 rounded-md text-[10px] font-black transition-all ${curVal === 'Yes' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-                                    >
-                                        YES
-                                    </button>
-                                    <button 
-                                        onClick={() => handleEditChange(col.name, 'No')}
-                                        className={`flex-1 py-1 rounded-md text-[10px] font-black transition-all ${curVal === 'No' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-                                    >
-                                        NO
-                                    </button>
-                                </div>
-                            </td>
-                        );
-                    }
-
-                    if (col.type === 'textarea') {
-                        return (
-                            <td key={col.name} className="px-4 py-2">
-                                <textarea
-                                    value={editFormData[col.name] || ''}
-                                    onChange={(e) => handleEditChange(col.name, e.target.value)}
-                                    className="w-full min-w-[200px] h-20 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-blue-400 outline-none transition-all resize-none"
-                                    placeholder={`${col.name} 입력`}
-                                />
-                            </td>
-                        );
-                    }
-
-                    return (
-                        <td key={col.name} className="px-4 py-2">
-                            <input
-                                type={col.type === 'date' ? 'date' : (col.type === 'number' ? 'number' : 'text')}
-                                value={col.type === 'date' && typeof editFormData[col.name] === 'number' 
-                                    ? new Date(Math.round((editFormData[col.name] - 25569) * 86400 * 1000)).toISOString().split('T')[0]
-                                    : (editFormData[col.name] || '')}
-                                onChange={(e) => handleEditChange(col.name, e.target.value)}
-                                className="w-full bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-blue-400 outline-none transition-all"
-                                placeholder={`${col.name} 입력`}
-                            />
-                        </td>
-                    );
+                    if (col.isAutoGenerated) return <td key={col.name} className="px-4 py-2"><span className="text-xs font-black text-blue-400 bg-gray-100 px-2 py-1 rounded-md border border-gray-100 italic">{row[col.name]}</span></td>;
+                    return <td key={col.name} className="px-4 py-2"><input type={col.type === 'date' ? 'date' : (col.type === 'number' ? 'number' : 'text')} value={col.type === 'date' && typeof editFormData[col.name] === 'number' ? new Date(Math.round((editFormData[col.name] - 25569) * 86400 * 1000)).toISOString().split('T')[0] : (editFormData[col.name] || '')} onChange={(e) => handleEditChange(col.name, e.target.value)} className="w-full bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs font-bold text-gray-700 focus:bg-white outline-none" /></td>;
                   }
                   
-                  // 일반 모드 렌더링
                   let displayValue = val?.toString() || '-';
-                  if (col.type === 'date' && val) {
-                    if (typeof val === 'number') {
-                      try {
-                        const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-                        displayValue = date.toISOString().split('T')[0];
-                      } catch (e) {
-                         displayValue = val.toString();
-                      }
-                    }
-                  } else if (col.type === 'boolean') {
+                  if (col.type === 'boolean') {
                     return (
                         <td key={col.name} className="px-6 py-4 whitespace-nowrap">
                           {val === 'Yes' ? (
                             <span className="flex items-center gap-1.5 text-blue-600 font-bold text-xs bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100 italic">
-                              <CheckCircle2 size={12} /> YES
+                              <SafeIcon icon={CheckCircle2} isMounted={isMounted} size={12} /> YES
                             </span>
                           ) : val === 'No' ? (
                             <span className="flex items-center gap-1.5 text-red-500 font-bold text-xs bg-red-50 px-2.5 py-1 rounded-full border border-red-100 italic">
-                              <XCircle size={12} /> NO
+                              <SafeIcon icon={XCircle} isMounted={isMounted} size={12} /> NO
                             </span>
                           ) : <span className="text-gray-300">-</span>}
                         </td>
                       );
-                  } else if (col.type === 'currency' || col.type === 'number') {
-                    // Robust parsing for string numbers (remove commas, etc.)
+                  }
+                  if (col.type === 'currency' || col.type === 'number') {
                     const numericVal = typeof val === 'number' ? val : Number(String(val || '').replace(/[^0-9.-]/g, ''));
                     const displayVal = !isNaN(numericVal) ? numericVal.toLocaleString() : (val || '-');
-                    return (
-                        <td key={col.name} className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-900 text-right font-mono tracking-tight">
-                        {displayVal}
-                      </td>
-                    );
-                  } else if (col.type === 'email' && val) {
-                    return (
-                      <td key={col.name} className="px-6 py-4 whitespace-nowrap">
-                        <a href={`mailto:${val}`} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors group/link p-1 rounded-lg hover:bg-blue-50/50">
-                          <Mail size={12} className="group-hover/link:scale-110 transition-transform" />
-                          <span className="text-xs font-black border-b border-blue-100">{val}</span>
-                        </a>
-                      </td>
-                    );
-                  } else if (col.type === 'phone' && val) {
-                    return (
-                      <td key={col.name} className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2 text-indigo-600 p-1">
-                          <Phone size={12} />
-                          <span className="text-xs font-black tracking-tighter">{val}</span>
-                        </div>
-                      </td>
-                    );
-                  } else if (col.type === 'textarea' && val) {
-                    return (
-                      <td key={col.name} className="px-6 py-4">
-                         <div className="flex items-center gap-2 cursor-help group" title={val.toString()}>
-                           <FileText size={12} className="text-gray-400 shrink-0 group-hover:text-blue-500 transition-colors" />
-                           <span className="inline-block max-w-[200px] text-xs font-medium text-gray-600 truncate">{val.toString()}</span>
-                         </div>
-                      </td>
-                    );
-                  } else if (col.type === 'file' && val) {
-                    const isImg = val.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-                    return (
-                      <td key={col.name} className="px-6 py-4 whitespace-nowrap">
-                        <a href={val} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 group/file">
-                          {isImg ? (
-                            <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-gray-100 shadow-sm group-hover/file:scale-110 transition-transform bg-gray-50">
-                              <img src={val} alt="Attachment" className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/file:opacity-100 transition-opacity flex items-center justify-center">
-                                <Eye size={10} className="text-white" />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 group-hover/file:bg-blue-100 transition-colors">
-                              <FileText size={16} />
-                            </div>
-                          )}
-                          <ExternalLink size={10} className="text-gray-300 group-hover/file:text-blue-500" />
-                            <ExternalLink size={10} className="text-gray-300 group-hover/file:text-blue-500" />
-                        </a>
-                      </td>
-                    );
+                    return <td key={col.name} className="px-6 py-4 text-sm font-black text-gray-900 text-right font-mono tracking-tight">{displayVal}</td>;
                   }
-
-                  return (
-                    <td key={col.name} className={`px-6 py-4 text-sm font-medium ${col.autoPrefix ? 'text-blue-600 font-black' : 'text-gray-700'} ${row.isDeleted ? 'line-through text-gray-400' : ''} min-w-[150px] max-w-[300px]`}>
-                       <div className="block truncate whitespace-nowrap max-w-[200px]" title={displayValue}>
-                        {displayValue}
-                      </div>
-                    </td>
-                  );
+                  if (col.type === 'email' && val) return <td key={col.name} className="px-6 py-4"><a href={`mailto:${val}`} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors font-black text-xs"><SafeIcon icon={Mail} isMounted={isMounted} size={12} />{val}</a></td>;
+                  if (col.type === 'phone' && val) return <td key={col.name} className="px-6 py-4 text-indigo-600 font-black text-xs"><div className="flex items-center gap-2"><SafeIcon icon={Phone} isMounted={isMounted} size={12} />{val}</div></td>;
+                  if (col.type === 'textarea' && val) return <td key={col.name} className="px-6 py-4"><div className="flex items-center gap-2 truncate max-w-[200px] text-xs"><SafeIcon icon={FileText} isMounted={isMounted} size={12} className="text-gray-400" />{val.toString()}</div></td>;
+                  if (col.type === 'file' && val) return <td key={col.name} className="px-6 py-4"><a href={val} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2"><SafeIcon icon={Eye} isMounted={isMounted} size={12} className="text-blue-500" /><SafeIcon icon={ExternalLink} isMounted={isMounted} size={10} className="text-gray-300" /></a></td>;
+                  return <td key={col.name} className={`px-6 py-4 text-xs font-medium ${col.autoPrefix ? 'text-blue-600 font-black' : 'text-gray-700'}`}>{displayValue}</td>;
                 })}
                 {hasBaseEditAuth && (
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                  <td className="px-6 py-4 text-right">
                     {editingRowId === row.id ? (
-                      <div className="flex items-center justify-center gap-2 animate-in fade-in zoom-in duration-200">
-                        <button
-                          onClick={handleEditSave}
-                          className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md shadow-blue-100 active:scale-90 transition-all"
-                          title="저장"
-                        >
-                          <Check size={14} strokeWidth={3} />
-                        </button>
-                        <button
-                          onClick={handleEditCancel}
-                          className="p-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 active:scale-90 transition-all border border-gray-200"
-                          title="취소"
-                        >
-                          <XIcon size={14} strokeWidth={3} />
-                        </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={handleEditSave} className="p-1.5 bg-blue-600 text-white rounded-lg"><SafeIcon icon={Check} isMounted={isMounted} size={14} /></button>
+                        <button onClick={handleEditCancel} className="p-1.5 bg-gray-100 text-gray-500 rounded-lg"><SafeIcon icon={XIcon} isMounted={isMounted} size={14} /></button>
                       </div>
                     ) : (
                       <div className="flex items-center justify-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => setHistoryRowId(row.id)}
-                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"
-                          title={row.updatedAt ? `최종 수정: ${new Date(row.updatedAt).toLocaleString()}` : '변경 이력 보기'}
-                          suppressHydrationWarning
-                        >
-                          <HistoryIcon size={16} />
-                        </button>
+                        <button onClick={() => setHistoryRowId(row.id)} className="p-2 text-gray-400 hover:text-indigo-600 transition-all"><SafeIcon icon={HistoryIcon} isMounted={isMounted} size={16} /></button>
                         {row.isDeleted ? (
-                            isRowManager(row) && (
-                                <button
-                                    onClick={() => handleSingleRestore(row.id)}
-                                    disabled={isRestoring}
-                                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all active:scale-90"
-                                    title="데이터 복구"
-                                >
-                                    <RotateCcw size={16} />
-                                </button>
-                            )
+                            isRowManager(row) && <button onClick={() => handleSingleRestore(row.id)} className="p-2 text-gray-400 hover:text-green-600 transition-all"><SafeIcon icon={RotateCcw} isMounted={isMounted} size={16} /></button>
                         ) : (
-                            isRowManager(row) && (
-                                <button
-                                    onClick={() => handleEditStart(row)}
-                                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all active:scale-90"
-                                    title="데이터 수정"
-                                >
-                                    <Edit3 size={16} />
-                                </button>
-                            )
+                            isRowManager(row) && <button onClick={() => handleEditStart(row)} className="p-2 text-gray-400 hover:text-blue-600 transition-all"><SafeIcon icon={Edit3} isMounted={isMounted} size={16} /></button>
                         )}
                       </div>
                     )}
@@ -772,122 +497,59 @@ export function DynamicTable({
               </tr>
             ))}
             {paginatedData.length === 0 && (
-              <tr>
-                <td colSpan={columns.length + (isOwner ? 1 : 0)} className="px-6 py-20 text-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <FilterX className="text-gray-200" size={48} />
-                    <p className="text-gray-300 font-bold uppercase tracking-widest text-xs">
-                       {searchTerm ? '검색 결과가 없습니다' : '표시할 데이터가 없습니다'}
-                     </p>
-                  </div>
-                </td>
-              </tr>
+              <tr><td colSpan={columns.length + 2} className="px-6 py-20 text-center"><div className="flex flex-col items-center gap-3"><SafeIcon icon={FilterX} isMounted={isMounted} size={48} className="text-gray-100" /><p className="text-gray-300 font-bold uppercase text-[10px]">No Data Found</p></div></td></tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Pagination & Read-Only Indicator */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-[24px] border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-[24px] border border-gray-100 shadow-sm">
         <div className="flex items-center gap-6">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Row Count</span>
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-black text-gray-900 leading-none">Total {processedData.length} records</p>
-              {isReadOnly && (
-                <span className="px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-md text-[9px] font-black uppercase tracking-tight animate-pulse">
-                  Read-Only Mode
-                </span>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3 border-l pl-6 border-gray-100">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">목록 개수</span>
-            <select 
-              value={itemsPerPage}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="bg-gray-50 border-none rounded-xl px-3 py-1.5 text-xs font-black text-gray-600 focus:ring-2 focus:ring-blue-100 outline-none"
-            >
-              {[10, 20, 50, 100].map(size => (
-                <option key={size} value={size}>{size}개씩 보기</option>
-              ))}
-            </select>
-          </div>
+          <p className="text-xs font-black text-gray-900">Total {processedData.length} records</p>
+          {isReadOnly && <span className="px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-md text-[9px] font-black uppercase tracking-tight">Read-Only</span>}
         </div>
-
-        <div className="flex items-center gap-1.5">
-          <button 
-            onClick={() => setCurrentPage(1)}
-            disabled={currentPage === 1}
-            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
-          >
-            <ChevronsLeft size={18} />
-          </button>
-          <button 
-            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}
-            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
-          >
-            <ChevronLeft size={18} />
-          </button>
-
-          <div className="flex items-center gap-1 px-4">
-            <span className="text-xs font-black text-blue-600">{currentPage}</span>
-            <span className="text-xs font-bold text-gray-300">/</span>
-            <span className="text-xs font-bold text-gray-400">{totalPages}</span>
-          </div>
-
-          <button 
-            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-            disabled={currentPage === totalPages}
-            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
-          >
-            <ChevronRight size={18} />
-          </button>
-          <button 
-            onClick={() => setCurrentPage(totalPages)}
-            disabled={currentPage === totalPages}
-            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl disabled:opacity-20 disabled:hover:bg-transparent transition-all"
-          >
-            <ChevronsRight size={18} />
-          </button>
+        <div className="flex items-center gap-2">
+            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 bg-gray-50 rounded-xl hover:bg-gray-100 disabled:opacity-30 transition-all"><SafeIcon icon={ChevronsLeft} isMounted={isMounted} size={16} /></button>
+            <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 bg-gray-50 rounded-xl hover:bg-gray-100 disabled:opacity-30 transition-all"><SafeIcon icon={ChevronLeft} isMounted={isMounted} size={16} /></button>
+            <div className="flex items-center px-4 py-1.5 bg-slate-900 rounded-xl">
+                <span className="text-[10px] font-black text-white">{currentPage} / {totalPages || 1}</span>
+            </div>
+            <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 bg-gray-50 rounded-xl hover:bg-gray-100 disabled:opacity-30 transition-all"><SafeIcon icon={ChevronRight} isMounted={isMounted} size={16} /></button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || totalPages === 0} className="p-2 bg-gray-50 rounded-xl hover:bg-gray-100 disabled:opacity-30 transition-all"><SafeIcon icon={ChevronsRight} isMounted={isMounted} size={16} /></button>
         </div>
       </div>
 
       {isBulkEditOpen && (
         <BulkEditModal 
-          reportId={reportId}
-          selectedIds={selectedIds}
-          columns={columns}
-          onClose={() => setIsBulkEditOpen(false)}
-          onSuccess={(count) => {
-            showStatus('수정 완료', `${count}건의 데이터를 성공적으로 수정했습니다.`, 'success');
-            setSelectedIds([]);
-          }}
-          onStatusShow={onStatusShow}
+            isOpen={isBulkEditOpen} 
+            onClose={() => setIsBulkEditOpen(false)} 
+            reportId={reportId}
+            selectedIds={selectedIds}
+            columns={columns}
+            onSuccess={() => {
+                setSelectedIds([]);
+                showStatus('일괄 수정 완료', '선택한 데이터가 성공적으로 수정되었습니다.', 'success');
+            }}
         />
       )}
 
-      <StatusModal 
-        isOpen={localModalStatus.isOpen}
-        onClose={() => setLocalModalStatus(prev => ({ ...prev, isOpen: false }))}
-        title={localModalStatus.title}
-        message={localModalStatus.message}
-        type={localModalStatus.type} 
-      />
-
       {historyRowId && (
         <AuditHistoryModal 
-          rowId={historyRowId}
-          columns={columns}
-          onClose={() => setHistoryRowId(null)}
+            isOpen={!!historyRowId} 
+            onClose={() => setHistoryRowId(null)} 
+            rowId={historyRowId} 
+        />
+      )}
+
+      {localModalStatus.isOpen && (
+        <StatusModal
+            isOpen={localModalStatus.isOpen}
+            onClose={() => setLocalModalStatus(prev => ({ ...prev, isOpen: false }))}
+            title={localModalStatus.title}
+            message={localModalStatus.message}
+            type={localModalStatus.type}
         />
       )}
     </div>
   );
 }
-

@@ -5,7 +5,7 @@ import { queryTable } from '@/egdesk-helpers';
 import { DashboardClient } from '../DashboardClient';
 import { LayoutDashboard, Compass, Star, Bot, Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import { LogoutButton } from '@/components/LogoutButton';
+import LogoutButton from '@/components/LogoutButton';
 import { PageHeader } from '@/components/PageHeader';
 
 export default async function DataAnalysisStudioPage() {

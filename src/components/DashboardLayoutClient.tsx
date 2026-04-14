@@ -7,7 +7,11 @@ interface DashboardLayoutClientProps {
   children: React.ReactNode;
 }
 
-export function DashboardLayoutClient({ sidebar, children }: DashboardLayoutClientProps) {
+/**
+ * 🚀 DashboardLayoutClient
+ * Standardized Default Export for Absolute Module Resolution
+ */
+export default function DashboardLayoutClient({ sidebar, children }: DashboardLayoutClientProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -27,11 +31,12 @@ export function DashboardLayoutClient({ sidebar, children }: DashboardLayoutClie
   };
 
   // Add the isCollapsed state to the sidebar component
-  // We use cloneElement to pass props to the sidebar node
-  const sidebarWithProps = React.cloneElement(sidebar as React.ReactElement, {
-    isCollapsed,
-    onToggle: handleToggle
-  });
+  const sidebarWithProps = React.isValidElement(sidebar) 
+    ? React.cloneElement(sidebar as React.ReactElement<any>, {
+        isCollapsed,
+        onToggle: handleToggle
+      })
+    : sidebar;
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc]">

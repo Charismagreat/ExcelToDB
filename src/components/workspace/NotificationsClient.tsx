@@ -5,7 +5,7 @@ import { Bell, MapPin, CheckCircle, AlertCircle, FileText, Settings, Heart, Info
 import { motion } from 'framer-motion';
 import { NotificationItem } from './NotificationItem';
 import Link from 'next/link';
-import { markAllNotificationsAsReadAction } from '@/app/actions/notification';
+import { markAllNotificationsAsReadAction, markNotificationAsReadAction } from '@/app/actions/notification';
 
 interface NotificationListProps {
     notifications: any[];
@@ -38,7 +38,7 @@ export function NotificationsClient({ notifications: rawNotifications = [] }: No
             title: n.title,
             description: n.message || '',
             time: date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-            unread: n.isRead === 0,
+            unread: Number(n.isRead) === 0,
             link: n.link
         };
 
@@ -72,9 +72,22 @@ export function NotificationsClient({ notifications: rawNotifications = [] }: No
     const handleMarkAllRead = async () => {
         try {
             await markAllNotificationsAsReadAction();
-            window.location.reload(); // Refresh to update counts
+            window.location.reload(); 
         } catch (err) {
             console.error('Failed to mark all as read:', err);
+        }
+    };
+
+    const handleItemClick = async (notif: any) => {
+        if (!notif.unread) return;
+        try {
+            await markNotificationAsReadAction(notif.id);
+            // 리로드하여 상태 반영 (또는 로컬 상태 업데이트 가능하지만 모바일 일관성을 위해 리로드 선호)
+            if (!notif.link) {
+                window.location.reload();
+            }
+        } catch (err) {
+            console.error('Failed to mark as read:', err);
         }
     };
 
@@ -111,7 +124,7 @@ export function NotificationsClient({ notifications: rawNotifications = [] }: No
                             {section.items.map((notif: any) => (
                                 <motion.div key={notif.id} variants={itemAnim}>
                                     {notif.link ? (
-                                        <Link href={notif.link}>
+                                        <Link href={notif.link} onClick={() => handleItemClick(notif)}>
                                             <NotificationItem 
                                                 icon={notif.icon}
                                                 title={notif.title}
@@ -122,14 +135,16 @@ export function NotificationsClient({ notifications: rawNotifications = [] }: No
                                             />
                                         </Link>
                                     ) : (
-                                        <NotificationItem 
-                                            icon={notif.icon}
-                                            title={notif.title}
-                                            description={notif.description}
-                                            time={notif.time}
-                                            unread={notif.unread}
-                                            type={notif.type}
-                                        />
+                                        <div onClick={() => handleItemClick(notif)}>
+                                            <NotificationItem 
+                                                icon={notif.icon}
+                                                title={notif.title}
+                                                description={notif.description}
+                                                time={notif.time}
+                                                unread={notif.unread}
+                                                type={notif.type}
+                                            />
+                                        </div>
                                     )}
                                 </motion.div>
                             ))}

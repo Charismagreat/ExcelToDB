@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { NewTableSection } from '@/components/NewTableSection';
 import { redirect } from 'next/navigation';
-import { LogoutButton } from '@/components/LogoutButton';
+import LogoutButton from '@/components/LogoutButton';
 import { queryTable, aggregateTable, listTables } from '@/egdesk-helpers';
 import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 import { PageHeader } from '@/components/PageHeader';

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ClipboardList, Clock, Bell, Loader2, MapPin } from 'lucide-react';
 import { checkInAction } from '@/app/workspace/attendance-actions';
-import { LogoutButton } from '../LogoutButton';
+import LogoutButton from '../LogoutButton';
 
 interface SummaryProps {
     user: any;

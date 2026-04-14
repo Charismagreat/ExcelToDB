@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     Plus,
     Sparkles,
@@ -10,7 +10,8 @@ import {
     ShieldAlert,
     X,
     LayoutDashboard,
-    ListFilter
+    ListFilter,
+    Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 import { DataEntryForm } from './DataEntryForm';
@@ -18,7 +19,21 @@ import { BulkUpload } from './BulkUpload';
 import { AIPhotoImportSection } from './AIPhotoImportSection';
 import { StatusModal } from './StatusModal';
 import { DynamicTable } from './DynamicTable';
-import { LogoutButton } from './LogoutButton';
+import LogoutButton from './LogoutButton';
+
+/**
+ * 🛡️ SafeIcon: Ensures we never pass an undefined component to React JSX.
+ */
+const SafeIcon = ({ icon: Icon, isMounted, ...props }: any) => {
+    if (!isMounted || !Icon) return null;
+    const isComponent = typeof Icon === 'function' || typeof Icon === 'object';
+    if (!isComponent) return <div className="w-4 h-4 rounded-full bg-slate-300 opacity-50" />;
+    try {
+        return <Icon {...props} />;
+    } catch (err) {
+        return null;
+    }
+};
 
 interface DataInputClientProps {
     report: any;
@@ -28,10 +43,16 @@ interface DataInputClientProps {
 }
 
 export function DataInputClient({ report, session, columns, rows }: DataInputClientProps) {
+    const [isMounted, setIsMounted] = useState(false);
     const [showExcelModal, setShowExcelModal] = useState(false);
     const [showAIModal, setShowAIModal] = useState(false);
     const [showAddRecordForm, setShowAddRecordForm] = useState(true);
     const formRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setIsMounted(true);
+        console.log('[DIAGNOSTIC] DataInputClient module mounted');
+    }, []);
 
     // 상태 모달 관리
     const [modalStatus, setModalStatus] = useState<{
@@ -56,8 +77,18 @@ export function DataInputClient({ report, session, columns, rows }: DataInputCli
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    // 🛡️ Pre-hydration Guard
+    if (!isMounted) {
+        return (
+            <div className="min-h-screen bg-white flex flex-col items-center justify-center">
+                <SafeIcon icon={Loader2} isMounted={true} size={32} className="animate-spin text-blue-500" />
+                <p className="mt-4 text-[10px] font-black uppercase text-slate-400 tracking-widest animate-pulse">Initializing Terminal...</p>
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-screen bg-gray-50/50 p-6 md:p-12 font-[family-name:var(--font-geist-sans)]">
+        <div className="min-h-screen bg-gray-50/50 p-6 md:p-12 font-[family-name:var(--font-geist-sans)] animate-in fade-in duration-700">
             {/* Header / Nav */}
             <header className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
                 <div className="flex items-center gap-6">
@@ -67,7 +98,7 @@ export function DataInputClient({ report, session, columns, rows }: DataInputCli
                                 href={`/report/${report.id}`}
                                 className="group flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-100 rounded-2xl text-[11px] font-black text-gray-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm hover:shadow-md active:scale-95"
                             >
-                                <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+                                <SafeIcon icon={ArrowLeft} isMounted={isMounted} size={16} className="group-hover:-translate-x-1 transition-transform" />
                                 BACK TO TABLE
                             </Link>
                             <div className="h-6 w-px bg-gray-200" />
@@ -75,7 +106,7 @@ export function DataInputClient({ report, session, columns, rows }: DataInputCli
                     )}
                     <div className="flex flex-col">
                         <div className="flex items-center gap-2 text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mb-0.5">
-                            <Database size={12} />
+                            <SafeIcon icon={Database} isMounted={isMounted} size={12} />
                             <span>Target Database</span>
                         </div>
                         <h2 className="text-sm font-black text-gray-900">{report.name}</h2>
@@ -84,7 +115,7 @@ export function DataInputClient({ report, session, columns, rows }: DataInputCli
 
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-4 bg-white px-5 py-2.5 border border-gray-100 rounded-full shadow-sm text-xs font-bold text-gray-700">
-                        <ShieldAlert size={16} className="text-orange-500" />
+                        <SafeIcon icon={ShieldAlert} isMounted={isMounted} size={16} className="text-orange-500" />
                         <span>Logged in as <span className="text-gray-900">{session.username}</span></span>
                         <span className="px-2 py-0.5 bg-gray-100 rounded text-[9px] uppercase tracking-wider text-gray-500">{session.role}</span>
                     </div>
@@ -97,7 +128,7 @@ export function DataInputClient({ report, session, columns, rows }: DataInputCli
                 <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-6">
                     <div className="flex items-center gap-4">
                         <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-500/20">
-                            <Plus size={28} strokeWidth={3} />
+                            <SafeIcon icon={Plus} isMounted={isMounted} size={28} strokeWidth={3} />
                         </div>
                         <div>
                             <h1 className="text-3xl font-black text-gray-900 tracking-tight">새로운 데이터 추가</h1>
@@ -111,14 +142,14 @@ export function DataInputClient({ report, session, columns, rows }: DataInputCli
                                 onClick={() => setShowExcelModal(true)}
                                 className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-green-600 text-white font-black rounded-[20px] hover:bg-green-700 shadow-xl shadow-green-500/10 transition-all text-xs tracking-widest uppercase active:scale-95 group"
                             >
-                                <FileSpreadsheet size={16} className="group-hover:rotate-12 transition-transform" />
+                                <SafeIcon icon={FileSpreadsheet} isMounted={isMounted} size={16} className="group-hover:rotate-12 transition-transform" />
                                 엑셀 파일로 일괄 등록
                             </button>
                             <button
                                 onClick={() => setShowAIModal(true)}
                                 className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-indigo-600 text-white font-black rounded-[20px] hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all text-xs tracking-widest uppercase active:scale-95 group"
                             >
-                                <Sparkles size={16} className="group-hover:scale-110 transition-transform text-yellow-300" />
+                                <SafeIcon icon={Sparkles} isMounted={isMounted} size={16} className="group-hover:scale-110 transition-transform text-yellow-300" />
                                 AI 사진으로 일괄 등록
                             </button>
                         </div>
@@ -156,7 +187,7 @@ export function DataInputClient({ report, session, columns, rows }: DataInputCli
                     {/* Floating Info Pill - Only shown for management and if form is visible */}
                     {isManagement && showAddRecordForm && (
                         <div className="mt-8 flex items-center gap-4 px-6 py-2.5 bg-white border border-gray-100 rounded-2xl shadow-sm text-[10px] font-black text-gray-400 uppercase tracking-widest animate-in fade-in slide-in-from-bottom-2 duration-700 font-bold italic">
-                            <LayoutDashboard size={14} className="text-blue-500" />
+                            <SafeIcon icon={LayoutDashboard} isMounted={isMounted} size={14} className="text-blue-500" />
                             <span>대량의 데이터는 상단의 <span className="text-green-600">엑셀</span> 또는 <span className="text-indigo-600">AI 일괄 등록</span> 기능을 이용하세요</span>
                         </div>
                     )}
@@ -167,7 +198,7 @@ export function DataInputClient({ report, session, columns, rows }: DataInputCli
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <div className="p-2.5 bg-gray-900 text-white rounded-xl shadow-lg">
-                                <ListFilter size={20} />
+                                <SafeIcon icon={ListFilter} isMounted={isMounted} size={20} />
                             </div>
                             <div>
                                 <h2 className="text-xl font-black text-gray-900 tracking-tight">나의 입력 및 기록 관리</h2>
@@ -224,7 +255,7 @@ export function DataInputClient({ report, session, columns, rows }: DataInputCli
                         <div className="bg-green-600 p-8 text-white flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-white/20 rounded-2xl">
-                                    <FileSpreadsheet size={24} />
+                                    <SafeIcon icon={FileSpreadsheet} isMounted={isMounted} size={24} />
                                 </div>
                                 <div className="flex flex-col">
                                     <h3 className="text-xl font-black tracking-tight">엑셀 파일로 일괄 등록</h3>
@@ -232,7 +263,7 @@ export function DataInputClient({ report, session, columns, rows }: DataInputCli
                                 </div>
                             </div>
                             <button onClick={() => setShowExcelModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
-                                <X size={24} />
+                                <SafeIcon icon={X} isMounted={isMounted} size={24} />
                             </button>
                         </div>
                         <div className="p-10">

@@ -1,8 +1,8 @@
 import React from 'react';
 import { getSessionAction } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
-import { NavigationSidebar } from '@/components/NavigationSidebar';
-import { DashboardLayoutClient } from '@/components/DashboardLayoutClient';
+import NavigationSidebar from '@/components/NavigationSidebar';
+import DashboardLayoutClient from '@/components/DashboardLayoutClient';
 import { queryTable } from '@/egdesk-helpers';
 
 export default async function DashboardLayout({

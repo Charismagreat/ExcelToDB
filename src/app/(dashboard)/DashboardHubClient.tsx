@@ -36,6 +36,7 @@ export function DashboardHubClient({ user, isStaff, reports }: DashboardHubClien
             )
           }
         />
+
         {!isStaff && (
           <NewTableSection 
             userId={user.id} 

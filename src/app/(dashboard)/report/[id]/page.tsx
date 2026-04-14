@@ -20,7 +20,7 @@ import { ReportDetailClient } from '@/components/ReportDetailClient';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowLeft, User } from 'lucide-react';
-import { LogoutButton } from '@/components/LogoutButton';
+import LogoutButton from '@/components/LogoutButton';
 
 export default async function ReportDetailPage({
   params,

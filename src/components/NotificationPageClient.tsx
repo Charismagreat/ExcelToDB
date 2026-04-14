@@ -1,22 +1,20 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+// 📦 EXPLICIT IMPORTS: Much more stable in Turbopack/React 19 than name-based strings
 import { 
-    Check, 
-    CheckCircle2, 
-    Clock, 
-    ExternalLink, 
-    Inbox, 
-    Bell, 
+    Briefcase,
     Search,
-    Trash2,
-    Users,
-    UserCheck,
+    Bell,
+    ArrowRight,
+    FileText,
+    CheckCircle2,
+    Check,
+    Clock,
+    Inbox,
     Loader2,
-    Filter
+    UserCheck
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Link from 'next/link';
 import { 
     markNotificationAsReadAction, 
     markAllNotificationsAsReadAction,
@@ -24,59 +22,57 @@ import {
     getAdminNotificationLogsAction
 } from '@/app/actions/notification';
 
-interface NotificationPageClientProps {
+/**
+ * 🛡️ Explicit SafeIcon: Uses actual component references to avoid "undefined" errors.
+ * If the component passed is undefined, it returns a diagnostic fallback.
+ */
+const SafeIcon = ({ icon: Icon, isMounted, ...props }: { icon: any, isMounted: boolean, [key: string]: any }) => {
+    if (!isMounted) return null;
+    
+    if (!Icon) {
+        console.error('[DIAGNOSTIC] SafeIcon received UNDEFINED icon component');
+        return <div className="w-3 h-3 rounded-full bg-red-500 opacity-50 shrink-0" title="Missing Icon" />;
+    }
+    
+    // Check if Icon is a valid function or object (standard React Component check)
+    const isComponent = typeof Icon === 'function' || typeof Icon === 'object';
+    if (!isComponent) {
+        console.error('[DIAGNOSTIC] Invalid icon type received:', typeof Icon);
+        return <div className="w-3 h-3 rounded-full bg-amber-400 opacity-50 shrink-0" title="Invalid component" />;
+    }
+    
+    try {
+        return <Icon {...props} />;
+    } catch (err) {
+        return <div className="w-3 h-3 rounded-full bg-slate-300 opacity-50 shrink-0" />;
+    }
+};
+
+interface BusinessWorkflowHubProps {
     user: any;
     initialNotifications: any[];
     initialAdminLogs?: any[];
 }
 
-type TabType = 'personal' | 'organization';
-
-export function NotificationPageClient({ user, initialNotifications, initialAdminLogs = [] }: NotificationPageClientProps) {
-    const [activeTab, setActiveTab] = useState<TabType>('personal');
+/**
+ * 🚀 BusinessWorkflowHub
+ * Standardized Default Export for Stable Module Resolution
+ */
+export default function BusinessWorkflowHub({ user, initialNotifications, initialAdminLogs = [] }: BusinessWorkflowHubProps) {
+    const [isMounted, setIsMounted] = useState(false);
     const [notifications, setNotifications] = useState(initialNotifications);
     const [adminLogs, setAdminLogs] = useState(initialAdminLogs);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
+    useEffect(() => {
+        setIsMounted(true);
+        console.log('[DIAGNOSTIC] BusinessWorkflowHub module mounted recursively');
+    }, []);
+
     const isAdmin = user?.role === 'ADMIN';
 
-    // 개인 알림 처리
-    const handleMarkAsRead = async (id: string) => {
-        try {
-            await markNotificationAsReadAction(id);
-            setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: 1 } : n));
-        } catch (err) {
-            console.error('Failed to mark as read:', err);
-        }
-    };
-
-    const handleMarkAllAsRead = async () => {
-        setLoading(true);
-        try {
-            await markAllNotificationsAsReadAction();
-            setNotifications(prev => prev.map(n => ({ ...n, isRead: 1 })));
-        } catch (err) {
-            console.error('Failed to mark all as read:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleClearRead = async () => {
-        if (!confirm('읽은 알림을 모두 삭제하시겠습니까?')) return;
-        setLoading(true);
-        try {
-            await clearOldNotificationsAction();
-            setNotifications(prev => prev.filter(n => n.isRead === 0));
-        } catch (err) {
-            console.error('Failed to clear read notifications:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // 관리자 모니터링 검색
+    // -- Event Handlers --
     const handleAdminSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -90,228 +86,141 @@ export function NotificationPageClient({ user, initialNotifications, initialAdmi
         }
     };
 
-    const unreadCount = notifications.filter(n => n.isRead === 0).length;
+    // 🛡️ UNYIELDING MOUNT GUARD
+    if (!isMounted) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-500 rounded-full animate-spin" />
+            </div>
+        );
+    }
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* Tab Navigation (Admin Only) */}
-            {isAdmin && (
-                <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-2xl w-fit">
-                    <button 
-                        onClick={() => setActiveTab('personal')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black transition-all ${
-                            activeTab === 'personal' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                        }`}
-                    >
-                        <Bell size={14} />
-                        내 알림 관리
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('organization')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black transition-all ${
-                            activeTab === 'organization' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                        }`}
-                    >
-                        <Users size={14} />
-                        전사 알림 모니터링
-                    </button>
+        <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
+            {/* Control Center Header */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-8 bg-slate-900 rounded-[32px] shadow-2xl shadow-slate-200">
+                <div className="flex items-center gap-5">
+                    <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center border border-blue-500/30">
+                        <SafeIcon icon={Briefcase} isMounted={isMounted} size={32} />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-black text-white uppercase tracking-tight">전사 업무 관제 시스템</h1>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Enterprise Workflow Hub</p>
+                    </div>
                 </div>
-            )}
+                
+                <div className="flex items-center gap-4 w-full md:w-fit">
+                    <form onSubmit={handleAdminSearch} className="flex-1 md:w-80 relative">
+                        <input 
+                            type="text" 
+                            placeholder="사원명, 업무 내용 검색..." 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-11 pr-4 py-3 bg-white/10 border-white/10 rounded-2xl text-xs font-bold text-white placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500/50 transition-all backdrop-blur-md"
+                        />
+                        <SafeIcon icon={Search} isMounted={isMounted} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                    </form>
+                    <div className="px-3 py-1.5 rounded-lg bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> Live
+                    </div>
+                </div>
+            </div>
 
-            {/* Personal View */}
-            <AnimatePresence mode="wait">
-                {activeTab === 'personal' ? (
-                    <motion.div 
-                        key="personal"
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        className="space-y-6"
-                    >
-                        {/* Toolbar */}
-                        <div className="flex items-center justify-between mb-2">
-                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                                    <Bell size={18} />
-                                </div>
-                                <h2 className="text-lg font-bold text-slate-800 uppercase tracking-tight">나의 알림 현황</h2>
-                                <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                    Total {notifications.length}
-                                </span>
-                             </div>
-                             <div className="flex items-center gap-2">
-                                <button 
-                                    onClick={handleMarkAllAsRead}
-                                    disabled={loading || unreadCount === 0}
-                                    className="px-4 py-2 text-[10px] font-black bg-white border border-slate-100 rounded-xl hover:bg-slate-50 transition-all uppercase tracking-widest text-slate-600 flex items-center gap-2"
-                                >
-                                    <CheckCircle2 size={12} />
-                                    모두 읽음
-                                </button>
-                                <button 
-                                    onClick={handleClearRead}
-                                    disabled={loading}
-                                    className="px-4 py-2 text-[10px] font-black bg-white border border-slate-100 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all uppercase tracking-widest text-slate-600 flex items-center gap-2"
-                                >
-                                    <Trash2 size={12} />
-                                    정리
-                                </button>
-                             </div>
+            {/* Journey View */}
+            <div className="space-y-12">
+                {loading ? (
+                    <div className="bg-white border border-slate-100 rounded-[32px] p-20 text-center text-slate-300">
+                        <SafeIcon icon={Loader2} isMounted={isMounted} size={32} className="animate-spin mb-4 mx-auto" />
+                    </div>
+                ) : adminLogs.length === 0 ? (
+                    <div className="bg-white border border-slate-100 rounded-[32px] p-20 text-center text-slate-300">
+                        <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <SafeIcon icon={Inbox} isMounted={isMounted} size={28} />
                         </div>
-
-                        <div className="bg-white border border-slate-100 rounded-[32px] shadow-sm overflow-hidden min-h-[400px]">
-                            {notifications.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-32 text-slate-300">
-                                    <div className="w-20 h-20 bg-slate-50 rounded-[32px] flex items-center justify-center mb-6">
-                                        <Inbox size={32} />
+                        <p className="text-xs font-black uppercase tracking-widest">분석된 업무 여정이 없습니다.</p>
+                    </div>
+                ) : (
+                    Object.entries(
+                        adminLogs.reduce((acc: any, log: any) => {
+                            const reportMatch = log.title?.match(/\[(.*?)\]/);
+                            const reportName = reportMatch ? reportMatch[1] : 'SYSTEM';
+                            const summaryMatch = log.message?.match(/\[(.*?)\]/);
+                            const summary = summaryMatch ? summaryMatch[1] : '';
+                            const key = `${reportName}_${summary || log.link}`;
+                            if (!acc[key]) acc[key] = { reportName, summary, logs: [] };
+                            acc[key].logs.push(log);
+                            return acc;
+                        }, {})
+                    ).map(([groupKey, group]: [string, any]) => (
+                        <div key={groupKey} className="relative group animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            <div className="flex flex-col md:flex-row md:items-center gap-3 mb-8 px-6 py-4 bg-white rounded-2xl border border-slate-100 shadow-sm relative z-10">
+                                <div className="flex items-center gap-3 text-slate-900 font-black uppercase text-[13px]">
+                                    <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center">
+                                        <SafeIcon icon={Briefcase} isMounted={isMounted} size={14} />
                                     </div>
-                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">받은 알림이 없습니다</h3>
+                                    {group.reportName}
                                 </div>
-                            ) : (
-                                <div className="divide-y divide-slate-50">
-                                    {notifications.map((notif) => (
-                                        <div 
-                                            key={notif.id}
-                                            className={`p-6 hover:bg-slate-50/50 transition-all flex gap-5 border-l-4 ${
-                                                notif.isRead === 0 ? 'border-blue-600 bg-blue-50/10' : 'border-transparent'
-                                            }`}
-                                        >
-                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                                                notif.type === 'ALERT' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
-                                            }`}>
-                                                <Bell size={22} />
+                                {group.summary && (
+                                    <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full text-[11px] font-bold border border-indigo-100">
+                                        <SafeIcon icon={FileText} isMounted={isMounted} size={12} /> {group.summary}
+                                    </div>
+                                )}
+                                <div className="ml-auto flex items-center gap-3 border-l pl-4 border-slate-100">
+                                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{group.logs.length} Steps Logged</span>
+                                </div>
+                            </div>
+
+                            <div className="ml-12 border-l-2 border-slate-100 pl-12 space-y-0">
+                                {group.logs.map((log: any) => (
+                                    <div key={log.id} className="relative pb-12 last:pb-0">
+                                        <div className={`absolute -left-[59px] top-0 w-8 h-8 rounded-xl border-4 border-white shadow-lg flex items-center justify-center rotate-45 ${
+                                            log.type === 'ACTIVITY' ? 'bg-slate-900' : 'bg-blue-500'
+                                        }`}>
+                                            <div className="-rotate-45">
+                                                <SafeIcon icon={log.type === 'ACTIVITY' ? ArrowRight : Bell} isMounted={isMounted} size={12} className="text-white" />
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-start justify-between gap-4 mb-2">
-                                                    <h3 className={`text-sm font-black uppercase truncate ${notif.isRead === 0 ? 'text-slate-900' : 'text-slate-500'}`}>
-                                                        {notif.title}
-                                                    </h3>
-                                                    <span className="text-[10px] font-bold text-slate-400 shrink-0 uppercase">
-                                                        {new Date(notif.createdAt).toLocaleDateString()}
-                                                    </span>
+                                        </div>
+
+                                        <div className="bg-white border border-slate-100 rounded-[24px] p-7 shadow-sm">
+                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                                <div className="flex items-center gap-6">
+                                                    <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center font-black text-sm">
+                                                        {log.user.fullName?.[0]}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-[13px] font-black text-slate-900">{log.user.fullName}</span>
+                                                            <span className={`px-2 py-0.5 text-[9px] font-black rounded-md ${
+                                                                log.type === 'ACTIVITY' ? 'bg-slate-100 text-slate-500' : 'bg-blue-100 text-blue-600'
+                                                            }`}>
+                                                                {log.type === 'ACTIVITY' ? 'SENDER' : 'RECEIVER'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[12px] font-bold text-slate-700">{log.title}</p>
+                                                        <p className="text-[11px] text-slate-400 mt-1">{log.message}</p>
+                                                    </div>
                                                 </div>
-                                                <p className="text-xs font-medium text-slate-500 leading-relaxed mb-4">{notif.message}</p>
-                                                <div className="flex items-center gap-4">
-                                                    {notif.link && (
-                                                        <Link href={notif.link} onClick={() => handleMarkAsRead(notif.id)} className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5 hover:underline">
-                                                            <ExternalLink size={12} /> 상세 보기
-                                                        </Link>
+                                                
+                                                <div className="flex flex-col items-end gap-2">
+                                                    {log.taskStatus && (
+                                                        <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-lg text-[10px] font-black text-slate-500 border border-slate-100">
+                                                            {log.taskStatus === 'DONE' ? <SafeIcon icon={CheckCircle2} isMounted={isMounted} size={12} className="text-emerald-500" /> : <SafeIcon icon={Clock} isMounted={isMounted} size={12} />}
+                                                            {log.taskStatus}
+                                                        </div>
                                                     )}
-                                                    {notif.isRead === 0 && (
-                                                        <button onClick={() => handleMarkAsRead(notif.id)} className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 hover:text-slate-900">
-                                                            <Check size={12} /> 읽음 처리
-                                                        </button>
-                                                    )}
+                                                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
+                                                        {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </motion.div>
-                ) : (
-                    <motion.div 
-                        key="organization"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className="space-y-6"
-                    >
-                        {/* Admin Toolbar & Search */}
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-6 bg-white border border-slate-100 rounded-[28px] shadow-sm">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
-                                    <Users size={20} />
-                                </div>
-                                <div>
-                                    <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">전사 알림 관제</h2>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Notification Logs & Monitoring</p>
-                                </div>
-                            </div>
-                            
-                            <form onSubmit={handleAdminSearch} className="flex-1 max-w-md w-full relative">
-                                <input 
-                                    type="text" 
-                                    placeholder="사원명, 알림 내용 검색..." 
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                                />
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                <button type="submit" className="hidden" />
-                            </form>
-                        </div>
-
-                        {/* Monitoring List/Table */}
-                        <div className="bg-white border border-slate-100 rounded-[32px] shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-slate-50/50">
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">Target Employee</th>
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">Notification content</th>
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">Status</th>
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-right">Sent Time</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {loading ? (
-                                            <tr>
-                                                <td colSpan={4} className="py-20 text-center">
-                                                    <Loader2 size={32} className="animate-spin text-indigo-500 mx-auto" />
-                                                </td>
-                                            </tr>
-                                        ) : adminLogs.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={4} className="py-20 text-center text-slate-300">
-                                                    <p className="text-xs font-black uppercase tracking-widest">일치하는 로그가 없습니다.</p>
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            adminLogs.map((log) => (
-                                                <tr key={log.id} className="hover:bg-slate-50 transition-all group">
-                                                    <td className="px-6 py-5">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 text-[10px] font-black">
-                                                                {log.user.fullName?.[0]}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[11px] font-black text-slate-900 uppercase">{log.user.fullName}</p>
-                                                                <p className="text-[9px] font-bold text-slate-400">@{log.user.username} / {log.user.employeeId}</p>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-5">
-                                                        <p className="text-[11px] font-black text-slate-800 uppercase line-clamp-1">{log.title}</p>
-                                                        <p className="text-[10px] text-slate-400 font-medium truncate max-w-xs">{log.message}</p>
-                                                    </td>
-                                                    <td className="px-6 py-5">
-                                                        {log.isRead === 1 ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 text-green-600 text-[9px] font-black rounded-lg uppercase border border-green-100">
-                                                                <UserCheck size={10} /> Read
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-600 text-[9px] font-black rounded-lg uppercase border border-amber-100 animate-pulse">
-                                                                <Bell size={10} /> Pending
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-5 text-right">
-                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">
-                                                            {new Date(log.createdAt).toLocaleString()}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    </motion.div>
+                    ))
                 )}
-            </AnimatePresence>
+            </div>
         </div>
     );
 }

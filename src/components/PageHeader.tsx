@@ -14,7 +14,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ title, description, icon
             <div className="animate-in fade-in slide-in-from-left duration-500">
                 <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                     {title}
-                    <Icon className="text-blue-500 shrink-0" size={32} />
+                    {Icon && (typeof Icon === 'function' || typeof Icon === 'object') && (
+                        <Icon className="text-blue-500 shrink-0" size={32} />
+                    )}
                 </h1>
                 <p className="text-slate-500 font-medium mt-2 leading-relaxed max-w-2xl">
                     {description}

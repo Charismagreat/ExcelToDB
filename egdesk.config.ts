@@ -1,13 +1,13 @@
 /**
  * EGDesk User Data Configuration
- * Generated at: 2026-04-13T04:16:50.502Z
+ * Generated at: 2026-04-14T00:27:44.752Z
  *
  * This file contains type-safe definitions for your EGDesk tables.
  */
 
 export const EGDESK_CONFIG = {
   apiUrl: 'http://localhost:8080',
-  apiKey: '3dd723e5-a01e-475f-b9a4-ec15b038fb45',
+  apiKey: '4db4a318-193f-46c0-a4d4-c448aea4544b',
 } as const;
 
 export interface TableDefinition {
@@ -24,7 +24,7 @@ export const TABLES = {
   table1: {
     name: 'report_row',
     displayName: 'Virtual Report Rows',
-    rowCount: 1,
+    rowCount: 94,
     columnCount: 10,
     columns: ['id', 'reportId', 'data', 'contentHash', 'isDeleted', 'deletedAt', 'creatorId', 'updaterId', 'createdAt', 'updatedAt']
   } as TableDefinition,
@@ -45,7 +45,7 @@ export const TABLES = {
   table4: {
     name: 'action_task',
     displayName: 'Action Tasks',
-    rowCount: 3,
+    rowCount: 4,
     columnCount: 12,
     columns: ['id', 'instanceId', 'reportId', 'title', 'description', 'type', 'status', 'assigneeId', 'assigneeRole', 'dueAt', 'completedAt', 'createdAt']
   } as TableDefinition,
@@ -65,14 +65,14 @@ export const TABLES = {
   table7: {
     name: 'notification',
     displayName: 'User Notifications',
-    rowCount: 1,
+    rowCount: 4,
     columnCount: 8,
     columns: ['id', 'userId', 'title', 'message', 'link', 'type', 'isRead', 'createdAt']
   } as TableDefinition,
   table8: {
     name: 'workspace_item',
     displayName: 'Workspace Image Items',
-    rowCount: 7,
+    rowCount: 9,
     columnCount: 12,
     columns: ['id', 'creatorId', 'imageUrl', 'originalText', 'suggestedTitle', 'suggestedSummary', 'aiData', 'status', 'reportId', 'rowId', 'createdAt', 'updatedAt']
   } as TableDefinition,
@@ -141,7 +141,7 @@ export const TABLES = {
   table18: {
     name: 'tb_944447372_1h23k',
     displayName: '신용카드영수증 (Sync)',
-    rowCount: 1,
+    rowCount: 2,
     columnCount: 10,
     columns: ['id', '데이터ID', '승인일시', '가맹점명', '사용금액', '지출목적', '승인번호', '카드종류', '카드번호', '영수증사진']
   } as TableDefinition,

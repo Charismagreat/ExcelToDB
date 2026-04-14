@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { LogOut, Loader2 } from 'lucide-react';
 import { logoutAction } from '@/app/actions/auth';
 import { useRouter } from 'next/navigation';
@@ -9,35 +9,38 @@ interface LogoutButtonProps {
     className?: string;
 }
 
-export function LogoutButton({ className }: LogoutButtonProps) {
-    const [isLoading, setIsLoading] = React.useState(false);
+/**
+ * 🚀 LogoutButton
+ * Standardized Default Export for Absolute Module Resolution
+ */
+export default function LogoutButton({ className }: LogoutButtonProps) {
+    const [isMounted, setIsMounted] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const handleLogout = async () => {
         if (!confirm('정말 로그아웃 하시겠습니까?')) return;
         
         setIsLoading(true);
-        console.log('[CLIENT DEBUG] Shared LogoutButton: starting process...');
         try {
-            // 1. 서버 세션 종료 (쿠키 파기)
             await logoutAction();
-            
-            // 2. 클라이언트 사이드 보조 청소
             localStorage.clear();
             sessionStorage.clear();
-
-            // 3. 리다이렉트 및 새로고침
-            console.log('[CLIENT DEBUG] Shared LogoutButton: redirecting...');
             router.replace('/login');
             router.refresh();
         } catch (error) {
-            console.error('[CLIENT DEBUG] Shared LogoutButton error:', error);
-            // 에러가 발생해도 세션 만료를 가정하고 로그인 페이지로 시도
+            console.error('[CLIENT DEBUG] LogoutButton error:', error);
             router.replace('/login');
         } finally {
             setIsLoading(false);
         }
     };
+
+    if (!isMounted) return null;
 
     return (
         <button
@@ -47,7 +50,7 @@ export function LogoutButton({ className }: LogoutButtonProps) {
             title="로그아웃"
         >
             {isLoading ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2 size={14} className="animate-spin text-red-500" />
             ) : (
                 <LogOut size={14} />
             )}
@@ -55,5 +58,3 @@ export function LogoutButton({ className }: LogoutButtonProps) {
         </button>
     );
 }
-
-

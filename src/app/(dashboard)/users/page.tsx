@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { UserManagementTable } from '@/components/UserManagementTable';
 import { Users, ShieldCheck, LayoutDashboard } from 'lucide-react';
 import Link from 'next/link';
-import { LogoutButton } from '@/components/LogoutButton';
+import LogoutButton from '@/components/LogoutButton';
 
 export default async function UsersPage() {
     const session = await getSessionAction();

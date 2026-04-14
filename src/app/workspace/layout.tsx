@@ -1,6 +1,6 @@
 import { BottomNav } from '@/components/workspace/BottomNav';
 import { SmartFAB } from '@/components/workspace/SmartFAB';
-import { NotificationCenter } from '@/components/NotificationCenter';
+import NotificationCenter from '@/components/NotificationCenter';
 
 import { getSessionAction } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';

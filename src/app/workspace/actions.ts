@@ -7,6 +7,7 @@ import { queryTable, executeSQL, insertRows, updateRows, deleteRows } from '@/eg
 import { revalidatePath } from 'next/cache';
 import fs from 'fs/promises';
 import path from 'path';
+import { createInAppNotification } from '@/lib/notifications';
 
 // 워크스페이스 전용 ID 생성기 (표준 규격)
 const generateWorkspaceId = () => `id-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
@@ -308,6 +309,15 @@ export async function submitWorkspaceDataAction(formData: FormData) {
             console.error(`[Background Analysis Error] Item ${itemId}:`, err);
         });
 
+        // 알림 생성: 신규 등록
+        await createInAppNotification({
+            userId: String(user.id),
+            title: '신규 데이터 등록',
+            message: image ? `${image.name} 분석이 시작되었습니다.` : '텍스트 분석이 시작되었습니다.',
+            type: 'INFO',
+            link: '/workspace'
+        });
+
         // 피드 갱신 강제
         revalidatePath('/workspace');
 
@@ -471,6 +481,15 @@ export async function confirmWorkspaceDataAction(reportId: string, rowData: Reco
             }, { filters: { id: workspaceItemId } });
         }
         
+        // 알림 생성: 기록 완료
+        await createInAppNotification({
+            userId: String(user.id),
+            title: '데이터 기록 완료',
+            message: `${reportId} 테이블에 새로운 데이터가 기록되었습니다.`,
+            type: 'INFO',
+            link: `/report/${reportId}`
+        });
+
         revalidatePath('/workspace');
         return { 
             success: true, 
@@ -563,6 +582,17 @@ async function analyzeWorkspaceItemAction(itemId: string) {
         }
 
         await updateRows('workspace_item', updateData, { filters: { id: String(itemId) } });
+
+        // 알림 생성: AI 분석 완료
+        await createInAppNotification({
+            userId: String(item.creatorId),
+            title: isAutoConfirmed ? '데이터 자동 기록 완료' : 'AI 분석 완료',
+            message: isAutoConfirmed 
+                ? `${updateData.suggestedSummary}` 
+                : `${item.suggestedTitle}의 분석이 완료되었습니다. 확인 후 저장해 주세요.`,
+            type: isAutoConfirmed ? 'INFO' : 'ALERT',
+            link: '/workspace'
+        });
 
         console.log(`[AI Background] Item ${itemId} analysis completed. (Auto-Confirmed: ${isAutoConfirmed})`);
         revalidatePath('/workspace');

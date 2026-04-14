@@ -187,18 +187,37 @@ export async function createInAppNotification(data: {
     const { generateId } = await import('@/app/actions/shared');
 
     try {
+        console.log(`[Notification] In-app alert created for user: ${data.userId}`);
+    } catch (err) {
+        console.error('[Notification] Failed to create in-app alert:', err);
+    }
+}
+
+/**
+ * 시스템 활동 로그를 생성합니다. (기안자/수행자 전용)
+ */
+export async function logActivity(data: {
+    userId: string;
+    title: string;
+    message?: string;
+    link?: string;
+    type?: 'ACTIVITY';
+}) {
+    const { insertRows } = await import('@/egdesk-helpers');
+    const { generateId } = await import('@/app/actions/shared');
+
+    try {
         await insertRows('notification', [{
             id: generateId(),
             userId: data.userId,
             title: data.title,
             message: data.message || null,
             link: data.link || null,
-            type: data.type || 'INFO',
-            isRead: 0,
+            type: data.type || 'ACTIVITY',
+            isRead: 1, // 활동 로그는 기안자가 이미 한 일이므로 기본 읽음 처리
             createdAt: new Date().toISOString()
         }]);
-        console.log(`[Notification] In-app alert created for user: ${data.userId}`);
     } catch (err) {
-        console.error('[Notification] Failed to create in-app alert:', err);
+        console.error('[Notification] Failed to log activity:', err);
     }
 }
