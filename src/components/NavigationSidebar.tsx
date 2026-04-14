@@ -103,15 +103,24 @@ export default function NavigationSidebar({ user, isCollapsed = false, onToggle 
         isCollapsed ? 'w-20' : 'w-72'
       }`}
     >
-      {/* Toggle Button */}
+      {/* Toggle Button - Corrected Visual Volume (48px) */}
       {onToggle && (
         <button
           onClick={onToggle}
-          className="absolute -right-3 top-24 bg-white border border-slate-200 rounded-full p-1 shadow-md hover:bg-blue-600 hover:text-white transition-all z-[110]"
+          className={`absolute -right-6 top-24 w-12 h-12 flex items-center justify-center rounded-full z-[110] transition-all duration-500 border-[6px] border-white shadow-2xl group hover:scale-110 active:scale-95 ${
+            isCollapsed 
+            ? 'bg-gradient-to-tr from-blue-600 to-blue-400 text-white' 
+            : 'bg-blue-50 text-blue-600 hover:bg-blue-100 border-slate-100/50'
+          }`}
           title={isCollapsed ? "펼치기" : "접기"}
         >
-          <div className={isCollapsed ? '' : 'rotate-180'}>
-            <ChevronRight size={14} />
+          {/* Subtle Pulse Effect - Always active slightly to maintain presence */}
+          {isCollapsed && (
+            <div className="absolute inset-0 rounded-full bg-blue-400/30 animate-ping -z-10" />
+          )}
+          
+          <div className={`transition-transform duration-500 ${isCollapsed ? '' : 'rotate-180'}`}>
+            <ChevronRight size={24} strokeWidth={3} />
           </div>
         </button>
       )}

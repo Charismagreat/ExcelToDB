@@ -52,8 +52,10 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
         email: '',
         position: '',
         departmentId: '',
+        departmentName: '', // 추가
         role: 'VIEWER'
     });
+    const [isDirectInput, setIsDirectInput] = useState(false); // 부서 직접 입력 여부
 
     // Filtered members
     const filteredMembers = members.filter((m: any) => 
@@ -109,6 +111,7 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
     const handleOpenModal = (mode: 'create' | 'edit', member: any = null) => {
         setModalMode(mode);
         setSelectedMember(member);
+        setIsDirectInput(false); // 모달 열 때 초기화
         if (mode === 'edit' && member) {
             setFormData({
                 fullName: member.fullName || '',
@@ -116,6 +119,7 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
                 email: member.email || '',
                 position: member.position || '',
                 departmentId: member.departmentId || '',
+                departmentName: '',
                 role: member.role || 'VIEWER'
             });
         } else {
@@ -125,6 +129,7 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
                 email: '',
                 position: '',
                 departmentId: '',
+                departmentName: '',
                 role: 'VIEWER'
             });
         }
@@ -402,17 +407,41 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
 
                                 <div className="grid grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">부서</label>
-                                        <select 
-                                            className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none"
-                                            value={formData.departmentId}
-                                            onChange={(e) => setFormData({...formData, departmentId: e.target.value})}
-                                        >
-                                            <option value="">부서 선택 없음</option>
-                                            {departments.map((d: any) => (
-                                                <option key={d.id} value={d.id}>{d.name}</option>
-                                            ))}
-                                        </select>
+                                        <div className="flex items-center justify-between px-1">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">부서</label>
+                                            <button 
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsDirectInput(!isDirectInput);
+                                                    setFormData({ ...formData, departmentId: '', departmentName: '' });
+                                                }}
+                                                className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md transition-all ${
+                                                    isDirectInput ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400 hover:text-slate-600'
+                                                }`}
+                                            >
+                                                {isDirectInput ? '선택 취소' : '직접 입력'}
+                                            </button>
+                                        </div>
+                                        {isDirectInput ? (
+                                            <input 
+                                                autoFocus
+                                                className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all"
+                                                value={formData.departmentName}
+                                                onChange={(e) => setFormData({...formData, departmentName: e.target.value})}
+                                                placeholder="신규 부서명 입력"
+                                            />
+                                        ) : (
+                                            <select 
+                                                className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none"
+                                                value={formData.departmentId}
+                                                onChange={(e) => setFormData({...formData, departmentId: e.target.value})}
+                                            >
+                                                <option value="">부서 선택 없음</option>
+                                                {departments.map((d: any) => (
+                                                    <option key={d.id} value={d.id}>{d.name}</option>
+                                                ))}
+                                            </select>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">직위</label>

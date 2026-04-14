@@ -75,10 +75,30 @@ export async function createMemberAction(data: any) {
         }
     }
 
+    let departmentId = data.departmentId;
+
+    // 부서 직접 입력 처리: 이름으로 ID 찾기 또는 생성
+    if (!departmentId && data.departmentName) {
+        const [existing] = await queryTable('department', { filters: { name: data.departmentName } });
+        if (existing) {
+            departmentId = existing.id;
+        } else {
+            departmentId = generateId();
+            await insertRows('department', [{
+                id: departmentId,
+                name: data.departmentName,
+                createdAt: new Date().toISOString()
+            }]);
+        }
+    }
+
     const userId = generateId();
+    const { departmentName, ...cleanData } = data; // user 테이블에 없는 필드 제거
+
     await insertRows('user', [{
-        ...data,
+        ...cleanData,
         id: userId,
+        departmentId,
         username: data.username || `user_${data.employeeId || Date.now()}`,
         password: hashPassword('1234'), // 기본 패스워드 설정
         isActive: 1,
@@ -96,7 +116,25 @@ export async function updateMemberAction(memberId: string, data: any) {
     const session = await getSessionAction();
     if (!session || session.role !== 'ADMIN') throw new Error('권한 부족');
 
-    await updateRows('user', data, { filters: { id: memberId } });
+    let departmentId = data.departmentId;
+
+    // 부서 직접 입력 처리: 이름으로 ID 찾기 또는 생성
+    if (!departmentId && data.departmentName) {
+        const [existing] = await queryTable('department', { filters: { name: data.departmentName } });
+        if (existing) {
+            departmentId = existing.id;
+        } else {
+            departmentId = generateId();
+            await insertRows('department', [{
+                id: departmentId,
+                name: data.departmentName,
+                createdAt: new Date().toISOString()
+            }]);
+        }
+    }
+
+    const { departmentName, ...cleanData } = data; // user 테이블에 없는 필드 제거
+    await updateRows('user', { ...cleanData, departmentId }, { filters: { id: memberId } });
     
     revalidatePath('/admin/organization');
     return { success: true };
