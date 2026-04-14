@@ -313,9 +313,9 @@ export async function submitWorkspaceDataAction(formData: FormData) {
         await createInAppNotification({
             userId: String(user.id),
             title: '신규 데이터 등록',
-            message: image ? `${image.name} 분석이 시작되었습니다.` : '텍스트 분석이 시작되었습니다.',
+            message: image ? `[${image.name}] 분석이 시작되었습니다.` : '텍스트 분석이 시작되었습니다.',
             type: 'INFO',
-            link: '/workspace'
+            link: imageUrl ? (imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`) : '/workspace'
         });
 
         // 피드 갱신 강제
@@ -589,9 +589,9 @@ async function analyzeWorkspaceItemAction(itemId: string) {
             title: isAutoConfirmed ? '데이터 자동 기록 완료' : 'AI 분석 완료',
             message: isAutoConfirmed 
                 ? `${updateData.suggestedSummary}` 
-                : `${item.suggestedTitle}의 분석이 완료되었습니다. 확인 후 저장해 주세요.`,
+                : `[${item.suggestedTitle}] 분석이 완료되었습니다. 확인 후 저장해 주세요.`,
             type: isAutoConfirmed ? 'INFO' : 'ALERT',
-            link: '/workspace'
+            link: item.imageUrl ? (item.imageUrl.startsWith('/') ? item.imageUrl : `/${item.imageUrl}`) : '/workspace'
         });
 
         console.log(`[AI Background] Item ${itemId} analysis completed. (Auto-Confirmed: ${isAutoConfirmed})`);

@@ -76,6 +76,28 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedDept, setSelectedDept] = useState('ALL');
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+    const toggleGroup = (key: string) => {
+        setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const getFileTypeInfo = (text: string) => {
+        const t = (text || '').toLowerCase();
+        if (t.includes('.png') || t.includes('.jpg') || t.includes('.jpeg') || t.includes('.gif') || t.includes('사진') || t.includes('이미지')) {
+            return { icon: Camera, color: 'text-blue-600', bg: 'bg-blue-50', label: '이미지' };
+        }
+        if (t.includes('.xlsx') || t.includes('.xls') || t.includes('.csv') || t.includes('엑셀')) {
+            return { icon: FileText, color: 'text-emerald-600', bg: 'bg-emerald-50', label: '데이터' };
+        }
+        if (t.includes('.pdf') || t.includes('문서')) {
+            return { icon: FileText, color: 'text-rose-600', bg: 'bg-rose-50', label: '문서' };
+        }
+        if (t.includes('.mp3') || t.includes('.wav') || t.includes('.m4a') || t.includes('녹음') || t.includes('음성')) {
+            return { icon: Mic, color: 'text-purple-600', bg: 'bg-purple-50', label: '음성' };
+        }
+        return { icon: Briefcase, color: 'text-slate-600', bg: 'bg-slate-50', label: '업무' };
+    };
 
     useEffect(() => {
         setIsMounted(true);
@@ -215,81 +237,147 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                         filteredLogs.reduce((acc: any, log: any) => {
                             const reportMatch = log.title?.match(/\[(.*?)\]/);
                             const reportName = reportMatch ? reportMatch[1] : 'SYSTEM';
-                            const summaryMatch = log.message?.match(/\[(.*?)\]/);
-                            const summary = summaryMatch ? summaryMatch[1] : '';
-                            const key = `${reportName}_${summary || log.link}`;
+                            const summaryMatch = log.message?.match(/\[(.*?)\]/) || log.message?.match(/([^\s]+?\.(png|jpg|jpeg|gif|pdf|xlsx|xls|mp3|wav|m4a))/i);
+                            const summary = summaryMatch ? (summaryMatch[1] || summaryMatch[0]) : '';
+                            // 🔑 키 생성 개선: 요약 정보(파일명 등)가 있다면 링크와 무관하게 그룹화
+                            const key = summary ? `${reportName}_${summary}` : `${reportName}_${log.link}`;
                             if (!acc[key]) acc[key] = { reportName, summary, logs: [] };
                             acc[key].logs.push(log);
                             return acc;
                         }, {})
-                    ).map(([groupKey, group]: [string, any]) => (
-                        <div key={groupKey} className="relative group animate-in fade-in slide-in-from-bottom-2 duration-500">
-                            <div className="flex flex-col md:flex-row md:items-center gap-3 mb-8 px-6 py-4 bg-white rounded-2xl border border-slate-100 shadow-sm relative z-10">
-                                <div className="flex items-center gap-3 text-slate-900 font-black uppercase text-[13px]">
-                                    <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center">
-                                        <SafeIcon icon={Briefcase} isMounted={isMounted} size={14} />
-                                    </div>
-                                    {group.reportName}
-                                </div>
-                                {group.summary && (
-                                    <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full text-[11px] font-bold border border-indigo-100">
-                                        <SafeIcon icon={FileText} isMounted={isMounted} size={12} /> {group.summary}
-                                    </div>
-                                )}
-                                <div className="ml-auto flex items-center gap-3 border-l pl-4 border-slate-100">
-                                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{group.logs.length} Steps Logged</span>
-                                </div>
-                            </div>
-
-                            <div className="ml-12 border-l-2 border-slate-100 pl-12 space-y-0">
-                                {group.logs.map((log: any) => (
-                                    <div key={log.id} className="relative pb-12 last:pb-0">
-                                        <div className={`absolute -left-[59px] top-0 w-8 h-8 rounded-xl border-4 border-white shadow-lg flex items-center justify-center rotate-45 ${
-                                            log.type === 'ACTIVITY' ? 'bg-slate-900' : 'bg-blue-500'
-                                        }`}>
-                                            <div className="-rotate-45">
-                                                <SafeIcon icon={log.type === 'ACTIVITY' ? ArrowRight : Bell} isMounted={isMounted} size={12} className="text-white" />
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-white border border-slate-100 rounded-[24px] p-7 shadow-sm">
-                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                                <div className="flex items-center gap-6">
-                                                    <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center font-black text-sm">
-                                                        {log.user.fullName?.[0]}
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-[13px] font-black text-slate-900">{log.user.fullName}</span>
-                                                            <span className={`px-2 py-0.5 text-[9px] font-black rounded-md ${
-                                                                log.type === 'ACTIVITY' ? 'bg-slate-100 text-slate-500' : 'bg-blue-100 text-blue-600'
-                                                            }`}>
-                                                                {log.type === 'ACTIVITY' ? 'SENDER' : 'RECEIVER'}
-                                                            </span>
+                    ).map(([groupKey, group]: [string, any]) => {
+                        // 📂 그룹 내 로그 중 실제 파일 링크(/uploads/)가 있는 로그를 우선적으로 찾아 마스터로 사용
+                        const fileLog = group.logs.find((l: any) => l.link && l.link.includes('/uploads/'));
+                        const latestLog = fileLog || group.logs[0];
+                        
+                        const isExpanded = !!expandedGroups[groupKey];
+                        const fileInfo = getFileTypeInfo(latestLog.title + latestLog.message);
+                        
+                        return (
+                            <div key={groupKey} className="relative group animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                {/* 🛡️ 마스터 통합 카드 (Consolidated Job Card) */}
+                                <div className={`bg-white border transition-all duration-300 rounded-[32px] overflow-hidden shadow-sm hover:shadow-xl ${isExpanded ? 'ring-2 ring-blue-500/10 border-blue-500/20' : 'border-slate-100'}`}>
+                                    {/* 1. 카드 상단: 작업 정보 & 파일 타입 아이콘 */}
+                                    <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-br from-white to-slate-50/50">
+                                        <div className="flex items-center gap-6">
+                                            {/* 파일 타입 아이콘 (클릭 시 링크 이동) */}
+                                            {(() => {
+                                                const basePath = process.env.NEXT_PUBLIC_EGDESK_BASE_PATH || '';
+                                                const finalLink = latestLog.link 
+                                                    ? (latestLog.link.startsWith('http') ? latestLog.link : `${basePath}${latestLog.link.startsWith('/') ? '' : '/'}${latestLog.link}`) 
+                                                    : '#';
+                                                return (
+                                                    <a 
+                                                        href={finalLink} 
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className={`${fileInfo.bg} ${fileInfo.color} w-16 h-16 rounded-2xl flex items-center justify-center border border-white shadow-inner group/icon hover:scale-105 transition-transform active:scale-95`}
+                                                        title={`${fileInfo.label} 보기`}
+                                                    >
+                                                        <SafeIcon icon={fileInfo.icon} isMounted={isMounted} size={28} />
+                                                    </a>
+                                                );
+                                            })()}
+                                            
+                                            <div>
+                                                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                                    <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md uppercase tracking-widest border border-blue-100">
+                                                        {group.reportName}
+                                                    </span>
+                                                    {group.summary && (
+                                                        <span className="text-[10px] font-bold text-slate-400 truncate max-w-[120px]">
+                                                            {group.summary}
+                                                        </span>
+                                                    )}
+                                                    {/* 사원 정보 (상단으로 이동하여 카드 크기 최적화) */}
+                                                    <div className="flex items-center gap-2 pl-2 border-l border-slate-100">
+                                                        <div className="w-5 h-5 bg-slate-900 text-white rounded-md flex items-center justify-center font-black text-[8px]">
+                                                            {latestLog.user.fullName?.[0]}
                                                         </div>
-                                                        <p className="text-[12px] font-bold text-slate-700">{log.title}</p>
-                                                        <p className="text-[11px] text-slate-400 mt-1">{log.message}</p>
+                                                        <span className="text-[10px] font-black text-slate-700">{latestLog.user.fullName}</span>
                                                     </div>
-                                                </div>
-                                                
-                                                <div className="flex flex-col items-end gap-2">
-                                                    {log.taskStatus && (
-                                                        <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-lg text-[10px] font-black text-slate-500 border border-slate-100">
-                                                            {log.taskStatus === 'DONE' ? <SafeIcon icon={CheckCircle2} isMounted={isMounted} size={12} className="text-emerald-500" /> : <SafeIcon icon={Clock} isMounted={isMounted} size={12} />}
-                                                            {log.taskStatus}
+
+                                                    {/* 진행 단계 요약 */}
+                                                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100/50 rounded-lg border border-slate-100 ml-2">
+                                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-tight">
+                                                            {group.logs.length} STEPS
+                                                        </span>
+                                                    </div>
+
+                                                    {latestLog.taskStatus && (
+                                                        <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black flex items-center gap-1.5 border ml-1 ${
+                                                            latestLog.taskStatus === 'DONE' 
+                                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                                                                : 'bg-amber-50 text-amber-600 border-amber-100'
+                                                        }`}>
+                                                            <div className={`w-1 h-1 rounded-full ${latestLog.taskStatus === 'DONE' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                                            {latestLog.taskStatus}
                                                         </div>
                                                     )}
-                                                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                                                        {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </span>
                                                 </div>
+                                                <h3 className="text-lg font-black text-slate-800 tracking-tight leading-tight">
+                                                    {latestLog.title}
+                                                </h3>
+                                                <p className="text-sm font-medium text-slate-500 mt-1 line-clamp-1 italic">
+                                                    {latestLog.message}
+                                                </p>
                                             </div>
                                         </div>
+
+                                        <div className="flex items-center gap-4">
+                                            <div className="text-right hidden md:block">
+                                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">최종 업데이트</p>
+                                                <p className="text-xs font-bold text-slate-600">
+                                                    {new Date(latestLog.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </p>
+                                            </div>
+                                            <button 
+                                                onClick={() => toggleGroup(groupKey)}
+                                                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                                                    isExpanded ? 'bg-slate-900 text-white rotate-180' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
+                                                }`}
+                                            >
+                                                <SafeIcon icon={isExpanded ? ChevronRight : ChevronRight} isMounted={isMounted} size={20} className={isExpanded ? "rotate-90" : "rotate-90"} />
+                                            </button>
+                                        </div>
                                     </div>
-                                ))}
+
+                                    {/* 2. 확장 영역: 컴팩트 히스토리 (Accordion) */}
+                                    {isExpanded && (
+                                        <div className="bg-slate-50/50 border-t border-slate-100 p-8 pt-6 animate-in slide-in-from-top-2 duration-300">
+                                            <div className="mb-4 flex items-center justify-between">
+                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">전체 처리 이력 (Audit Trail)</h4>
+                                                <div className="h-px bg-slate-100 flex-1 ml-4" />
+                                            </div>
+                                            <div className="space-y-3">
+                                                {group.logs.map((log: any, idx: number) => (
+                                                    <div key={log.id} className="flex gap-4 relative">
+                                                        {idx !== group.logs.length - 1 && (
+                                                            <div className="absolute left-[7px] top-4 w-0.5 h-full bg-slate-200/50" />
+                                                        )}
+                                                        <div className={`w-4 h-4 rounded-full border-2 border-white shadow-sm shrink-0 z-10 mt-1 ${
+                                                            idx === 0 ? 'bg-blue-500' : 'bg-slate-300'
+                                                        }`} />
+                                                        <div className="flex-1 pb-4">
+                                                            <div className="flex items-center justify-between gap-4">
+                                                                <span className={`text-[11px] font-bold ${idx === 0 ? 'text-slate-900' : 'text-slate-500'}`}>
+                                                                    {log.title}
+                                                                </span>
+                                                                <span className="text-[9px] font-medium text-slate-400">
+                                                                    {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 mt-0.5">{log.message}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
         </div>
