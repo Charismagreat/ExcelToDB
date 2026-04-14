@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache';
 import fs from 'fs/promises';
 import path from 'path';
 import { createInAppNotification } from '@/lib/notifications';
+import { GuardrailService } from '@/lib/services/guardrail-service';
 
 // 워크스페이스 전용 ID 생성기 (표준 규격)
 const generateWorkspaceId = () => `id-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
@@ -469,10 +470,35 @@ export async function confirmWorkspaceDataAction(reportId: string, rowData: Reco
     try {
         console.log(`[Workspace Final Save] Report: ${reportId} | WorkspaceItem: ${workspaceItemId} | Data:`, rowData);
         
-        // 1. 기존 addRowAction을 호출하여 물리+가상 테이블 동기화
+        // 1. 가드레일 검증 (물리 테이블 이름 조회 포함)
+        const reports = await queryTable('report', { filters: { id: reportId } });
+        const report = Array.isArray(reports) ? reports[0] : (reports.rows?.[0]);
+        const tableName = report?.tableName;
+
+        const validation = await GuardrailService.validateRow(reportId, rowData, tableName);
+        
+        if (validation.isBlocked) {
+            // 차단된 경우 알림 생성 및 에러 반환
+            const failedRule = validation.failedRules[0];
+            await createInAppNotification({
+                userId: String(user.id),
+                title: '🔴 입력 정책 위반 (차단됨)',
+                message: `${failedRule.errorMessage} (정책: ${failedRule.ruleType})`,
+                type: 'ALERT',
+                link: workspaceItemId ? `/workspace` : `/report/${reportId}`
+            });
+
+            return { 
+                success: false, 
+                message: failedRule.errorMessage,
+                failedRules: validation.failedRules 
+            };
+        }
+
+        // 2. 기존 addRowAction을 호출하여 물리+가상 테이블 동기화
         const result = await addRowAction(reportId, rowData);
         
-        // 2. 신규 테이블(workspace_item) 상태 업데이트
+        // 3. 신규 테이블(workspace_item) 상태 업데이트
         if (workspaceItemId) {
             await updateRows('workspace_item', { 
                 status: 'completed',
@@ -553,17 +579,26 @@ async function analyzeWorkspaceItemAction(itemId: string) {
             try {
                 // extractedData의 각 필드가 유효한지 최종 점검 (빈 객체면 제외)
                 if (Object.keys(aiResult.extractedData).length > 0) {
-                    const confirmResult = await confirmWorkspaceDataAction(
-                        aiResult.reportId, 
-                        aiResult.extractedData, 
-                        itemId
-                    );
-                    if (confirmResult.success) {
-                        isAutoConfirmed = true;
-                        updateData.status = 'completed';
-                        console.log(`[AI Background] Item ${itemId} auto-confirmed successfully.`);
+                    // 가드레일 자동 체크 절차 추가
+                    const validation = await GuardrailService.validateRow(aiResult.reportId, aiResult.extractedData, aiResult.tableName);
+                    
+                    if (!validation.isBlocked) {
+                        const confirmResult = await confirmWorkspaceDataAction(
+                            aiResult.reportId, 
+                            aiResult.extractedData, 
+                            itemId
+                        );
+                        if (confirmResult.success) {
+                            isAutoConfirmed = true;
+                            updateData.status = 'completed';
+                            console.log(`[AI Background] Item ${itemId} auto-confirmed successfully.`);
+                        } else {
+                            console.warn(`[AI Background] Auto-confirm failed for ${itemId}: ${confirmResult.message}`);
+                        }
                     } else {
-                        console.warn(`[AI Background] Auto-confirm failed for ${itemId}: ${confirmResult.message}`);
+                        console.log(`[AI Background] Auto-confirm BLOCKED by guardrail for item ${itemId}.`);
+                        updateData.suggestedSummary = `[정책 위반] ${validation.failedRules[0].errorMessage}`;
+                        updateData.status = 'pending'; // 차단 시 수동 확인 대기
                     }
                 }
             } catch (confirmErr: any) {

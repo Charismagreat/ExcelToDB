@@ -11,7 +11,7 @@ import {
   History
 } from 'lucide-react';
 import Link from 'next/link';
-import { PageHeader } from '@/components/PageHeader';
+import PageHeader from '@/components/PageHeader';
 import { NewTableSection } from '@/components/NewTableSection';
 import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 import { DeleteReportButton } from '@/components/DeleteReportButton';

@@ -89,7 +89,7 @@ export async function getSchemaRecommendationAction(reportId: string) {
 /**
  * 보고서 접근 권한을 업데이트합니다.
  */
-export async function updateReportAccessAction(reportId: string, userIds: string[]) {
+export async function updateReportAccessAction(reportId: string, userIds: string[], departmentIds: string[] = []) {
     const session = await getSessionAction();
     if (!session || (session.role !== 'ADMIN' && session.role !== 'EDITOR')) {
         throw new Error('접근 권한이 없습니다.');
@@ -98,14 +98,38 @@ export async function updateReportAccessAction(reportId: string, userIds: string
     await SystemTableService.ensureTable('report_access');
     await deleteRows('report_access', { filters: { reportId } });
     
+    const records: any[] = [];
+    
+    // 1. 사원별 권한 추가
     if (userIds.length > 0) {
-        await insertRows('report_access', userIds.map(userId => ({
-            reportId,
-            userId,
-            role: 'VIEWER',
-            grantedAt: new Date().toISOString(),
-            grantedBy: session.id
-        })));
+        userIds.forEach(userId => {
+            records.push({
+                reportId,
+                userId,
+                departmentId: null,
+                role: 'VIEWER',
+                grantedAt: new Date().toISOString(),
+                grantedBy: session.id
+            });
+        });
+    }
+
+    // 2. 부서별 권한 추가
+    if (departmentIds.length > 0) {
+        departmentIds.forEach(deptId => {
+            records.push({
+                reportId,
+                userId: null,
+                departmentId: deptId,
+                role: 'VIEWER',
+                grantedAt: new Date().toISOString(),
+                grantedBy: session.id
+            });
+        });
+    }
+
+    if (records.length > 0) {
+        await insertRows('report_access', records);
     }
 
     revalidatePath(`/report/${reportId}`);
@@ -115,28 +139,38 @@ export async function updateReportAccessAction(reportId: string, userIds: string
 }
 
 /**
- * 보고서에 권한이 있는 사용자 목록을 가져옵니다.
+ * 보고서에 권한이 있는 사용자 및 부서 목록을 가져옵니다.
  */
-export async function getAuthorizedUsersForReportAction(reportId: string) {
-    if (!reportId) return [];
+export async function getReportAccessListAction(reportId: string) {
+    if (!reportId) return { users: [], departments: [] };
     try {
         await SystemTableService.ensureTable('report_access');
         const accessList = await queryTable('report_access', { filters: { reportId: String(reportId) } });
-        const userIds = accessList.map((a: any) => a.userId);
         
-        if (userIds.length === 0) return [];
+        const userIds = accessList.map((a: any) => a.userId).filter(Boolean);
+        const departmentIds = accessList.map((a: any) => a.departmentId).filter(Boolean);
         
-        const users = await Promise.all(
+        const users = userIds.length > 0 ? await Promise.all(
             userIds.map(async (id: string) => {
                 const results = await queryTable('user', { filters: { id: String(id) } });
                 return results[0];
             })
-        );
+        ) : [];
         
-        return users.filter(u => u);
+        const departments = departmentIds.length > 0 ? await Promise.all(
+            departmentIds.map(async (id: string) => {
+                const results = await queryTable('department', { filters: { id: String(id) } });
+                return results[0];
+            })
+        ) : [];
+        
+        return {
+            users: users.filter(u => u),
+            departments: departments.filter(d => d)
+        };
     } catch (err) {
-        console.error('[Error] getAuthorizedUsersForReportAction:', err);
-        return [];
+        console.error('[Error] getReportAccessListAction:', err);
+        return { users: [], departments: [] };
     }
 }
 

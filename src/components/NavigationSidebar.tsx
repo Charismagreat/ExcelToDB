@@ -17,6 +17,7 @@ import {
   Zap,
   Bell,
   Users,
+  ShieldCheck,
   Loader2
 } from 'lucide-react';
 // 🚀 DEFAULT IMPORTS: New consistency standard
@@ -80,6 +81,13 @@ export default function NavigationSidebar({ user, isCollapsed = false, onToggle 
       icon: Users,
       active: pathname.startsWith('/admin/organization'),
       desc: '부서 및 인사 조직 관리'
+    },
+    {
+      name: 'GUARDRAIL SETTINGS',
+      href: '/admin/guardrails',
+      icon: ShieldCheck,
+      active: pathname.startsWith('/admin/guardrails'),
+      desc: '입력 조건 및 검증 규칙 설정'
     },
     {
       name: 'MY DB',

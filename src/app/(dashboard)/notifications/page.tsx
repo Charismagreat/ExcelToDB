@@ -4,7 +4,7 @@ import { Bell } from 'lucide-react';
 import BusinessWorkflowHub from '@/components/NotificationPageClient';
 import { getAllNotificationsAction, getAdminNotificationLogsAction } from '@/app/actions/notification';
 import { getSessionAction } from '@/app/actions/auth';
-import { PageHeader } from '@/components/PageHeader';
+import PageHeader from '@/components/PageHeader';
 import { queryTable } from '@/egdesk-helpers';
 import { redirect } from 'next/navigation';
 

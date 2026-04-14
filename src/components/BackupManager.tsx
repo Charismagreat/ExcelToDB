@@ -24,7 +24,7 @@ import {
     downloadBackupAction, // 추가
     uploadBackupAction // 추가
 } from '@/app/actions/backup';
-import { PageHeader } from './PageHeader';
+import PageHeader from '@/components/PageHeader';
 
 export default function BackupManager() {
     const [backups, setBackups] = useState<any[]>([]);

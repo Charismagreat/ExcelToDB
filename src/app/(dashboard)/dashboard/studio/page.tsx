@@ -6,7 +6,7 @@ import { DashboardClient } from '../DashboardClient';
 import { LayoutDashboard, Compass, Star, Bot, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
-import { PageHeader } from '@/components/PageHeader';
+import PageHeader from '@/components/PageHeader';
 
 export default async function DataAnalysisStudioPage() {
   const user = await getSessionAction();

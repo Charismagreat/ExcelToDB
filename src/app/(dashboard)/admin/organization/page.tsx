@@ -3,7 +3,7 @@ import { getOrganizationDataAction } from "@/app/actions/organization";
 import { OrganizationManager } from "@/components/OrganizationManager";
 import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
-import { PageHeader } from "@/components/PageHeader";
+import PageHeader from '@/components/PageHeader';
 
 export default async function OrganizationPage() {
     const session = await getSessionAction();

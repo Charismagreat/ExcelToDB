@@ -60,12 +60,23 @@ export async function checkReportAuthorization(reportId: string, userId: string,
     if (!report) return false;
     if (report.ownerId === userId) return true;
     
-    // report_access 테이블 확인
-    const accessList = await queryTable('report_access', { 
+    // 1. 개별 사용자 권한 확인
+    const userAccess = await queryTable('report_access', { 
         filters: { reportId: String(reportId), userId: String(userId) } 
     });
+    if (userAccess.length > 0) return true;
+
+    // 2. 부서 권한 확인
+    const users = await queryTable('user', { filters: { id: String(userId) } });
+    const user = users[0];
+    if (user && user.departmentId) {
+        const deptAccess = await queryTable('report_access', {
+            filters: { reportId: String(reportId), departmentId: String(user.departmentId) }
+        });
+        if (deptAccess.length > 0) return true;
+    }
     
-    return accessList.length > 0;
+    return false;
 }
 
 /**
@@ -136,8 +147,9 @@ export const SYSTEM_TABLES = [
     {
         tableName: 'report_access', displayName: 'Report Access Controls', schema: [
             { name: 'reportId', type: 'TEXT', notNull: true },
-            { name: 'userId', type: 'TEXT', notNull: true },
-            { name: 'role', type: 'TEXT', notNull: true },
+            { name: 'userId', type: 'TEXT' }, // NULL 가능 (부서 권한일 경우)
+            { name: 'departmentId', type: 'TEXT' }, // 부서 ID (사용자 권한일 경우 NULL)
+            { name: 'role', type: 'TEXT', notNull: true, defaultValue: 'VIEWER' },
             { name: 'grantedAt', type: 'TEXT', notNull: true },
             { name: 'grantedBy', type: 'TEXT', notNull: true }
         ] as any[]

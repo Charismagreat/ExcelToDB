@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { FieldReportSection } from '@/components/FieldReportSection';
-import { PageHeader } from '@/components/PageHeader';
+import PageHeader from '@/components/PageHeader';
 
 export default async function DepartmentWorkspacePage({
     params

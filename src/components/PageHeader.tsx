@@ -8,7 +8,7 @@ interface PageHeaderProps {
     rightElement?: React.ReactNode;
 }
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ title, description, icon: Icon, rightElement }) => {
+export default function PageHeader({ title, description, icon: Icon, rightElement }: PageHeaderProps) {
     return (
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-12">
             <div className="animate-in fade-in slide-in-from-left duration-500">
@@ -30,6 +30,6 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ title, description, icon
             )}
         </div>
     );
-};
+}
 
 

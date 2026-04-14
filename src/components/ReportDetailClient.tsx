@@ -36,7 +36,6 @@ export function ReportDetailClient({
     const [showAddRecordForm, setShowAddRecordForm] = useState(false);
     const [showBulkUpload, setShowBulkUpload] = useState(false);
     const [showAIModal, setShowAIModal] = useState(false);
-    const [showAccessManager, setShowAccessManager] = useState(false);
 
     // 공통 상태 모달 관리 (자식 컴포넌트들에게 공유)
     const [modalStatus, setModalStatus] = useState<{
@@ -72,11 +71,6 @@ export function ReportDetailClient({
 
             {/* Toggled Sections (Inline) */}
             <div className="space-y-10">
-                {showAccessManager && (isAdmin || isOwner) && (
-                    <div className="animate-in fade-in slide-in-from-top-6 duration-700">
-                        <ReportAccessManager reportId={report.id} ownerId={report.ownerId} />
-                    </div>
-                )}
 
                 {showAddRecordForm && canEdit && (
                     <div className="animate-in fade-in slide-in-from-top-6 zoom-in-95 duration-700">

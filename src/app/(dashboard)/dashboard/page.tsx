@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { Sparkles, Plus, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import { GalleryClient } from './GalleryClient';
-import { PageHeader } from '@/components/PageHeader';
+import PageHeader from '@/components/PageHeader';
 
 export default async function ReportGalleryPage() {
   const user = await getSessionAction();
