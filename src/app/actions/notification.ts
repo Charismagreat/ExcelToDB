@@ -12,8 +12,14 @@ export async function getUnreadNotificationsAction() {
     if (!session) return [];
 
     try {
+        const filters: any = { isRead: '0' };
+        // 관리자는 시스템 전체의 읽지 않은 활동 로그를 모니터링할 수 있도록 필터 확장
+        if (session.role !== 'ADMIN') {
+            filters.userId = String(session.id);
+        }
+
         const result = await queryTable('notification', { 
-            filters: { userId: String(session.id), isRead: 0 },
+            filters,
             orderBy: 'createdAt',
             orderDirection: 'DESC',
             limit: 50
@@ -140,9 +146,12 @@ export async function markNotificationAsReadAction(notificationId: string) {
     const session = await getSessionAction();
     if (!session) throw new Error('인증이 필요합니다.');
 
-    await updateRows('notification', { isRead: 1 }, { 
-        filters: { id: notificationId, userId: session.id } 
-    });
+    const filters: any = { id: notificationId };
+    if (session.role !== 'ADMIN') {
+        filters.userId = session.id;
+    }
+
+    await updateRows('notification', { isRead: '1' }, { filters });
 
     revalidatePath('/');
     return { success: true };
@@ -155,9 +164,12 @@ export async function markAllNotificationsAsReadAction() {
     const session = await getSessionAction();
     if (!session) throw new Error('인증이 필요합니다.');
 
-    await updateRows('notification', { isRead: 1 }, { 
-        filters: { userId: session.id } 
-    });
+    const filters: any = { isRead: '0' };
+    if (session.role !== 'ADMIN') {
+        filters.userId = session.id;
+    }
+
+    await updateRows('notification', { isRead: '1' }, { filters });
 
     revalidatePath('/');
     return { success: true };
@@ -176,7 +188,7 @@ export async function clearOldNotificationsAction() {
     // 이 기능은 헬퍼가 복잡한 조건(보다 작다 등)을 지원하는지에 따라 다름
     // 여기서는 단순히 읽은 알림 전체 삭제로 대체하거나 백엔드 쿼리 활용
     await deleteRows('notification', { 
-        filters: { userId: session.id, isRead: 1 } 
+        filters: { userId: session.id, isRead: '1' } 
     });
 
     revalidatePath('/');

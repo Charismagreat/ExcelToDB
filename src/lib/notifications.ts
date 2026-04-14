@@ -194,7 +194,7 @@ export async function createInAppNotification(data: {
             message: data.message || null,
             link: data.link || null,
             type: data.type || 'INFO',
-            isRead: 0,
+            isRead: '0',
             createdAt: new Date().toISOString()
         }]);
         console.log(`[Notification] In-app alert created for user: ${data.userId}`);
@@ -224,7 +224,7 @@ export async function logActivity(data: {
             message: data.message || null,
             link: data.link || null,
             type: data.type || 'ACTIVITY',
-            isRead: 1, // 활동 로그는 기안자가 이미 한 일이므로 기본 읽음 처리
+            isRead: '1', // 활동 로그는 기안자가 이미 한 일이므로 기본 읽음 처리
             createdAt: new Date().toISOString()
         }]);
     } catch (err) {
