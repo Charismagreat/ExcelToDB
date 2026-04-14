@@ -187,6 +187,16 @@ export async function createInAppNotification(data: {
     const { generateId } = await import('@/app/actions/shared');
 
     try {
+        await insertRows('notification', [{
+            id: generateId(),
+            userId: String(data.userId),
+            title: data.title,
+            message: data.message || null,
+            link: data.link || null,
+            type: data.type || 'INFO',
+            isRead: 0,
+            createdAt: new Date().toISOString()
+        }]);
         console.log(`[Notification] In-app alert created for user: ${data.userId}`);
     } catch (err) {
         console.error('[Notification] Failed to create in-app alert:', err);

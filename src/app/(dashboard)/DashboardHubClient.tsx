@@ -108,6 +108,9 @@ export function DashboardHubClient({ user, isStaff, reports }: DashboardHubClien
                         </div>
                         <div className="flex flex-col items-end gap-2">
                             <div className="flex items-center gap-2">
+                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-400 text-[8px] font-mono rounded border border-slate-200 whitespace-nowrap">
+                                    {report.tableName}
+                                </span>
                                 {report.isReadOnly && (
                                   <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[9px] font-black rounded uppercase tracking-widest border border-amber-100 animate-pulse">
                                     Read-Only
@@ -125,11 +128,13 @@ export function DashboardHubClient({ user, isStaff, reports }: DashboardHubClien
                             )}
                         </div>
                       </div>
-                      <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">{report.name}</h3>
+                      <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">
+                        {report.name}
+                      </h3>
                       <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
                         <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-medium uppercase">{report.sheetName || 'Sheet'}</span>
                         <span>•</span>
-                        <span>{report._count.rows}개의 데이터</span>
+                        <span>{report._count?.rows ?? '0'}개의 데이터</span>
                       </div>
                       <Link
                         href={

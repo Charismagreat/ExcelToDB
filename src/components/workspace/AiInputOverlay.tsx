@@ -223,7 +223,7 @@ export function AiInputOverlay({
                             </button>
                         )}
                         <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                            {isReviewing ? `${reportName} 확인` : '새로운 데이터 입력'}
+                            {isReviewing ? (reportName ? `${reportName} 확인` : '데이터 확인') : '새로운 데이터 입력'}
                             {aiData.status === 'completed' && <span className="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded-full">완료</span>}
                             {aiData.status === 'deleted' && <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">삭제</span>}
                         </h3>
