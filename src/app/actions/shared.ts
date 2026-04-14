@@ -80,7 +80,9 @@ export const SYSTEM_TABLES = [
             { name: 'password', type: 'TEXT' },
             { name: 'role', type: 'TEXT', notNull: true, defaultValue: 'VIEWER' },
             { name: 'fullName', type: 'TEXT' },
-            { name: 'employeeId', type: 'TEXT' },
+            { name: 'employeeId', type: 'TEXT' }, // 사원번호
+            { name: 'departmentId', type: 'TEXT' }, // 소속 부서 ID
+            { name: 'position', type: 'TEXT' }, // 직위 (팀장, 사원 등)
             { name: 'isActive', type: 'INTEGER', defaultValue: 1 },
             { name: 'createdAt', type: 'TEXT', notNull: true }
         ] as any[]
@@ -95,17 +97,26 @@ export const SYSTEM_TABLES = [
             { name: 'columns', type: 'TEXT', notNull: true },
             { name: 'uiConfig', type: 'TEXT' },
             { name: 'aiConfig', type: 'TEXT' },
-            { name: 'slackWebhookUrl', type: 'TEXT' },
-            // 사후 프로세스 설정 필드 추가
-            { name: 'assigneeId', type: 'TEXT' },
-            { name: 'autoTodo', type: 'INTEGER', defaultValue: 0 },
-            { name: 'dueDays', type: 'INTEGER', defaultValue: 1 },
             { name: 'isDeleted', type: 'INTEGER', defaultValue: 0 },
             { name: 'deletedAt', type: 'TEXT' },
             { name: 'ownerId', type: 'TEXT', notNull: true },
             { name: 'lastSerial', type: 'INTEGER', defaultValue: 0 },
             { name: 'createdAt', type: 'TEXT', notNull: true },
             { name: 'updatedAt', type: 'TEXT' }
+        ] as any[]
+    },
+    {
+        tableName: 'workflow_steering', displayName: 'AI Workflow Steering', schema: [
+            { name: 'id', type: 'TEXT', notNull: true },
+            { name: 'reportId', type: 'TEXT', notNull: true },
+            { name: 'rowId', type: 'TEXT' },
+            { name: 'eventType', type: 'TEXT', defaultValue: 'INSERT' },
+            { name: 'recommendation', type: 'TEXT', notNull: true }, // JSON: { notify: [], task: {} }
+            { name: 'reasoning', type: 'TEXT' }, 
+            { name: 'status', type: 'TEXT', defaultValue: 'PENDING' },
+            { name: 'decidedById', type: 'TEXT' },
+            { name: 'decidedAt', type: 'TEXT' },
+            { name: 'createdAt', type: 'TEXT', notNull: true }
         ] as any[]
     },
     {

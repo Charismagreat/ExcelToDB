@@ -20,18 +20,9 @@ export default async function DashboardLayout({
     redirect('/workspace');
   }
 
-  // Fetch all departments for sidebar
-  let departments: any[] = [];
-  try {
-    const deptRes = await queryTable('department', { orderBy: 'name' });
-    departments = Array.isArray(deptRes) ? deptRes : (deptRes?.rows || []);
-  } catch (err) {
-    console.error('[Dashboard Layout] Failed to fetch departments:', err);
-  }
-
   return (
     <DashboardLayoutClient 
-      sidebar={<NavigationSidebar user={user} departments={departments} />}
+      sidebar={<NavigationSidebar user={user} />}
     >
       {children}
     </DashboardLayoutClient>

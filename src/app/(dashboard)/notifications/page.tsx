@@ -5,10 +5,11 @@ import BusinessWorkflowHub from '@/components/NotificationPageClient';
 import { getAllNotificationsAction, getAdminNotificationLogsAction } from '@/app/actions/notification';
 import { getSessionAction } from '@/app/actions/auth';
 import { PageHeader } from '@/components/PageHeader';
+import { queryTable } from '@/egdesk-helpers';
 import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
-    title: '전사 업무 관제 허브 | Won Conductor',
+    title: '전사 업무 관제 허브 | Workflow Hub',
     description: '전사 사원들의 업무 흐름과 시스템 상태를 실시간으로 모니터링합니다.',
 };
 
@@ -31,11 +32,20 @@ export default async function NotificationsPage() {
         adminLogs = await getAdminNotificationLogsAction();
     }
 
+    // 부서 목록 로드 (필터용)
+    let departments: any[] = [];
+    try {
+        const deptRes = await queryTable('department', { orderBy: 'name' });
+        departments = Array.isArray(deptRes) ? deptRes : (deptRes?.rows || []);
+    } catch (err) {
+        console.error('Failed to fetch departments for filter:', err);
+    }
+
     return (
         <div className="flex-1 overflow-y-auto">
             <main className="max-w-[1600px] mx-auto p-8 md:p-12 space-y-12">
                 <PageHeader 
-                    title="Enterprise Workflow Hub"
+                    title="Workflow Hub"
                     description={user.role === 'ADMIN' 
                         ? "전사 업무 여정을 실시간으로 관제하고 진행 상태를 모니터링합니다." 
                         : "본인에게 할당된 업무 흐름과 실시간 알림을 확인합니다."}
@@ -52,6 +62,7 @@ export default async function NotificationsPage() {
                         user={user}
                         initialNotifications={myNotifications} 
                         initialAdminLogs={adminLogs}
+                        departments={departments}
                     />
                 )}
             </main>

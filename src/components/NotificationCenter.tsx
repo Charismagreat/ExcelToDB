@@ -68,7 +68,7 @@ export default function NotificationCenter({ variant = 'icon' }: NotificationCen
         >
             <div className="flex items-center justify-between mb-1">
                 <p className={`text-[10px] font-black uppercase tracking-tight ${isActive ? 'text-blue-600' : 'text-slate-800'}`}>
-                    Alert Center
+                    Workflow Hub
                 </p>
                 <div className="relative">
                     <Bell size={12} className={unreadCount > 0 ? 'text-blue-600 fill-blue-600 animate-pulse' : 'text-slate-300'} />

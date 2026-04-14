@@ -65,43 +65,6 @@ export async function renameReportAction(reportId: string, newName: string) {
     revalidatePath('/');
 }
 
-/**
- * 보고서의 슬랙 웹훅 URL을 업데이트합니다.
- */
-export async function updateReportWebhookAction(reportId: string, webhookUrl: string | null) {
-    const user = await getSessionAction();
-    if (!user) throw new Error('인증이 필요합니다.');
-
-    const isAuthorized = await checkReportAuthorization(reportId, user.id, user.role);
-    if (!isAuthorized) throw new Error('해당 보고서에 대한 접근 권한이 없습니다.');
-
-    await updateRows('report', { slackWebhookUrl: webhookUrl }, { filters: { id: String(reportId) } });
-    revalidatePath(`/report/${reportId}`);
-    return { success: true };
-}
-
-/**
- * 보고서의 사후 프로세스(담당자, 자동 할 일) 설정을 업데이트합니다.
- */
-export async function updateReportWorkflowAction(
-    reportId: string, 
-    config: { assigneeId: string | null; autoTodo: boolean; dueDays: number }
-) {
-    const user = await getSessionAction();
-    if (!user) throw new Error('인증이 필요합니다.');
-
-    const isAuthorized = await checkReportAuthorization(reportId, user.id, user.role);
-    if (!isAuthorized) throw new Error('해당 보고서에 대한 접근 권한이 없습니다.');
-
-    await updateRows('report', { 
-        assigneeId: config.assigneeId,
-        autoTodo: config.autoTodo ? 1 : 0,
-        dueDays: config.dueDays
-    }, { filters: { id: String(reportId) } });
-
-    revalidatePath(`/report/${reportId}`);
-    return { success: true };
-}
 
 /**
  * AI를 통해 컬럼 추천을 받습니다.

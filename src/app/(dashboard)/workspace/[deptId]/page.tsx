@@ -26,6 +26,9 @@ export default async function DepartmentWorkspacePage({
 }: {
     params: Promise<{ deptId: string }>;
 }) {
+    // [CONSOLIDATION] Redirect to the new Workflow Hub
+    redirect('/notifications');
+    
     const { deptId } = await params;
     const session = await getSessionAction();
 

@@ -3,6 +3,14 @@
 import React, { useState, useEffect } from 'react';
 // 📦 EXPLICIT IMPORTS: Much more stable in Turbopack/React 19 than name-based strings
 import { 
+    TrendingUp,
+    Mic,
+    Camera,
+    Plus,
+    ChevronRight,
+    ArrowLeft,
+    FastForward,
+    Compass,
     Briefcase,
     Search,
     Bell,
@@ -21,6 +29,8 @@ import {
     clearOldNotificationsAction,
     getAdminNotificationLogsAction
 } from '@/app/actions/notification';
+import { FieldReportSection } from '@/components/FieldReportSection';
+import { Filter } from 'lucide-react';
 
 /**
  * 🛡️ Explicit SafeIcon: Uses actual component references to avoid "undefined" errors.
@@ -52,18 +62,20 @@ interface BusinessWorkflowHubProps {
     user: any;
     initialNotifications: any[];
     initialAdminLogs?: any[];
+    departments?: any[];
 }
 
 /**
  * 🚀 BusinessWorkflowHub
  * Standardized Default Export for Stable Module Resolution
  */
-export default function BusinessWorkflowHub({ user, initialNotifications, initialAdminLogs = [] }: BusinessWorkflowHubProps) {
+export default function BusinessWorkflowHub({ user, initialNotifications, initialAdminLogs = [], departments = [] }: BusinessWorkflowHubProps) {
     const [isMounted, setIsMounted] = useState(false);
     const [notifications, setNotifications] = useState(initialNotifications);
     const [adminLogs, setAdminLogs] = useState(initialAdminLogs);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedDept, setSelectedDept] = useState('ALL');
 
     useEffect(() => {
         setIsMounted(true);
@@ -95,33 +107,92 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
         );
     }
 
+    // -- Stats Calculation (Option 1: Summarize from loaded data) --
+    const logsToSummarize = isAdmin ? adminLogs : notifications;
+    
+    // Filtered Logs
+    const filteredLogs = logsToSummarize.filter((log: any) => {
+        if (selectedDept === 'ALL') return true;
+        // In this PoC, we check if title contains the department name in brackets
+        // A more robust way would be adding deptId to notification/log schema
+        const dept = departments.find(d => d.id === selectedDept);
+        return log.title?.includes(`[${dept?.name}]`) || log.message?.includes(`[${dept?.name}]`);
+    });
+
+    const stats = {
+        total: filteredLogs.length,
+        todo: filteredLogs.filter((l: any) => l.taskStatus === 'TODO').length,
+        inProgress: filteredLogs.filter((l: any) => l.taskStatus === 'IN_PROGRESS').length,
+        done: filteredLogs.filter((l: any) => l.taskStatus === 'DONE').length,
+    };
+
     return (
         <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-            {/* Control Center Header */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-8 bg-slate-900 rounded-[32px] shadow-2xl shadow-slate-200">
+            {/* 1. Field Report Section (Consolidated from Workspace) */}
+            {user.role !== 'CEO' && user.role !== 'ADMIN' && (
+                <FieldReportSection deptId={user.departmentId || 'GENERAL'} />
+            )}
+
+            {/* 2. Stats Grid - Unified with Department Workspace Design */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {[
+                    { label: '전체 소식', count: stats.total, icon: Bell, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { label: '진행 대기', count: stats.todo, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+                    { label: '진행 중', count: stats.inProgress, icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                    { label: '완료됨', count: stats.done, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                ].map((s, idx) => (
+                    <div key={idx} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-lg transition-all">
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
+                            <p className={`text-2xl font-black ${s.color}`}>{s.count}</p>
+                        </div>
+                        <div className={`${s.bg} ${s.color} p-3 rounded-2xl group-hover:scale-110 transition-transform`}>
+                            <SafeIcon icon={s.icon} isMounted={isMounted} size={20} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Quick Search & Filter Bar */}
+            <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 border-l-8 border-l-blue-600">
                 <div className="flex items-center gap-5">
-                    <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center border border-blue-500/30">
-                        <SafeIcon icon={Briefcase} isMounted={isMounted} size={32} />
+                    <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center border border-blue-100">
+                        <SafeIcon icon={Briefcase} isMounted={isMounted} size={24} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-black text-white uppercase tracking-tight">전사 업무 관제 시스템</h1>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Enterprise Workflow Hub</p>
+                        <h1 className="text-xl font-black text-slate-800 tracking-tight">지능형 업무 관제 서버</h1>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Workflow Hub Live Monitor</p>
                     </div>
                 </div>
                 
-                <div className="flex items-center gap-4 w-full md:w-fit">
+                <div className="flex flex-wrap items-center gap-4 w-full md:w-fit">
+                    {/* Department Filter (Replaces Workspace Sidebar) */}
+                    <div className="relative min-w-[160px]">
+                        <select 
+                            value={selectedDept}
+                            onChange={(e) => setSelectedDept(e.target.value)}
+                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border-slate-100 rounded-2xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/20 appearance-none transition-all cursor-pointer"
+                        >
+                            <option value="ALL">전체 부서 관제</option>
+                            {departments.map((dept) => (
+                                <option key={dept.id} value={dept.id}>{dept.name}</option>
+                            ))}
+                        </select>
+                        <SafeIcon icon={Filter} isMounted={isMounted} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
+                    </div>
+
                     <form onSubmit={handleAdminSearch} className="flex-1 md:w-80 relative">
                         <input 
                             type="text" 
                             placeholder="사원명, 업무 내용 검색..." 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-11 pr-4 py-3 bg-white/10 border-white/10 rounded-2xl text-xs font-bold text-white placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500/50 transition-all backdrop-blur-md"
+                            className="w-full pl-11 pr-4 py-3 bg-slate-50 border-slate-100 rounded-2xl text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 transition-all"
                         />
-                        <SafeIcon icon={Search} isMounted={isMounted} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                        <SafeIcon icon={Search} isMounted={isMounted} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
                     </form>
-                    <div className="px-3 py-1.5 rounded-lg bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> Live
+                    <div className="px-4 py-2 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> LIVE
                     </div>
                 </div>
             </div>
@@ -132,7 +203,7 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                     <div className="bg-white border border-slate-100 rounded-[32px] p-20 text-center text-slate-300">
                         <SafeIcon icon={Loader2} isMounted={isMounted} size={32} className="animate-spin mb-4 mx-auto" />
                     </div>
-                ) : adminLogs.length === 0 ? (
+                ) : filteredLogs.length === 0 ? (
                     <div className="bg-white border border-slate-100 rounded-[32px] p-20 text-center text-slate-300">
                         <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                             <SafeIcon icon={Inbox} isMounted={isMounted} size={28} />
@@ -141,7 +212,7 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                     </div>
                 ) : (
                     Object.entries(
-                        adminLogs.reduce((acc: any, log: any) => {
+                        filteredLogs.reduce((acc: any, log: any) => {
                             const reportMatch = log.title?.match(/\[(.*?)\]/);
                             const reportName = reportMatch ? reportMatch[1] : 'SYSTEM';
                             const summaryMatch = log.message?.match(/\[(.*?)\]/);

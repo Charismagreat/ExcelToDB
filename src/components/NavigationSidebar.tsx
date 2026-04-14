@@ -14,6 +14,9 @@ import {
   ChevronRight,
   Database,
   Archive,
+  Zap,
+  Bell,
+  Users,
   Loader2
 } from 'lucide-react';
 // 🚀 DEFAULT IMPORTS: New consistency standard
@@ -22,7 +25,6 @@ import NotificationCenter from './NotificationCenter';
 
 interface NavigationSidebarProps {
   user: any;
-  departments: any[];
   isCollapsed?: boolean;
   onToggle?: () => void;
 }
@@ -31,7 +33,7 @@ interface NavigationSidebarProps {
  * 🚀 NavigationSidebar
  * Standardized Default Export for Absolute Module Resolution
  */
-export default function NavigationSidebar({ user, departments, isCollapsed = false, onToggle }: NavigationSidebarProps) {
+export default function NavigationSidebar({ user, isCollapsed = false, onToggle }: NavigationSidebarProps) {
   const [isMounted, setIsMounted] = React.useState(false);
   const pathname = usePathname();
 
@@ -59,6 +61,13 @@ export default function NavigationSidebar({ user, departments, isCollapsed = fal
       desc: '데이터 소스 및 테이블 관리'
     },
     {
+      name: 'STEERING HUB',
+      href: '/workflow/steering',
+      icon: Zap,
+      active: pathname.startsWith('/workflow/steering'),
+      desc: 'AI 지능형 조치 및 지휘'
+    },
+    {
       name: 'ANALYSIS STUDIO',
       href: '/dashboard/studio',
       icon: Compass,
@@ -71,6 +80,20 @@ export default function NavigationSidebar({ user, departments, isCollapsed = fal
       icon: Archive,
       active: pathname === '/archive',
       desc: '삭제된 테이블 관리'
+    },
+    {
+      name: 'ORGANIZATION',
+      href: '/admin/organization',
+      icon: Users,
+      active: pathname.startsWith('/admin/organization'),
+      desc: '부서 및 인사 조직 관리'
+    },
+    {
+      name: 'WORKFLOW HUB',
+      href: '/notifications',
+      icon: Bell,
+      active: pathname === '/notifications',
+      desc: '업무 관련 알림 통합 관리'
     },
   ];
 
@@ -147,37 +170,7 @@ export default function NavigationSidebar({ user, departments, isCollapsed = fal
           </Link>
         ))}
 
-        {/* Departments (ORG) Section */}
-        <div className={`pt-8 pb-4 ${isCollapsed ? 'pt-4' : ''}`}>
-            {!isCollapsed && <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Work Office (ORG)</p>}
-            <div className="space-y-1">
-                {(Array.isArray(departments) ? departments : []).map((dept) => {
-                    const isActive = pathname === `/workspace/${dept.id}`;
-                    return (
-                        <Link
-                            key={dept.id}
-                            href={`/workspace/${dept.id}`}
-                            title={isCollapsed ? dept.name : ""}
-                            className={`flex items-center gap-3 py-3 rounded-xl transition-all duration-200 group ${
-                                isCollapsed ? 'px-0 justify-center' : 'px-4'
-                            } ${
-                                isActive 
-                                ? 'bg-indigo-50 text-indigo-700 font-bold' 
-                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-                            }`}
-                        >
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                                isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-white'
-                            }`}>
-                                <Layers size={14} />
-                            </div>
-                            {!isCollapsed && <span className="text-[11px] uppercase tracking-tight font-black animate-in fade-in slide-in-from-left-2">{dept.name}</span>}
-                            {isActive && !isCollapsed && <div className="ml-auto w-1 h-1 bg-indigo-600 rounded-full" />}
-                        </Link>
-                    );
-                })}
-            </div>
-        </div>
+
       </nav>
 
       {/* User Support / Misc */}
@@ -190,8 +183,7 @@ export default function NavigationSidebar({ user, departments, isCollapsed = fal
               </div>
           ) : (
               <>
-                 <NotificationCenter variant="card" />
-                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100/50 group cursor-help transition-all hover:bg-white hover:shadow-lg flex flex-col">
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100/50 group cursor-help transition-all hover:bg-white hover:shadow-lg flex flex-col">
                      <p className="text-[10px] font-black text-slate-800 uppercase mb-1">AI Help Center</p>
                      <p className="text-[9px] text-slate-400 font-medium leading-tight">데이터 분석이 어렵다면 언제든 AI에게 물어보세요.</p>
                  </div>
