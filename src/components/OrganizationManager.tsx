@@ -15,11 +15,19 @@ import {
     CheckCircle2,
     AlertCircle,
     Building,
-    Briefcase
+    Briefcase,
+    Loader2,
+    Plus,
+    Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
-import { syncOrganizationExcelAction } from '@/app/actions/organization';
+import { 
+    syncOrganizationExcelAction, 
+    createMemberAction, 
+    updateMemberAction, 
+    deleteMemberAction 
+} from '@/app/actions/organization';
 
 interface OrganizationManagerProps {
     initialDepartments: any[];
@@ -33,12 +41,38 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState<any>(null);
 
+    // Modal States
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+    const [selectedMember, setSelectedMember] = useState<any>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formData, setFormData] = useState({
+        fullName: '',
+        employeeId: '',
+        email: '',
+        position: '',
+        departmentId: '',
+        role: 'VIEWER'
+    });
+
     // Filtered members
     const filteredMembers = members.filter((m: any) => 
-        m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        m.departmentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        m.employeeId?.toLowerCase().includes(searchTerm.toLowerCase())
+        (m.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (m.departmentName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (m.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const downloadSampleTemplate = () => {
+        const data = [
+            ['부서', '직위', '이름', '사원번호', '이메일'],
+            ['개발팀', '팀장', '홍길동', 'EMP2024001', 'hong@example.com'],
+            ['경영지원', '과장', '성춘향', 'EMP2024002', 'sung@example.com']
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "OrgTemplate");
+        XLSX.writeFile(wb, "organization_master_sample.xlsx");
+    };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -59,7 +93,6 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
                     type: 'success',
                     message: `조직 동기화 완료: 신규 ${result.stats?.inserted}명, 수정 ${result.stats?.updated}명, 부서 ${result.stats?.deptsCreated}개 생성`
                 });
-                // 페이지 새로고침 없이 간단하게 결과 알림 후 나중에 리프레시 유도하거나 리로드
                 setTimeout(() => window.location.reload(), 2000);
             }
         } catch (err: any) {
@@ -69,6 +102,69 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
             });
         } finally {
             setIsSyncing(false);
+            e.target.value = ''; // Reset input
+        }
+    };
+
+    const handleOpenModal = (mode: 'create' | 'edit', member: any = null) => {
+        setModalMode(mode);
+        setSelectedMember(member);
+        if (mode === 'edit' && member) {
+            setFormData({
+                fullName: member.fullName || '',
+                employeeId: member.employeeId || '',
+                email: member.email || '',
+                position: member.position || '',
+                departmentId: member.departmentId || '',
+                role: member.role || 'VIEWER'
+            });
+        } else {
+            setFormData({
+                fullName: '',
+                employeeId: '',
+                email: '',
+                position: '',
+                departmentId: '',
+                role: 'VIEWER'
+            });
+        }
+        setIsModalOpen(true);
+    };
+
+    const handleSubmitMember = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        try {
+            if (modalMode === 'create') {
+                await createMemberAction(formData);
+                setSyncResult({ type: 'success', message: '신규 구성원이 등록되었습니다.' });
+            } else {
+                await updateMemberAction(selectedMember.id, formData);
+                setSyncResult({ type: 'success', message: '구성원 정보가 수정되었습니다.' });
+            }
+            setIsModalOpen(false);
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (err: any) {
+            alert(err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteMember = async () => {
+        if (!selectedMember) return;
+        if (!confirm(`${selectedMember.fullName}님을 조직도에서 삭제(비활성화)하시겠습니까?`)) return;
+
+        setIsSubmitting(true);
+        try {
+            await deleteMemberAction(selectedMember.id);
+            setSyncResult({ type: 'success', message: '삭제 처리가 완료되었습니다.' });
+            setIsModalOpen(false);
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (err: any) {
+            alert(err.message);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -81,7 +177,7 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
 
     return (
         <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-            {/* 1. Stats Grid - Unified with Workflow Hub Design */}
+            {/* 1. Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {[
                     { label: '전체 부서', count: stats.totalDepts, icon: Building2, color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -101,7 +197,7 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
                 ))}
             </div>
 
-            {/* 2. Excel Sync & Search Bar - Unified with Workflow Hub Monitor Bar */}
+            {/* 2. Unified Master Monitor Bar */}
             <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-6 border-l-8 border-l-blue-600">
                 <div className="flex items-center gap-5">
                     <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center border border-blue-100">
@@ -125,6 +221,13 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
                         />
                     </div>
                     
+                    <button 
+                        onClick={downloadSampleTemplate}
+                        className="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-2"
+                    >
+                        <Download size={14} /> Sample
+                    </button>
+
                     <label className="relative group cursor-pointer">
                         <input 
                             type="file" 
@@ -134,18 +237,21 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
                             disabled={isSyncing}
                         />
                         <div className={`px-6 py-3 rounded-2xl ${isSyncing ? 'bg-slate-100 text-slate-400' : 'bg-gray-900 text-white hover:bg-black'} text-[10px] font-black uppercase tracking-widest shadow-lg transition-all flex items-center gap-2`}>
-                            {isSyncing ? <Loader2 className="animate-spin" size={14} /> : <Download size={14} />}
-                            {isSyncing ? 'Syncing...' : 'Excel Upload'}
+                            {isSyncing ? <Loader2 className="animate-spin" size={14} /> : <Upload size={14} />}
+                            SYNC EXCEL
                         </div>
                     </label>
 
-                    <div className="px-4 py-2 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> SYNC READY
-                    </div>
+                    <button 
+                        onClick={() => handleOpenModal('create')}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center gap-2 hover:bg-blue-700 transition-all"
+                    >
+                        <Plus size={14} /> Add Member
+                    </button>
                 </div>
             </div>
 
-            {/* Sync Result Toast-like notification */}
+            {/* Sync Result Toast */}
             <AnimatePresence>
                 {syncResult && (
                     <motion.div 
@@ -163,7 +269,7 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
                 )}
             </AnimatePresence>
 
-            {/* 3. Member List Table - Premium Refinement */}
+            {/* 3. Member List Table */}
             <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
@@ -215,7 +321,10 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
                                         </div>
                                     </td>
                                     <td className="px-10 py-8 text-right">
-                                        <button className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 flex items-center gap-2 ml-auto">
+                                        <button 
+                                            onClick={() => handleOpenModal('edit', member)}
+                                            className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 flex items-center gap-2 ml-auto"
+                                        >
                                             <Edit2 size={14} />
                                             Settings
                                         </button>
@@ -225,13 +334,8 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
 
                             {filteredMembers.length === 0 && (
                                 <tr>
-                                    <td colSpan={4} className="px-8 py-20 text-center">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200">
-                                                <Users size={32} />
-                                            </div>
-                                            <p className="text-sm font-bold text-slate-400">검색 결과가 없습니다.</p>
-                                        </div>
+                                    <td colSpan={4} className="px-10 py-20 text-center">
+                                        <p className="text-slate-400 font-bold">검색 결과가 없습니다.</p>
                                     </td>
                                 </tr>
                             )}
@@ -239,6 +343,133 @@ export function OrganizationManager({ initialDepartments, initialMembers }: Orga
                     </table>
                 </div>
             </div>
+
+            {/* Member Add/Edit Modal */}
+            <AnimatePresence>
+                {isModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsModalOpen(false)}
+                            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+                        />
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="relative bg-white w-full max-w-xl rounded-[40px] shadow-2xl overflow-hidden"
+                        >
+                            <div className="p-10 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                                        {modalMode === 'create' ? '신규 구성원 등록' : '구성원 정보 수정'}
+                                    </h2>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                        {modalMode === 'create' ? 'Organization Member Entry' : 'Member Data Refinement'}
+                                    </p>
+                                </div>
+                                <button onClick={() => setIsModalOpen(false)} className="p-3 hover:bg-white rounded-2xl transition-colors">
+                                    <X size={20} className="text-slate-400" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleSubmitMember} className="p-10 space-y-6">
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">성명</label>
+                                        <input 
+                                            required
+                                            className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all"
+                                            value={formData.fullName}
+                                            onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                                            placeholder="홍길동"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">사원번호</label>
+                                        <input 
+                                            required
+                                            disabled={modalMode === 'edit'}
+                                            className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50"
+                                            value={formData.employeeId}
+                                            onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
+                                            placeholder="EMP2024001"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">부서</label>
+                                        <select 
+                                            className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none"
+                                            value={formData.departmentId}
+                                            onChange={(e) => setFormData({...formData, departmentId: e.target.value})}
+                                        >
+                                            <option value="">부서 선택 없음</option>
+                                            {departments.map((d: any) => (
+                                                <option key={d.id} value={d.id}>{d.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">직위</label>
+                                        <input 
+                                            className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all"
+                                            value={formData.position}
+                                            onChange={(e) => setFormData({...formData, position: e.target.value})}
+                                            placeholder="팀장"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">이메일</label>
+                                    <input 
+                                        type="email"
+                                        className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                        placeholder="user@example.com"
+                                    />
+                                </div>
+
+                                <div className="pt-6 flex items-center justify-between gap-4">
+                                    {modalMode === 'edit' ? (
+                                        <button 
+                                            type="button"
+                                            onClick={handleDeleteMember}
+                                            className="px-6 py-4 bg-red-50 text-red-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-all flex items-center gap-2"
+                                        >
+                                            <Trash2 size={16} /> Delete Member
+                                        </button>
+                                    ) : <div />}
+
+                                    <div className="flex items-center gap-3">
+                                        <button 
+                                            type="button"
+                                            onClick={() => setIsModalOpen(false)}
+                                            className="px-8 py-4 bg-slate-100 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button 
+                                            type="submit"
+                                            disabled={isSubmitting}
+                                            className="px-10 py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 flex items-center gap-2"
+                                        >
+                                            {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : (modalMode === 'create' ? <Plus size={16} /> : <CheckCircle2 size={16} />)}
+                                            {modalMode === 'create' ? 'Register Member' : 'Save Changes'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

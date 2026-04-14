@@ -8,7 +8,7 @@ import {
     deleteRows,
     executeSQL
 } from '@/egdesk-helpers';
-import { generateId } from './shared';
+import { generateId, hashPassword } from './shared';
 import { getSessionAction } from './auth';
 
 /**
@@ -61,6 +61,35 @@ export async function upsertDepartmentAction(data: { id?: string, name: string, 
 }
 
 /**
+ * 👥 유저(멤버) 정보 단건 추가
+ */
+export async function createMemberAction(data: any) {
+    const session = await getSessionAction();
+    if (!session || session.role !== 'ADMIN') throw new Error('권한 부족');
+
+    // 사원번호 중복 체크
+    if (data.employeeId) {
+        const existing = await queryTable('user', { filters: { employeeId: data.employeeId } });
+        if (existing && existing.length > 0) {
+            throw new Error(`이미 등록된 사원번호입니다: ${data.employeeId}`);
+        }
+    }
+
+    const userId = generateId();
+    await insertRows('user', [{
+        ...data,
+        id: userId,
+        username: data.username || `user_${data.employeeId || Date.now()}`,
+        password: hashPassword('1234'), // 기본 패스워드 설정
+        isActive: 1,
+        createdAt: new Date().toISOString()
+    }]);
+
+    revalidatePath('/admin/organization');
+    return { success: true };
+}
+
+/**
  * 👥 유저(멤버) 정보 단건 수정
  */
 export async function updateMemberAction(memberId: string, data: any) {
@@ -68,6 +97,20 @@ export async function updateMemberAction(memberId: string, data: any) {
     if (!session || session.role !== 'ADMIN') throw new Error('권한 부족');
 
     await updateRows('user', data, { filters: { id: memberId } });
+    
+    revalidatePath('/admin/organization');
+    return { success: true };
+}
+
+/**
+ * 👥 유저(멤버) 삭제 (비활성화)
+ */
+export async function deleteMemberAction(memberId: string) {
+    const session = await getSessionAction();
+    if (!session || session.role !== 'ADMIN') throw new Error('권한 부족');
+
+    // 실제 삭제 대신 비활성화 처리 추천
+    await updateRows('user', { isActive: 0 }, { filters: { id: memberId } });
     
     revalidatePath('/admin/organization');
     return { success: true };

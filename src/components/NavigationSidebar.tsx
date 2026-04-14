@@ -54,11 +54,11 @@ export default function NavigationSidebar({ user, isCollapsed = false, onToggle 
       desc: '주요 리포트 한눈에 보기'
     },
     {
-      name: 'MY DB',
-      href: '/',
-      icon: Database,
-      active: pathname === '/',
-      desc: '데이터 소스 및 테이블 관리'
+      name: 'WORKFLOW HUB',
+      href: '/notifications',
+      icon: Bell,
+      active: pathname === '/notifications',
+      desc: '업무 관련 알림 통합 관리'
     },
     {
       name: 'STEERING HUB',
@@ -75,13 +75,6 @@ export default function NavigationSidebar({ user, isCollapsed = false, onToggle 
       desc: 'AI 기반 데이터 시각화'
     },
     {
-      name: 'ARCHIVE',
-      href: '/archive',
-      icon: Archive,
-      active: pathname === '/archive',
-      desc: '삭제된 테이블 관리'
-    },
-    {
       name: 'ORGANIZATION',
       href: '/admin/organization',
       icon: Users,
@@ -89,11 +82,18 @@ export default function NavigationSidebar({ user, isCollapsed = false, onToggle 
       desc: '부서 및 인사 조직 관리'
     },
     {
-      name: 'WORKFLOW HUB',
-      href: '/notifications',
-      icon: Bell,
-      active: pathname === '/notifications',
-      desc: '업무 관련 알림 통합 관리'
+      name: 'MY DB',
+      href: '/',
+      icon: Database,
+      active: pathname === '/',
+      desc: '데이터 소스 및 테이블 관리'
+    },
+    {
+      name: 'ARCHIVE',
+      href: '/archive',
+      icon: Archive,
+      active: pathname === '/archive',
+      desc: '삭제된 테이블 관리'
     },
   ];
 
