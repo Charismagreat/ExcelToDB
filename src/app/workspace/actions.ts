@@ -7,8 +7,15 @@ import { queryTable, executeSQL, insertRows, updateRows, deleteRows } from '@/eg
 import { revalidatePath } from 'next/cache';
 import fs from 'fs/promises';
 import path from 'path';
-import { createInAppNotification } from '@/lib/notifications';
+import {
+    createInAppNotification,
+    notifyAdmins,
+    notifyAdminsUpsert,
+    upsertInAppNotificationByLink,
+    workspaceOpenItemLink
+} from '@/lib/notifications';
 import { GuardrailService } from '@/lib/services/guardrail-service';
+import { WORKSPACE_STATUS } from '@/lib/constants/workspace-status';
 
 // 워크스페이스 전용 ID 생성기 (표준 규격)
 const generateWorkspaceId = () => `id-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
@@ -306,17 +313,9 @@ export async function submitWorkspaceDataAction(formData: FormData) {
         }]);
 
         // [핵심] 배경 분석 트리거 (await 하지 않음 - 사용자 응답 속도 최우선)
+        // 분석 시작 (백그라운드)
         analyzeWorkspaceItemAction(itemId).catch(err => {
             console.error(`[Background Analysis Error] Item ${itemId}:`, err);
-        });
-
-        // 알림 생성: 신규 등록
-        await createInAppNotification({
-            userId: String(user.id),
-            title: '신규 데이터 등록',
-            message: image ? `[${image.name}] 분석이 시작되었습니다.` : '텍스트 분석이 시작되었습니다.',
-            type: 'INFO',
-            link: imageUrl ? (imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`) : '/workspace'
         });
 
         // 피드 갱신 강제
@@ -463,23 +462,30 @@ export async function getWorkspaceItemDataAction(itemId: string) {
 /**
  * 사용자가 수정한 최종 데이터를 DB에 저장합니다.
  */
-export async function confirmWorkspaceDataAction(reportId: string, rowData: Record<string, any>, workspaceItemId?: string) {
+export async function confirmWorkspaceDataAction(
+    reportId: string,
+    rowData: Record<string, any>,
+    workspaceItemId?: string,
+    prevalidation?: import('@/lib/services/guardrail-service').ValidationResult
+) {
     const user = await getSessionAction();
     if (!user) throw new Error('인증이 필요합니다.');
 
     try {
         console.log(`[Workspace Final Save] Report: ${reportId} | WorkspaceItem: ${workspaceItemId} | Data:`, rowData);
         
-        // 1. 가드레일 검증 (물리 테이블 이름 조회 포함)
+        // 1. 가드레일 검증 (prevalidation이 전달된 경우 재검증 생략 — 중복 DB 쿼리 방지)
         const reports = await queryTable('report', { filters: { id: reportId } });
         const report = Array.isArray(reports) ? reports[0] : (reports.rows?.[0]);
         const tableName = report?.tableName;
 
-        const validation = await GuardrailService.validateRow(reportId, rowData, tableName);
+        const validation = prevalidation ?? await GuardrailService.validateRow(reportId, rowData, tableName);
         
         if (validation.isBlocked) {
-            // 차단된 경우 알림 생성 및 에러 반환
+            // 가드레일 BLOCK: 업로더 + 관리자 모두에게 알림 발송
             const failedRule = validation.failedRules[0];
+
+            // 업로더 알림
             await createInAppNotification({
                 userId: String(user.id),
                 title: '🔴 입력 정책 위반 (차단됨)',
@@ -488,11 +494,46 @@ export async function confirmWorkspaceDataAction(reportId: string, rowData: Reco
                 link: workspaceItemId ? `/workspace` : `/report/${reportId}`
             });
 
+            // 관리자 알림 (adminAdvice 활용)
+            await notifyAdmins({
+                title: '⚠️ 입력 차단 발생 — 검토 필요',
+                message: `[${user.fullName || user.username}] ${failedRule.errorMessage}\n📋 조치 안내: ${failedRule.adminAdvice || '데이터 및 정책 규칙을 검토해 주세요.'}`,
+                type: 'ALERT',
+                link: '/notifications'
+            });
+
+            // workspace_item status를 'blocked'로 명시적 업데이트
+            if (workspaceItemId) {
+                await updateRows('workspace_item', {
+                    status: WORKSPACE_STATUS.BLOCKED,
+                    updatedAt: new Date().toISOString()
+                }, { filters: { id: workspaceItemId } });
+            }
+
             return { 
                 success: false, 
                 message: failedRule.errorMessage,
                 failedRules: validation.failedRules 
             };
+        }
+
+        // WARN 규칙 처리 — 저장은 허용하되 경고 알림 발송
+        const warnRules = validation.failedRules.filter(r => r.severity === 'WARN');
+        if (warnRules.length > 0) {
+            const warnRule = warnRules[0];
+            await createInAppNotification({
+                userId: String(user.id),
+                title: '⚠️ 입력 경고',
+                message: `${warnRule.errorMessage} (저장은 완료됩니다.)`,
+                type: 'WARNING',
+                link: workspaceItemId ? `/workspace` : `/report/${reportId}`
+            });
+            await notifyAdmins({
+                title: 'ℹ️ 경고 항목 저장됨',
+                message: `[${user.fullName || user.username}] ${warnRule.errorMessage}\n📋 조치 안내: ${warnRule.adminAdvice || '경고 항목이 저장되었습니다. 검토를 권장합니다.'}`,
+                type: 'WARNING',
+                link: '/notifications'
+            });
         }
 
         // 2. 기존 addRowAction을 호출하여 물리+가상 테이블 동기화
@@ -539,10 +580,13 @@ async function analyzeWorkspaceItemAction(itemId: string) {
     const path = await import('path');
 
     try {
-        // 1. 항목 조회
+        // 1. 항목 및 업로더 정보 조회
         const items = await queryTable('workspace_item', { filters: { id: itemId } });
         const item = Array.isArray(items) ? items[0] : (items.rows?.[0]);
         if (!item) return;
+
+        const users = await queryTable('user', { filters: { id: String(item.creatorId) } });
+        const creatorUser = Array.isArray(users) ? users[0] : (users.rows?.[0]);
 
         let base64Image: string | undefined;
         let mimeType: string | undefined;
@@ -568,9 +612,18 @@ async function analyzeWorkspaceItemAction(itemId: string) {
             suggestedTitle: aiResult.suggestedTitle || (aiResult.reportName ? `${aiResult.reportName} 항목` : '분류 필요 항목'),
             suggestedSummary: aiResult.suggestedSummary || aiResult.message || '분류 준비가 완료되었습니다.',
             reportId: aiResult.reportId || undefined,
-            aiData: JSON.stringify(aiResult.extractedData || {}),
+            aiData: JSON.stringify({
+                ...(aiResult.extractedData || {}),
+                // 미분류 시 AI 추천 정보를 aiData 메타 필드로 저장
+                ...(aiResult._recommendation ? { _recommendation: aiResult._recommendation } : {})
+            }),
             updatedAt: new Date().toISOString()
         };
+
+        // 미분류 (reportId === null) 시 status = 'unresolved'로 명시
+        if (!aiResult.reportId) {
+            updateData.status = WORKSPACE_STATUS.UNRESOLVED;
+        }
 
         // 5. 자동 분류 (Auto-Confirm): 신뢰도가 0.9 이상이고 분석 데이터가 있는 경우
         let isAutoConfirmed = false;
@@ -579,18 +632,24 @@ async function analyzeWorkspaceItemAction(itemId: string) {
             try {
                 // extractedData의 각 필드가 유효한지 최종 점검 (빈 객체면 제외)
                 if (Object.keys(aiResult.extractedData).length > 0) {
-                    // 가드레일 자동 체크 절차 추가
-                    const validation = await GuardrailService.validateRow(aiResult.reportId, aiResult.extractedData, aiResult.tableName);
+                    // 가드레일 검증 수행 (1회만 — confirmWorkspaceDataAction 내부 재검증 생략)
+                    const validation = await GuardrailService.validateRow(
+                        aiResult.reportId,
+                        aiResult.extractedData,
+                        (aiResult as any).tableName
+                    );
                     
                     if (!validation.isBlocked) {
+                        // prevalidation 결과 전달하여 내부 중복 검증 방지
                         const confirmResult = await confirmWorkspaceDataAction(
                             aiResult.reportId, 
                             aiResult.extractedData, 
-                            itemId
+                            itemId,
+                            validation  // 검증 결과 전달
                         );
                         if (confirmResult.success) {
                             isAutoConfirmed = true;
-                            updateData.status = 'completed';
+                            updateData.status = WORKSPACE_STATUS.COMPLETED;
                             console.log(`[AI Background] Item ${itemId} auto-confirmed successfully.`);
                         } else {
                             console.warn(`[AI Background] Auto-confirm failed for ${itemId}: ${confirmResult.message}`);
@@ -598,7 +657,7 @@ async function analyzeWorkspaceItemAction(itemId: string) {
                     } else {
                         console.log(`[AI Background] Auto-confirm BLOCKED by guardrail for item ${itemId}.`);
                         updateData.suggestedSummary = `[정책 위반] ${validation.failedRules[0].errorMessage}`;
-                        updateData.status = 'pending'; // 차단 시 수동 확인 대기
+                        updateData.status = WORKSPACE_STATUS.BLOCKED; // 차단 시 명시적 상태
                     }
                 }
             } catch (confirmErr: any) {
@@ -618,16 +677,74 @@ async function analyzeWorkspaceItemAction(itemId: string) {
 
         await updateRows('workspace_item', updateData, { filters: { id: String(itemId) } });
 
-        // 알림 생성: AI 분석 완료
-        await createInAppNotification({
-            userId: String(item.creatorId),
-            title: isAutoConfirmed ? '데이터 자동 기록 완료' : 'AI 분석 완료',
-            message: isAutoConfirmed 
-                ? `${updateData.suggestedSummary}` 
-                : `[${item.suggestedTitle}] 분석이 완료되었습니다. 확인 후 저장해 주세요.`,
-            type: isAutoConfirmed ? 'INFO' : 'ALERT',
-            link: item.imageUrl ? (item.imageUrl.startsWith('/') ? item.imageUrl : `/${item.imageUrl}`) : '/workspace'
-        });
+        const displayTitle = String(updateData.suggestedTitle || item.suggestedTitle || '항목');
+        const link = workspaceOpenItemLink(itemId);
+        const isUnresolvedFinal = !aiResult.reportId;
+        const isBlockedFinal = updateData.status === WORKSPACE_STATUS.BLOCKED;
+
+        // 알림 메시지 구성 (상태별 분기 — DB에 반영된 updateData 기준)
+        let alertTitle = 'AI 분석 완료';
+        let alertMessage = `[${displayTitle}] 분석이 완료되었습니다. 확인 후 저장해 주세요.`;
+        let alertType: 'INFO' | 'ALERT' | 'WARNING' = 'ALERT';
+
+        if (isAutoConfirmed) {
+            alertTitle = '데이터 자동 기록 완료';
+            alertMessage = `${updateData.suggestedSummary}`;
+            alertType = 'INFO';
+        } else if (isBlockedFinal) {
+            alertTitle = '데이터 등록 차단됨';
+            alertMessage = `보안 정책에 의해 [${displayTitle}] 등록이 차단되었습니다.`;
+            alertType = 'WARNING';
+        } else if (isUnresolvedFinal) {
+            alertTitle = 'AI 분석 완료 (미분류)';
+            alertMessage = `[${displayTitle}] 매칭되는 테이블이 없습니다. 관리자 확인 대기 중입니다.`;
+            alertType = 'WARNING';
+        }
+
+        const isCreatorAdmin = creatorUser?.role === 'ADMIN';
+
+        // 동일 작업당 userId+link 로 알림 1건(UPSERT). 미분류 시 관리자(업로더 제외) + 업로더(역할별 문구)
+        if (isUnresolvedFinal) {
+            const rec = aiResult._recommendation;
+            const adminMsg =
+                rec
+                    ? `[${aiResult.suggestedTitle || '알 수 없는 문서'}] 매칭 테이블 없음.\n🤖 AI 추천: "${rec.tableName}" 테이블 생성 후 재분류 요청 권장.\n📋 조치: ${rec.advice}`
+                    : `[${aiResult.suggestedTitle || '알 수 없는 문서'}] 매칭 테이블 없음. 워크스페이스 보고서를 추가해 주세요.`;
+
+            await notifyAdminsUpsert({
+                title: '⚠️ 미분류 데이터 발생 — 관리자 조치 필요',
+                message: adminMsg,
+                type: 'ALERT',
+                link,
+                excludeUserIds: [String(item.creatorId)]
+            });
+
+            if (isCreatorAdmin) {
+                await upsertInAppNotificationByLink({
+                    userId: String(item.creatorId),
+                    link,
+                    title: '⚠️ 미분류 데이터 발생 — 관리자 조치 필요',
+                    message: adminMsg,
+                    type: 'ALERT'
+                });
+            } else {
+                await upsertInAppNotificationByLink({
+                    userId: String(item.creatorId),
+                    link,
+                    title: alertTitle,
+                    message: alertMessage,
+                    type: alertType
+                });
+            }
+        } else {
+            await upsertInAppNotificationByLink({
+                userId: String(item.creatorId),
+                link,
+                title: alertTitle,
+                message: alertMessage,
+                type: alertType
+            });
+        }
 
         console.log(`[AI Background] Item ${itemId} analysis completed. (Auto-Confirmed: ${isAutoConfirmed})`);
         revalidatePath('/workspace');
@@ -658,7 +775,7 @@ export async function deleteWorkspaceItemAction(itemId: string) {
         if (item) {
             // 실제 삭제 대신 'deleted' 상태로 업데이트 (히스토리 보존)
             await updateRows('workspace_item', { 
-                status: 'deleted',
+                status: WORKSPACE_STATUS.DELETED,
                 updatedAt: new Date().toISOString()
             }, { filters: { id: String(itemId) } });
             

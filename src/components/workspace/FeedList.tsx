@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { FeedCard } from './FeedCard';
 import { AiInputOverlay } from './AiInputOverlay';
 import { getWorkspaceItemDataAction, getWorkspaceFeedAction } from '@/app/workspace/actions';
-import { LayoutGrid, X, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { LayoutGrid, X } from 'lucide-react';
 
 interface FeedListProps {
     initialFeeds: any[];
@@ -14,36 +14,37 @@ interface FeedListProps {
 export function FeedList({ initialFeeds }: FeedListProps) {
     const [feeds, setFeeds] = useState(initialFeeds);
     const router = useRouter();
-    
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+
     // 서버에서 revalidatePath를 호출하여 전달된 신규 데이터를 로컬 상태와 동기화
-    React.useEffect(() => {
+    useEffect(() => {
         setFeeds(initialFeeds);
     }, [initialFeeds]);
 
     // 분석 중인 항목이 있을 때만 동작하는 스마트 폴링
-    React.useEffect(() => {
+    useEffect(() => {
         const hasAnalyzing = feeds.some((f: any) => f.isAnalyzing);
         if (!hasAnalyzing) return;
 
         console.log('[Feed Polling] Analyzing items detected. Polling started...');
-        
+
         const interval = setInterval(async () => {
             try {
                 const refreshedFeeds = await getWorkspaceFeedAction();
                 if (refreshedFeeds && refreshedFeeds.length > 0) {
                     setFeeds(refreshedFeeds);
-                    // 모든 분석이 끝났는지 확인
                     const stillAnalyzing = refreshedFeeds.some((f: any) => f.isAnalyzing);
                     if (!stillAnalyzing) {
                         console.log('[Feed Polling] All items analyzed. Polling stopped.');
                         clearInterval(interval);
-                        router.refresh(); // 서버 데이터 최종 싱크
+                        router.refresh();
                     }
                 }
             } catch (err) {
                 console.error('[Feed Polling] Refresh failed:', err);
             }
-        }, 3000); // 3초마다 체크
+        }, 3000);
 
         return () => clearInterval(interval);
     }, [feeds, router]);
@@ -53,7 +54,7 @@ export function FeedList({ initialFeeds }: FeedListProps) {
     const [isFetching, setIsFetching] = useState(false);
     const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
-    const handleClassify = async (id: string) => {
+    const handleClassify = useCallback(async (id: string) => {
         setIsFetching(true);
         try {
             const result = await getWorkspaceItemDataAction(id);
@@ -69,7 +70,27 @@ export function FeedList({ initialFeeds }: FeedListProps) {
         } finally {
             setIsFetching(false);
         }
-    };
+    }, []);
+
+    // URL ?openItem={id} 파라미터 감지 → 자동으로 오버레이 열기
+    // 알림 페이지에서 배지 클릭 시 /workspace?openItem={id}로 이동하면
+    // 홈 피드의 해당 항목 오버레이가 자동으로 열립니다.
+    useEffect(() => {
+        const openItemId = searchParams.get('openItem');
+        if (!openItemId) return;
+
+        // 이미 해당 항목으로 오버레이가 열려 있으면 중복 실행 방지
+        if (isOverlayOpen && selectedItemData?.id === openItemId) return;
+
+        // URL 파라미터 제거 (히스토리에 남기지 않음 — 뒤로가기 시 무한루프 방지)
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete('openItem');
+        const newUrl = params.toString() ? `${pathname}?${params}` : pathname;
+        router.replace(newUrl, { scroll: false });
+
+        // 오버레이 열기
+        handleClassify(openItemId);
+    }, [searchParams]); // searchParams 변경 시에만 실행 (의존성 최소화)
 
     const handleCloseOverlay = () => {
         setIsOverlayOpen(false);
@@ -86,9 +107,9 @@ export function FeedList({ initialFeeds }: FeedListProps) {
             <div className="space-y-4">
                 {feeds.length > 0 ? (
                     feeds.map((feed: any) => (
-                        <FeedCard 
-                            key={feed.id} 
-                            {...feed} 
+                        <FeedCard
+                            key={feed.id}
+                            {...feed}
                             onClassify={handleClassify}
                             onImageClick={(url) => setPreviewImageUrl(url)}
                         />
@@ -105,7 +126,7 @@ export function FeedList({ initialFeeds }: FeedListProps) {
             </div>
 
             {/* 분류 전용 오버레이 */}
-            <AiInputOverlay 
+            <AiInputOverlay
                 isOpen={isOverlayOpen}
                 onClose={handleCloseOverlay}
                 onSubmit={handleDummySubmit}
@@ -115,20 +136,20 @@ export function FeedList({ initialFeeds }: FeedListProps) {
                 initialColumns={selectedItemData?.columns}
                 workspaceItemId={selectedItemData?.isWorkspaceItem ? selectedItemData.id : null}
             />
-            
+
             {/* 이미지 원본 보기 모달 */}
             {previewImageUrl && (
-                <div 
+                <div
                     className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4 animate-in fade-in duration-200"
                     onClick={() => setPreviewImageUrl(null)}
                 >
                     <div className="relative max-w-full max-h-full">
-                        <img 
-                            src={previewImageUrl} 
-                            alt="원본 미리보기" 
+                        <img
+                            src={previewImageUrl}
+                            alt="원본 미리보기"
                             className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
                         />
-                        <button 
+                        <button
                             className="absolute -top-10 right-0 text-white p-2 hover:bg-white/10 rounded-full"
                             onClick={() => setPreviewImageUrl(null)}
                         >
@@ -137,8 +158,8 @@ export function FeedList({ initialFeeds }: FeedListProps) {
                     </div>
                 </div>
             )}
-            
-            {/* 로딩 인디케이터 (필요 시) */}
+
+            {/* 로딩 인디케이터 */}
             {isFetching && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/10 backdrop-blur-[1px]">
                     <div className="bg-white p-4 rounded-2xl shadow-xl flex items-center space-x-3">
@@ -150,4 +171,3 @@ export function FeedList({ initialFeeds }: FeedListProps) {
         </>
     );
 }
-

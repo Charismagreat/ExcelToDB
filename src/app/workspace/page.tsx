@@ -3,9 +3,9 @@ import { getWorkspaceFeedAction } from './actions';
 import { getTodayAttendanceAction } from './attendance-actions';
 import { queryTable } from '@/egdesk-helpers';
 import { redirect } from 'next/navigation';
-import { LayoutGrid } from 'lucide-react';
 import { FeedList } from '@/components/workspace/FeedList';
 import { DashboardSummary } from '@/components/workspace/DashboardSummary';
+import { Suspense } from 'react';
 
 export default async function WorkspacePage() {
     // 세션 확인
@@ -20,7 +20,7 @@ export default async function WorkspacePage() {
         getTodayAttendanceAction()
     ]);
 
-    // 실시간 수치 데이터 조회 (hardcoded -> SQL query)
+    // 실시간 수치 데이터 조회
     const [todoRows, notifRows] = await Promise.all([
         queryTable('action_task', { filters: { assigneeId: String(session.id), status: 'TODO' } }),
         queryTable('notification', { filters: { userId: String(session.id), isRead: '0' } })
@@ -46,7 +46,16 @@ export default async function WorkspacePage() {
                 <span className="text-xs text-gray-400 font-medium hover:text-blue-600 cursor-pointer transition-colors">전체보기</span>
             </div>
 
-            <FeedList initialFeeds={feeds} />
+            {/* FeedList는 useSearchParams를 사용하므로 Suspense 래핑 필요 */}
+            <Suspense fallback={
+                <div className="space-y-4">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="glass rounded-2xl h-28 animate-pulse bg-gray-100/50" />
+                    ))}
+                </div>
+            }>
+                <FeedList initialFeeds={feeds} />
+            </Suspense>
             
             {/* 패딩용 공간 */}
             <div className="h-4"></div>

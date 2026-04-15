@@ -4,6 +4,70 @@ import { revalidatePath } from 'next/cache';
 import { queryTable, updateRows, deleteRows } from '@/egdesk-helpers';
 import { getSessionAction } from './auth';
 
+type WorkspacePurgeStats = {
+    targetItems: any[];
+    targetNotifications: any[];
+    candidateFileCount: number;
+};
+
+function normalizePurgeDays(days?: number): number {
+    const numeric = Number(days);
+    if (!Number.isFinite(numeric) || numeric <= 0) return 30;
+    return Math.min(Math.floor(numeric), 365);
+}
+
+async function collectWorkspacePurgeTargets(days?: number): Promise<WorkspacePurgeStats> {
+    const safeDays = normalizePurgeDays(days);
+    const cutoff = Date.now() - safeDays * 24 * 60 * 60 * 1000;
+
+    const [workspaceRaw, notificationsRaw] = await Promise.all([
+        queryTable('workspace_item', {
+            orderBy: 'createdAt',
+            orderDirection: 'DESC',
+            limit: 3000
+        }),
+        queryTable('notification', { limit: 3000, orderBy: 'createdAt', orderDirection: 'DESC' })
+    ]);
+
+    const workspaceItems = (Array.isArray(workspaceRaw) ? workspaceRaw : workspaceRaw?.rows || []) as any[];
+    const notifications = (Array.isArray(notificationsRaw) ? notificationsRaw : notificationsRaw?.rows || []) as any[];
+    const itemIdSet = new Set(workspaceItems.map((item: any) => String(item.id)));
+
+    // "워크스페이스 테스트 데이터" 기준:
+    // 1) 최근 N일 내 생성된 workspace_item (등록자 역할 무관)
+    const targetItems = workspaceItems.filter((item: any) => {
+        const createdAt = new Date(item.createdAt || 0).getTime();
+        return Number.isFinite(createdAt) && createdAt >= cutoff;
+    });
+
+    const linkSet = new Set(
+        targetItems.map((item: any) => `/workspace?openItem=${encodeURIComponent(String(item.id))}`)
+    );
+
+    // 대상 알림:
+    // - 대상 item 링크와 정확히 매칭되는 알림
+    // - 또는 /workspace?openItem= 링크인데 원본 item이 이미 사라진(orphan) 최근 N일 알림
+    const targetNotifications = notifications.filter((noti: any) => {
+        const link = String(noti.link || '');
+        if (!link.includes('/workspace?openItem=')) return false;
+        if (linkSet.has(link)) return true;
+
+        const match = link.match(/[?&]openItem=([^&]+)/);
+        const itemId = match ? decodeURIComponent(match[1]) : null;
+        const createdAt = new Date(noti.createdAt || 0).getTime();
+        const isRecent = Number.isFinite(createdAt) && createdAt >= cutoff;
+        const isOrphan = itemId ? !itemIdSet.has(String(itemId)) : false;
+        return isRecent && isOrphan;
+    });
+
+    let candidateFileCount = 0;
+    for (const item of targetItems) {
+        if (String(item.imageUrl || '').startsWith('/uploads/')) candidateFileCount += 1;
+    }
+
+    return { targetItems, targetNotifications, candidateFileCount };
+}
+
 /**
  * 현재 로그인한 사용자의 읽지 않은 알림 목록을 가져옵니다.
  */
@@ -193,4 +257,103 @@ export async function clearOldNotificationsAction() {
 
     revalidatePath('/');
     return { success: true };
+}
+
+/**
+ * 관리자용: 워크스페이스 테스트 데이터 일괄 삭제 전 미리보기를 제공합니다.
+ */
+export async function previewWorkspaceTestDataPurgeAction(days?: number) {
+    const session = await getSessionAction();
+    if (!session || session.role !== 'ADMIN') {
+        throw new Error('관리자 권한이 필요합니다.');
+    }
+
+    try {
+        const safeDays = normalizePurgeDays(days);
+        const stats = await collectWorkspacePurgeTargets(safeDays);
+        return {
+            success: true,
+            days: safeDays,
+            targetItems: stats.targetItems.length,
+            targetNotifications: stats.targetNotifications.length,
+            targetFiles: stats.candidateFileCount
+        };
+    } catch (err: any) {
+        console.error('[Notification Action] previewWorkspaceTestDataPurgeAction failed:', err);
+        throw new Error(err?.message || '테스트 데이터 미리보기 계산에 실패했습니다.');
+    }
+}
+
+/**
+ * 관리자용: 워크스페이스 테스트 데이터를 일괄 삭제합니다.
+ * - 대상: 사원이 등록한 workspace_item, 연결된 notification, 업로드 파일
+ */
+export async function purgeWorkspaceTestDataAction(days?: number) {
+    const session = await getSessionAction();
+    if (!session || session.role !== 'ADMIN') {
+        throw new Error('관리자 권한이 필요합니다.');
+    }
+
+    try {
+        const safeDays = normalizePurgeDays(days);
+        const stats = await collectWorkspacePurgeTargets(safeDays);
+        const targetItems = stats.targetItems;
+
+        if (targetItems.length === 0) {
+            return {
+                success: true,
+                days: safeDays,
+                deletedItems: 0,
+                deletedNotifications: 0,
+                deletedFiles: 0
+            };
+        }
+
+        const fs = await import('fs/promises');
+        const path = await import('path');
+
+        let deletedItems = 0;
+        let deletedNotifications = 0;
+        let deletedFiles = 0;
+
+        // 0) 대상 알림 선삭제 (orphan 포함)
+        for (const row of stats.targetNotifications) {
+            await deleteRows('notification', { filters: { id: String(row.id) } });
+            deletedNotifications += 1;
+        }
+
+        for (const item of targetItems) {
+            const itemId = String(item.id);
+            // 1) 파일 정리 (uploads 경로만 안전 삭제)
+            const imageUrl = String(item.imageUrl || '');
+            if (imageUrl.startsWith('/uploads/')) {
+                const filePath = path.join(process.cwd(), 'public', imageUrl);
+                try {
+                    await fs.unlink(filePath);
+                    deletedFiles += 1;
+                } catch {
+                    // 파일이 이미 없거나 접근 불가여도 DB 정리는 계속 진행
+                }
+            }
+
+            // 2) workspace_item 하드 삭제
+            await deleteRows('workspace_item', { filters: { id: itemId } });
+            deletedItems += 1;
+        }
+
+        revalidatePath('/workspace');
+        revalidatePath('/notifications');
+        revalidatePath('/(dashboard)/notifications');
+
+        return {
+            success: true,
+            days: safeDays,
+            deletedItems,
+            deletedNotifications,
+            deletedFiles
+        };
+    } catch (err: any) {
+        console.error('[Notification Action] purgeWorkspaceTestDataAction failed:', err);
+        throw new Error(err?.message || '테스트 데이터 일괄 삭제에 실패했습니다.');
+    }
 }

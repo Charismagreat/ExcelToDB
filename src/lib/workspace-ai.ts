@@ -5,6 +5,12 @@ const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" }, { apiVersion: "v1beta" });
 
+export interface AdminRecommendation {
+    tableName: string;
+    columns: { name: string; type: string }[];
+    advice: string;
+}
+
 export interface WorkspaceAiResult {
     reportId: string | null;
     reportName: string | null;
@@ -16,6 +22,8 @@ export interface WorkspaceAiResult {
     unclassifiedReason?: string;
     suggestedTitle?: string;
     suggestedSummary?: string;
+    /** 분류 실패 시 AI가 관리자에게 추천하는 테이블 생성 정보 */
+    _recommendation?: AdminRecommendation | null;
 }
 
 /**
@@ -159,8 +167,14 @@ export async function processWorkspaceInput(
     }
 
     if (!classification.reportId || classification.confidence < 0.4) {
+        // [3차 프롬프트] 관리자를 위한 테이블 생성 추천 — base64 재사용, 추가 비용 최소화
+        log("Step 5-R: Generating admin recommendation for table creation...");
+        const recommendation = await generateAdminRecommendation(imageBase64, mimeType);
+        log(`Step 5-R Result: ${recommendation ? `tableName=${recommendation.tableName}` : 'null'}`);
+
         return {
             ...unclassifiedData,
+            _recommendation: recommendation,
             message: `업로드하신 내용(영수증 등)을 기록할 적당한 항목(보고서)이 워크스페이스에 없습니다.\n(원인: ${classification.reason})`
         };
     }
@@ -227,6 +241,61 @@ export async function processWorkspaceInput(
         extractedData,
         confidence: classification.confidence,
         columns: columns,
+        tableName: selectedReport.tableName,
         message: extractedData ? `[${selectedReport.name}]에 데이터를 기록했습니다.` : "데이터 추출에 실패했습니다."
     };
+}
+
+/**
+ * [내부 함수] 분류 실패 시 관리자에게 테이블 생성을 추천합니다.
+ * 기존 이미지 base64를 재사용하여 추가 API 호출 비용을 최소화합니다.
+ */
+async function generateAdminRecommendation(
+    imageBase64?: string,
+    mimeType?: string
+): Promise<AdminRecommendation | null> {
+    if (!apiKey) return null;
+
+    const recommendationPrompt = `
+        이 이미지(또는 텍스트)는 기존 보고서와 매칭되지 않았습니다.
+        이미지를 분석하여 이 데이터를 저장하기 위해 관리자가 만들어야 할 테이블 정보를 추천해 주세요.
+
+        응답 규칙:
+        1. 테이블 이름은 한국어로 작성하세요. (예: "신용카드영수증", "출장비용")
+        2. 컬럼 목록은 이미지에서 보이는 실제 필드를 기반으로 추천하세요.
+        3. 컬럼 타입은 "TEXT", "NUMBER", "DATE" 중 하나만 사용하세요.
+        4. adminAdvice는 1~2문장으로 관리자가 취해야 할 조치를 안내합니다.
+        5. 반드시 아래 JSON 형식으로만 응답하세요:
+        {
+            "tableName": "테이블명",
+            "columns": [{"name": "컬럼명", "type": "TEXT"}],
+            "advice": "관리자 조치 안내 1~2문장"
+        }
+    `;
+
+    try {
+        const contents: any[] = [recommendationPrompt];
+        if (imageBase64 && mimeType) {
+            contents.push({ inlineData: { data: imageBase64, mimeType } });
+        }
+
+        const result = await model.generateContent(contents);
+        const responseText = result.response.text();
+
+        const cleanedText = responseText.replace(/```json|```/gi, '').trim();
+        const firstBrace = cleanedText.indexOf('{');
+        const lastBrace = cleanedText.lastIndexOf('}');
+
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            const parsed = JSON.parse(cleanedText.substring(firstBrace, lastBrace + 1));
+            // 최소 유효성 검사
+            if (parsed.tableName && Array.isArray(parsed.columns) && parsed.advice) {
+                return parsed as AdminRecommendation;
+            }
+        }
+    } catch (err) {
+        console.error('[generateAdminRecommendation] AI 추천 생성 실패 (silent skip):', err);
+    }
+
+    return null;
 }

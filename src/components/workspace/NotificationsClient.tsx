@@ -72,6 +72,7 @@ export function NotificationsClient({ notifications: rawNotifications = [] }: No
     const handleMarkAllRead = async () => {
         try {
             await markAllNotificationsAsReadAction();
+            window.dispatchEvent(new Event('notification:updated'));
             window.location.reload(); 
         } catch (err) {
             console.error('Failed to mark all as read:', err);
@@ -82,6 +83,7 @@ export function NotificationsClient({ notifications: rawNotifications = [] }: No
         if (!notif.unread) return;
         try {
             await markNotificationAsReadAction(notif.id);
+            window.dispatchEvent(new Event('notification:updated'));
             // 리로드하여 상태 반영 (또는 로컬 상태 업데이트 가능하지만 모바일 일관성을 위해 리로드 선호)
             if (!notif.link) {
                 window.location.reload();

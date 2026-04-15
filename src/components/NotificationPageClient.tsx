@@ -27,7 +27,9 @@ import {
     markNotificationAsReadAction, 
     markAllNotificationsAsReadAction,
     clearOldNotificationsAction,
-    getAdminNotificationLogsAction
+    getAdminNotificationLogsAction,
+    previewWorkspaceTestDataPurgeAction,
+    purgeWorkspaceTestDataAction
 } from '@/app/actions/notification';
 import { FieldReportSection } from '@/components/FieldReportSection';
 import { Filter } from 'lucide-react';
@@ -74,6 +76,9 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
     const [notifications, setNotifications] = useState(initialNotifications);
     const [adminLogs, setAdminLogs] = useState(initialAdminLogs);
     const [loading, setLoading] = useState(false);
+    const [isPurgingTestData, setIsPurgingTestData] = useState(false);
+    const [isPreviewingPurge, setIsPreviewingPurge] = useState(false);
+    const [purgeDays, setPurgeDays] = useState(30);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedDept, setSelectedDept] = useState('ALL');
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -117,6 +122,52 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
             console.error('Admin search failed:', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handlePurgeWorkspaceTestData = async () => {
+        if (!isAdmin || isPurgingTestData) return;
+
+        setIsPreviewingPurge(true);
+        let preview: any = null;
+        try {
+            preview = await previewWorkspaceTestDataPurgeAction(purgeDays);
+        } catch (err: any) {
+            alert(err?.message || '삭제 대상 미리보기에 실패했습니다.');
+            setIsPreviewingPurge(false);
+            return;
+        }
+        setIsPreviewingPurge(false);
+
+        const ok = window.confirm(
+            `최근 ${preview.days}일 기준 삭제 미리보기\n` +
+            `- 대상 항목: ${preview.targetItems}건\n` +
+            `- 연관 알림: ${preview.targetNotifications}건\n` +
+            `- 연관 파일: ${preview.targetFiles}건\n\n` +
+            '정말 일괄 삭제하시겠습니까?'
+        );
+        if (!ok) return;
+
+        setIsPurgingTestData(true);
+        try {
+            const result = await purgeWorkspaceTestDataAction(purgeDays);
+            if (result?.success) {
+                const refreshed = await getAdminNotificationLogsAction({ searchTerm });
+                setAdminLogs(refreshed);
+                window.dispatchEvent(new Event('notification:updated'));
+                alert(
+                    `최근 ${result.days}일 테스트 데이터 정리 완료\n` +
+                    `- 삭제된 항목: ${result.deletedItems}건\n` +
+                    `- 삭제된 알림: ${result.deletedNotifications}건\n` +
+                    `- 삭제된 파일: ${result.deletedFiles}건`
+                );
+            } else {
+                alert('테스트 데이터 삭제 중 오류가 발생했습니다.');
+            }
+        } catch (err: any) {
+            alert(err?.message || '테스트 데이터 삭제 중 오류가 발생했습니다.');
+        } finally {
+            setIsPurgingTestData(false);
         }
     };
 
@@ -216,6 +267,54 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                     <div className="px-4 py-2 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center gap-2">
                         <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> LIVE
                     </div>
+                    {isAdmin && (
+                        <>
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">최근</span>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={365}
+                                    value={purgeDays}
+                                    onChange={(e) => setPurgeDays(Math.max(1, Math.min(365, Number(e.target.value) || 30)))}
+                                    className="w-16 px-2 py-1 rounded-md border border-slate-200 text-xs font-bold text-slate-700"
+                                />
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">일</span>
+                            </div>
+                            <button
+                                onClick={async () => {
+                                    if (isPreviewingPurge || isPurgingTestData) return;
+                                    setIsPreviewingPurge(true);
+                                    try {
+                                        const preview = await previewWorkspaceTestDataPurgeAction(purgeDays);
+                                        alert(
+                                            `삭제 미리보기 (최근 ${preview.days}일)\n` +
+                                            `- 대상 항목: ${preview.targetItems}건\n` +
+                                            `- 연관 알림: ${preview.targetNotifications}건\n` +
+                                            `- 연관 파일: ${preview.targetFiles}건`
+                                        );
+                                    } catch (err: any) {
+                                        alert(err?.message || '삭제 대상 미리보기에 실패했습니다.');
+                                    } finally {
+                                        setIsPreviewingPurge(false);
+                                    }
+                                }}
+                                disabled={isPreviewingPurge || isPurgingTestData}
+                                className="px-4 py-2 rounded-xl bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-slate-500/20 disabled:opacity-60 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors"
+                                title="삭제 대상 미리보기"
+                            >
+                                {isPreviewingPurge ? '미리보기...' : '삭제 미리보기'}
+                            </button>
+                            <button
+                                onClick={handlePurgeWorkspaceTestData}
+                                disabled={isPurgingTestData || isPreviewingPurge}
+                                className="px-4 py-2 rounded-xl bg-red-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-500/20 disabled:opacity-60 disabled:cursor-not-allowed hover:bg-red-700 transition-colors"
+                                title="사원이 등록한 워크스페이스 테스트 데이터 일괄 삭제"
+                            >
+                                {isPurgingTestData ? '삭제 중...' : '테스트 데이터 일괄 삭제'}
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -235,20 +334,35 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                 ) : (
                     Object.entries(
                         filteredLogs.reduce((acc: any, log: any) => {
+                            const openItemMatch =
+                                typeof log.link === 'string' ? log.link.match(/[?&]openItem=([^&]+)/) : null;
+                            const wsItemId = openItemMatch
+                                ? decodeURIComponent(openItemMatch[1])
+                                : null;
                             const reportMatch = log.title?.match(/\[(.*?)\]/);
                             const reportName = reportMatch ? reportMatch[1] : 'SYSTEM';
-                            const summaryMatch = log.message?.match(/\[(.*?)\]/) || log.message?.match(/([^\s]+?\.(png|jpg|jpeg|gif|pdf|xlsx|xls|mp3|wav|m4a))/i);
+                            const summaryMatch =
+                                log.message?.match(/\[(.*?)\]/) ||
+                                log.message?.match(/([^\s]+?\.(png|jpg|jpeg|gif|pdf|xlsx|xls|mp3|wav|m4a))/i);
                             const summary = summaryMatch ? (summaryMatch[1] || summaryMatch[0]) : '';
-                            // 🔑 키 생성 개선: 요약 정보(파일명 등)가 있다면 링크와 무관하게 그룹화
-                            const key = summary ? `${reportName}_${summary}` : `${reportName}_${log.link}`;
+                            // 워크스페이스 항목: openItem 기준으로 동일 작업 통합 (수신자별로 분리)
+                            const key = wsItemId
+                                ? `ws_${wsItemId}_u_${log.userId || ''}`
+                                : summary
+                                  ? `${reportName}_${summary}`
+                                  : `${reportName}_${log.link}`;
                             if (!acc[key]) acc[key] = { reportName, summary, logs: [] };
                             acc[key].logs.push(log);
                             return acc;
                         }, {})
                     ).map(([groupKey, group]: [string, any]) => {
+                        const sortedLogs = [...group.logs].sort(
+                            (a: any, b: any) =>
+                                new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+                        );
                         // 📂 그룹 내 로그 중 실제 파일 링크(/uploads/)가 있는 로그를 우선적으로 찾아 마스터로 사용
-                        const fileLog = group.logs.find((l: any) => l.link && l.link.includes('/uploads/'));
-                        const latestLog = fileLog || group.logs[0];
+                        const fileLog = sortedLogs.find((l: any) => l.link && l.link.includes('/uploads/'));
+                        const latestLog = fileLog || sortedLogs[0];
                         
                         const isExpanded = !!expandedGroups[groupKey];
                         const fileInfo = getFileTypeInfo(latestLog.title + latestLog.message);
@@ -300,7 +414,7 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                                                     {/* 진행 단계 요약 */}
                                                     <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100/50 rounded-lg border border-slate-100 ml-2">
                                                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-tight">
-                                                            {group.logs.length} STEPS
+                                                            {sortedLogs.length} STEPS
                                                         </span>
                                                     </div>
 
@@ -350,9 +464,9 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                                                 <div className="h-px bg-slate-100 flex-1 ml-4" />
                                             </div>
                                             <div className="space-y-3">
-                                                {group.logs.map((log: any, idx: number) => (
+                                                {sortedLogs.map((log: any, idx: number) => (
                                                     <div key={log.id} className="flex gap-4 relative">
-                                                        {idx !== group.logs.length - 1 && (
+                                                        {idx !== sortedLogs.length - 1 && (
                                                             <div className="absolute left-[7px] top-4 w-0.5 h-full bg-slate-200/50" />
                                                         )}
                                                         <div className={`w-4 h-4 rounded-full border-2 border-white shadow-sm shrink-0 z-10 mt-1 ${

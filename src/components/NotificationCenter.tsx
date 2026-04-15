@@ -32,8 +32,33 @@ export default function NotificationCenter({ variant = 'icon' }: NotificationCen
         setIsMounted(true);
         fetchStatus();
         const timer = setInterval(fetchStatus, 60000);
-        return () => clearInterval(timer);
+        const onUpdated = () => {
+            fetchStatus();
+        };
+        const onFocus = () => {
+            fetchStatus();
+        };
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') {
+                fetchStatus();
+            }
+        };
+        window.addEventListener('notification:updated', onUpdated);
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            clearInterval(timer);
+            window.removeEventListener('notification:updated', onUpdated);
+            window.removeEventListener('focus', onFocus);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, []);
+
+    useEffect(() => {
+        // 라우트 변경 시 배지 카운트를 즉시 동기화
+        if (!isMounted) return;
+        fetchStatus();
+    }, [pathname, isMounted]);
 
     if (!isMounted) return null;
 

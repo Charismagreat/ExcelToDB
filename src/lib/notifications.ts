@@ -173,6 +173,78 @@ export async function notifyBulkUpload(
     }, customWebhookUrl);
 }
 
+/** 워크스페이스 항목 오버레이 링크 — userId+link 기준 알림 통합 키로 사용 */
+export function workspaceOpenItemLink(itemId: string): string {
+    return `/workspace?openItem=${encodeURIComponent(itemId)}`;
+}
+
+/**
+ * 동일 userId + link 인앱 알림을 한 건만 유지합니다(UPSERT).
+ * 워크스페이스 한 작업에 알림이 여러 번 쌓이는 것을 방지합니다.
+ */
+export async function upsertInAppNotificationByLink(data: {
+    userId: string;
+    link: string;
+    title: string;
+    message?: string;
+    type?: 'INFO' | 'WARNING' | 'ALERT';
+}) {
+    const { insertRows, queryTable, updateRows, deleteRows } = await import('@/egdesk-helpers');
+    const { generateId } = await import('@/app/actions/shared');
+
+    const userId = String(data.userId);
+    const link = data.link;
+    if (!link) {
+        await createInAppNotification({ ...data, link: undefined });
+        return;
+    }
+
+    try {
+        const rowsRaw = await queryTable('notification', {
+            filters: { userId },
+            orderBy: 'createdAt',
+            orderDirection: 'DESC',
+            limit: 200
+        });
+        const rows = (Array.isArray(rowsRaw) ? rowsRaw : rowsRaw?.rows || []) as any[];
+        const sameLink = rows.filter((r) => r.link === link);
+
+        if (sameLink.length === 0) {
+            await insertRows('notification', [{
+                id: generateId(),
+                userId,
+                title: data.title,
+                message: data.message ?? null,
+                link,
+                type: data.type || 'INFO',
+                isRead: '0',
+                createdAt: new Date().toISOString()
+            }]);
+            console.log(`[Notification] upsert(insert) user=${userId}`);
+            return;
+        }
+
+        const keep = sameLink[0];
+        await updateRows(
+            'notification',
+            {
+                title: data.title,
+                message: data.message ?? null,
+                type: data.type || 'INFO',
+                isRead: '0'
+            },
+            { filters: { id: String(keep.id) } }
+        );
+
+        for (const row of sameLink.slice(1)) {
+            await deleteRows('notification', { filters: { id: String(row.id) } });
+        }
+        console.log(`[Notification] upsert(update) user=${userId}, deduped=${sameLink.length - 1}`);
+    } catch (err) {
+        console.error('[Notification] upsert failed:', err);
+    }
+}
+
 /**
  * 인앱 알림을 생성하여 DB에 저장합니다.
  */
@@ -229,5 +301,85 @@ export async function logActivity(data: {
         }]);
     } catch (err) {
         console.error('[Notification] Failed to log activity:', err);
+    }
+}
+
+/**
+ * ADMIN 역할을 가진 모든 사용자에게 인앱 알림을 발송합니다.
+ * 관리자 조회 실패 시 silent skip — 주 처리 흐름을 막지 않습니다.
+ */
+export async function notifyAdmins(data: {
+    title: string;
+    message: string;
+    type: 'INFO' | 'WARNING' | 'ALERT';
+    link: string;
+}) {
+    try {
+        const { queryTable } = await import('@/egdesk-helpers');
+        const admins = await queryTable('user', { filters: { role: 'ADMIN' } });
+        const adminList = Array.isArray(admins) ? admins : (admins?.rows || []);
+
+        if (!adminList || adminList.length === 0) {
+            console.warn('[notifyAdmins] 관리자 계정이 없어 알림을 건너뜁니다.');
+            return;
+        }
+
+        await Promise.all(
+            adminList.map((admin: any) =>
+                createInAppNotification({
+                    userId: String(admin.id),
+                    title: data.title,
+                    message: data.message,
+                    type: data.type,
+                    link: data.link,
+                })
+            )
+        );
+
+        console.log(`[notifyAdmins] ${adminList.length}명의 관리자에게 알림 발송 완료.`);
+    } catch (err) {
+        // 관리자 알림은 부가 기능 — 실패해도 주 흐름을 중단하지 않음
+        console.error('[notifyAdmins] 관리자 알림 발송 실패 (silent skip):', err);
+    }
+}
+
+/**
+ * 관리자 전원에게 동일 링크 알림을 UPSERT (제외 userId는 생략 — 업로더 전용 알림과 중복 방지)
+ */
+export async function notifyAdminsUpsert(data: {
+    title: string;
+    message: string;
+    type: 'INFO' | 'WARNING' | 'ALERT';
+    link: string;
+    excludeUserIds?: string[];
+}) {
+    try {
+        const { queryTable } = await import('@/egdesk-helpers');
+        const admins = await queryTable('user', { filters: { role: 'ADMIN' } });
+        const adminList = Array.isArray(admins) ? admins : (admins?.rows || []);
+        const exclude = new Set((data.excludeUserIds || []).map(String));
+
+        if (!adminList || adminList.length === 0) {
+            console.warn('[notifyAdminsUpsert] 관리자 계정이 없어 건너뜁니다.');
+            return;
+        }
+
+        await Promise.all(
+            adminList
+                .filter((a: any) => !exclude.has(String(a.id)))
+                .map((admin: any) =>
+                    upsertInAppNotificationByLink({
+                        userId: String(admin.id),
+                        link: data.link,
+                        title: data.title,
+                        message: data.message,
+                        type: data.type
+                    })
+                )
+        );
+
+        console.log(`[notifyAdminsUpsert] 완료 (제외 ${exclude.size}명)`);
+    } catch (err) {
+        console.error('[notifyAdminsUpsert] 실패 (silent skip):', err);
     }
 }
