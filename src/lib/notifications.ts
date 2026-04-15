@@ -189,60 +189,10 @@ export async function upsertInAppNotificationByLink(data: {
     message?: string;
     type?: 'INFO' | 'WARNING' | 'ALERT';
 }) {
-    const { insertRows, queryTable, updateRows, deleteRows } = await import('@/egdesk-helpers');
-    const { generateId } = await import('@/app/actions/shared');
-
-    const userId = String(data.userId);
-    const link = data.link;
-    if (!link) {
-        await createInAppNotification({ ...data, link: undefined });
-        return;
-    }
-
-    try {
-        const rowsRaw = await queryTable('notification', {
-            filters: { userId },
-            orderBy: 'createdAt',
-            orderDirection: 'DESC',
-            limit: 200
-        });
-        const rows = (Array.isArray(rowsRaw) ? rowsRaw : rowsRaw?.rows || []) as any[];
-        const sameLink = rows.filter((r) => r.link === link);
-
-        if (sameLink.length === 0) {
-            await insertRows('notification', [{
-                id: generateId(),
-                userId,
-                title: data.title,
-                message: data.message ?? null,
-                link,
-                type: data.type || 'INFO',
-                isRead: '0',
-                createdAt: new Date().toISOString()
-            }]);
-            console.log(`[Notification] upsert(insert) user=${userId}`);
-            return;
-        }
-
-        const keep = sameLink[0];
-        await updateRows(
-            'notification',
-            {
-                title: data.title,
-                message: data.message ?? null,
-                type: data.type || 'INFO',
-                isRead: '0'
-            },
-            { filters: { id: String(keep.id) } }
-        );
-
-        for (const row of sameLink.slice(1)) {
-            await deleteRows('notification', { filters: { id: String(row.id) } });
-        }
-        console.log(`[Notification] upsert(update) user=${userId}, deduped=${sameLink.length - 1}`);
-    } catch (err) {
-        console.error('[Notification] upsert failed:', err);
-    }
+    // [개선] 더 이상 기존 알림을 덮어쓰지 않고, 새로운 이력으로 추가(Insert)합니다.
+    // 프론트엔드에서 link 기준으로 그룹화하여 보여주므로 시각적 통합은 유지됩니다.
+    await createInAppNotification(data);
+    console.log(`[Notification] History point added for user=${data.userId}, title=${data.title}`);
 }
 
 /**

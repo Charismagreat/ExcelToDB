@@ -17,7 +17,29 @@ export function NotificationsClient({ notifications: rawNotifications = [] }: No
     const safeNotifications = Array.isArray(rawNotifications) ? rawNotifications : [];
     console.log('[DEBUG] Safe Notifications count:', safeNotifications.length);
 
-    // 1. 구역 나누기 (오늘, 어제, 이전)
+    // 1. 고유 작업 단위로 그룹화 (배지 숫자와 일치시키기 위함)
+    const groupedNotifications = Object.values(
+        safeNotifications.reduce((acc: any, n: any) => {
+            // openItem ID 추출하여 고유 키 생성 (없으면 n.id 사용)
+            const openItemMatch = typeof n.link === 'string' ? n.link.match(/[?&]openItem=([^&]+)/) : null;
+            const wsItemId = openItemMatch ? decodeURIComponent(openItemMatch[1]) : null;
+            const key = wsItemId ? `ws_${wsItemId}` : n.link || n.id;
+            
+            if (!acc[key]) {
+                acc[key] = n;
+            } else {
+                // 이미 존재하면 더 최신 항목으로 교체 (createdAt 기준)
+                const existingTime = new Date(acc[key].createdAt).getTime();
+                const newTime = new Date(n.createdAt).getTime();
+                if (newTime > existingTime) {
+                    acc[key] = n;
+                }
+            }
+            return acc;
+        }, {} as Record<string, any>)
+    ).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    // 2. 구역 나누기 (오늘, 어제, 이전)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today);
@@ -29,7 +51,7 @@ export function NotificationsClient({ notifications: rawNotifications = [] }: No
         { name: '지난 알림 (Earlier)', items: [] as any[] }
     ];
 
-    safeNotifications.forEach(n => {
+    groupedNotifications.forEach((n: any) => {
         const date = new Date(n.createdAt);
         const item = {
             id: n.id,
@@ -82,7 +104,7 @@ export function NotificationsClient({ notifications: rawNotifications = [] }: No
     const handleItemClick = async (notif: any) => {
         if (!notif.unread) return;
         try {
-            await markNotificationAsReadAction(notif.id);
+            await markNotificationAsReadAction(notif.id, notif.link);
             window.dispatchEvent(new Event('notification:updated'));
             // 리로드하여 상태 반영 (또는 로컬 상태 업데이트 가능하지만 모바일 일관성을 위해 리로드 선호)
             if (!notif.link) {

@@ -99,8 +99,9 @@ export function AiInputOverlay({
             
             if (result && result.success) {
                 if (result.isBatch || result.isUnclassified) {
-                    // 일괄 등록 또는 즉시 등록의 경우 즉시 종료 (알림 생략)
-                    router.refresh();
+                    // 일괄 등록 또는 즉시 등록의 경우 즉시 홈 피드로 이동하여 상태 확인
+                    router.push('/workspace');
+                    setTimeout(() => router.refresh(), 100); // 데이터 갱신 보장
                     resetAndClose();
                     return;
                 }

@@ -28,7 +28,14 @@ export default async function WorkspacePage() {
     
     // queryTable은 배열을 직접 반환하므로 .rows 없이 체크합니다.
     const todoCount = Array.isArray(todoRows) ? todoRows.length : 0;
-    const notifCount = Array.isArray(notifRows) ? notifRows.length : 0;
+    
+    // [최적화] 알림 수치를 고유 작업 단위로 계산하여 배지 숫자와 일치시킵니다.
+    const uniqueNotifKeys = new Set(
+        (Array.isArray(notifRows) ? notifRows : []).map((noti: any) => 
+            noti.link && noti.link.includes('openItem=') ? noti.link : noti.id
+        )
+    );
+    const notifCount = uniqueNotifKeys.size;
 
     return (
         <div className="pb-24 pt-4">

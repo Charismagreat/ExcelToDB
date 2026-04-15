@@ -347,14 +347,14 @@ export async function getWorkspaceItemDataAction(itemId: string) {
         const creatorId = String(user.id || 'system');
         const basePath = process.env.NEXT_PUBLIC_EGDESK_BASE_PATH || '';
 
-        console.log(`[Workspace Item Detail] Fetching ID: ${itemId}`);
+        console.log(`[Workspace Item Detail] Requested ID: ${itemId}`);
         
         // workspace_item 테이블 먼저 조회
         const items = await queryTable('workspace_item', { filters: { id: itemId } });
         const item = Array.isArray(items) ? items[0] : (items.rows?.[0]);
 
         if (item) {
-            console.log(`[Workspace Item Detail] Found in workspace_item. Status: ${item.status}`);
+            console.log(`[Workspace Item Detail] Found in [workspace_item]. ID: ${item.id}, Status: ${item.status}`);
             // 이미지 경로에 베이스 경로 적용 (중복 적용 방지)
             let imageUrl = item.imageUrl || '';
             if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith(basePath)) {
@@ -405,10 +405,12 @@ export async function getWorkspaceItemDataAction(itemId: string) {
         }
 
         // 만약 workspace_item이 아니라 report_row(기존 미분류)인 경우
+        console.log(`[Workspace Item Detail] Not found in workspace_item. Checking report_row for ID: ${itemId}`);
         const rows = await queryTable('report_row', { filters: { id: itemId } });
         const row = Array.isArray(rows) ? rows[0] : (rows.rows?.[0]);
 
         if (row) {
+            console.log(`[Workspace Item Detail] Found in [report_row]. ID: ${row.id}, Report: ${row.reportId}`);
             let parsedData: any = {};
             try {
                 parsedData = JSON.parse(row.data);
@@ -588,6 +590,28 @@ async function analyzeWorkspaceItemAction(itemId: string) {
         const users = await queryTable('user', { filters: { id: String(item.creatorId) } });
         const creatorUser = Array.isArray(users) ? users[0] : (users.rows?.[0]);
 
+        // [추가] Audit Trail의 시작점: 분석 시작 알림 생성
+        const startLink = workspaceOpenItemLink(itemId);
+        const startTitle = '🔍 분석 단계 시작';
+        const startMessage = `[${creatorUser?.fullName || '사원'}]님이 업로드한 항목의 분석을 시작합니다.`;
+        
+        await upsertInAppNotificationByLink({
+            userId: String(item.creatorId),
+            link: startLink,
+            title: startTitle,
+            message: startMessage,
+            type: 'INFO'
+        });
+
+        // 관리자에게도 동일한 내용으로 알림 (제목/메시지가 같아야 UI에서 하나로 병합됨)
+        await notifyAdminsUpsert({
+            title: startTitle,
+            message: startMessage,
+            type: 'INFO',
+            link: startLink,
+            excludeUserIds: [String(item.creatorId)]
+        });
+
         let base64Image: string | undefined;
         let mimeType: string | undefined;
 
@@ -692,51 +716,46 @@ async function analyzeWorkspaceItemAction(itemId: string) {
             alertMessage = `${updateData.suggestedSummary}`;
             alertType = 'INFO';
         } else if (isBlockedFinal) {
-            alertTitle = '데이터 등록 차단됨';
+            alertTitle = '🔴 데이터 등록 차단됨';
             alertMessage = `보안 정책에 의해 [${displayTitle}] 등록이 차단되었습니다.`;
             alertType = 'WARNING';
         } else if (isUnresolvedFinal) {
-            alertTitle = 'AI 분석 완료 (미분류)';
-            alertMessage = `[${displayTitle}] 매칭되는 테이블이 없습니다. 관리자 확인 대기 중입니다.`;
-            alertType = 'WARNING';
+            alertTitle = '⚠️ 미분류 데이터 발생 — 조치 필요';
+            alertMessage = `[${displayTitle}] 매칭되는 테이블이 없습니다. 관리자의 확인 또는 보고서 추가가 필요합니다.`;
+            alertType = 'ALERT';
         }
 
-        const isCreatorAdmin = creatorUser?.role === 'ADMIN';
+        // [수정] 알림 로직 단일화: 한 작업에 알림은 무조건 한 건만 발생하도록 강제
+        // 특히 관리자가 작성자인 경우 관리자용 조치 알림이 사원용 알림보다 우선순위가 높으므로 이를 병합합니다.
+        
+        const isCreatorAdmin = creatorUser?.role?.toUpperCase() === 'ADMIN';
 
-        // 동일 작업당 userId+link 로 알림 1건(UPSERT). 미분류 시 관리자(업로더 제외) + 업로더(역할별 문구)
         if (isUnresolvedFinal) {
             const rec = aiResult._recommendation;
             const adminMsg =
                 rec
                     ? `[${aiResult.suggestedTitle || '알 수 없는 문서'}] 매칭 테이블 없음.\n🤖 AI 추천: "${rec.tableName}" 테이블 생성 후 재분류 요청 권장.\n📋 조치: ${rec.advice}`
-                    : `[${aiResult.suggestedTitle || '알 수 없는 문서'}] 매칭 테이블 없음. 워크스페이스 보고서를 추가해 주세요.`;
+                    : alertMessage;
 
+            // 1. 관리자 그룹 알림 (작성자 제외한 타 관리자들용)
             await notifyAdminsUpsert({
-                title: '⚠️ 미분류 데이터 발생 — 관리자 조치 필요',
+                title: alertTitle,
                 message: adminMsg,
                 type: 'ALERT',
                 link,
                 excludeUserIds: [String(item.creatorId)]
             });
 
-            if (isCreatorAdmin) {
-                await upsertInAppNotificationByLink({
-                    userId: String(item.creatorId),
-                    link,
-                    title: '⚠️ 미분류 데이터 발생 — 관리자 조치 필요',
-                    message: adminMsg,
-                    type: 'ALERT'
-                });
-            } else {
-                await upsertInAppNotificationByLink({
-                    userId: String(item.creatorId),
-                    link,
-                    title: alertTitle,
-                    message: alertMessage,
-                    type: alertType
-                });
-            }
+            // 2. 작성자 본인 알림 (하나의 배지로 통합 추적)
+            await upsertInAppNotificationByLink({
+                userId: String(item.creatorId),
+                link,
+                title: alertTitle,
+                message: isCreatorAdmin ? adminMsg : alertMessage,
+                type: 'ALERT'
+            });
         } else {
+            // 미분류가 아닌 경우 (정상 완료 또는 차단)
             await upsertInAppNotificationByLink({
                 userId: String(item.creatorId),
                 link,

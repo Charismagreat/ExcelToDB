@@ -75,22 +75,36 @@ export function FeedList({ initialFeeds }: FeedListProps) {
     // URL ?openItem={id} 파라미터 감지 → 자동으로 오버레이 열기
     // 알림 페이지에서 배지 클릭 시 /workspace?openItem={id}로 이동하면
     // 홈 피드의 해당 항목 오버레이가 자동으로 열립니다.
+    const [lastProcessedOpenItem, setLastProcessedOpenItem] = useState<string | null>(null);
+
     useEffect(() => {
         const openItemId = searchParams.get('openItem');
-        if (!openItemId) return;
+        if (!openItemId) {
+            // 파라미터가 없으면 추적 상태 초기화
+            if (lastProcessedOpenItem) setLastProcessedOpenItem(null);
+            return;
+        }
 
-        // 이미 해당 항목으로 오버레이가 열려 있으면 중복 실행 방지
+        // 이미 처리 중이거나 처리 완료된 항목이면 건너뜀 (무한 루프 방지)
+        if (lastProcessedOpenItem === openItemId) return;
         if (isOverlayOpen && selectedItemData?.id === openItemId) return;
+
+        console.log(`[Workspace Navigation] Detected openItem: ${openItemId}`);
+        setLastProcessedOpenItem(openItemId);
 
         // URL 파라미터 제거 (히스토리에 남기지 않음 — 뒤로가기 시 무한루프 방지)
         const params = new URLSearchParams(searchParams.toString());
         params.delete('openItem');
         const newUrl = params.toString() ? `${pathname}?${params}` : pathname;
-        router.replace(newUrl, { scroll: false });
+        
+        // Next.js 14+ router.replace 동작 시 렌더링 간섭을 피하기 위해 비동기로 처리
+        setTimeout(() => {
+            router.replace(newUrl, { scroll: false });
+        }, 100);
 
         // 오버레이 열기
         handleClassify(openItemId);
-    }, [searchParams]); // searchParams 변경 시에만 실행 (의존성 최소화)
+    }, [searchParams, pathname, router, lastProcessedOpenItem, isOverlayOpen, selectedItemData?.id, handleClassify]);
 
     const handleCloseOverlay = () => {
         setIsOverlayOpen(false);

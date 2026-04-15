@@ -88,7 +88,7 @@ export async function getUnreadNotificationsAction() {
             orderDirection: 'DESC',
             limit: 50
         });
-        return result || [];
+        return (result || []) as any[];
     } catch (err) {
         console.error('[Notification Action] Error fetching unread:', err);
         return [];
@@ -176,8 +176,8 @@ export async function getAdminNotificationLogsAction(filters?: { searchTerm?: st
             }, {});
         }
 
-        // 4. 데이터 병합 및 필터링
-        let result = notifications.map((n: any) => {
+        // 4. 데이터 병합
+        const mappedLogs = notifications.map((n: any) => {
             const taskKey = `${n.userId}_${n.link?.startsWith('/report/') ? n.link.split('/')[2] : ''}`;
             return {
                 ...n,
@@ -186,9 +186,12 @@ export async function getAdminNotificationLogsAction(filters?: { searchTerm?: st
             };
         });
 
+        // 5. 검색어 필터링 전용
+        let finalResult = mappedLogs;
+
         if (filters?.searchTerm) {
             const term = filters.searchTerm.toLowerCase();
-            result = result.filter((n: any) => 
+            finalResult = finalResult.filter((n: any) => 
                 n.title.toLowerCase().includes(term) || 
                 n.message.toLowerCase().includes(term) ||
                 n.user.fullName.toLowerCase().includes(term) ||
@@ -196,7 +199,7 @@ export async function getAdminNotificationLogsAction(filters?: { searchTerm?: st
             );
         }
 
-        return result;
+        return finalResult;
     } catch (err) {
         console.error('[Notification Action] Error fetching admin logs:', err);
         return [];
@@ -204,15 +207,22 @@ export async function getAdminNotificationLogsAction(filters?: { searchTerm?: st
 }
 
 /**
- * 특정 알림을 읽음 처리합니다.
+ * 특정 알림 또는 해당 작업(link)과 관련된 모든 알림을 읽음 처리합니다.
  */
-export async function markNotificationAsReadAction(notificationId: string) {
+export async function markNotificationAsReadAction(notificationId: string, link?: string) {
     const session = await getSessionAction();
     if (!session) throw new Error('인증이 필요합니다.');
 
-    const filters: any = { id: notificationId };
+    // [중요] 링크(작업 단위)가 제공되면 해당 작업의 모든 잔여 알림을 읽음 처리하여 배지 숫자를 정확히 제거함
+    const filters: any = { isRead: '0' }; 
     if (session.role !== 'ADMIN') {
         filters.userId = session.id;
+    }
+
+    if (link) {
+        filters.link = link;
+    } else {
+        filters.id = notificationId;
     }
 
     await updateRows('notification', { isRead: '1' }, { filters });

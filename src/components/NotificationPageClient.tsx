@@ -83,8 +83,29 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
     const [selectedDept, setSelectedDept] = useState('ALL');
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
-    const toggleGroup = (key: string) => {
+    const toggleGroup = async (key: string, latestLog?: any) => {
+        const isOpening = !expandedGroups[key];
         setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+
+        if (isOpening && latestLog) {
+            try {
+                // [중요] 상세 히스토리를 확인하는 순간 해당 작업(link)의 모든 로그를 읽음 처리함
+                await markNotificationAsReadAction(latestLog.id, latestLog.link);
+                window.dispatchEvent(new Event('notification:updated'));
+                
+                // 로컬 상태 즉시 업데이트로 실시간 반응성 확보
+                if (latestLog.link) {
+                    setNotifications(prev => prev.map(n => 
+                        n.link === latestLog.link ? { ...n, isRead: '1' } : n
+                    ));
+                    setAdminLogs(prev => prev.map(n => 
+                        n.link === latestLog.link ? { ...n, isRead: '1' } : n
+                    ));
+                }
+            } catch (err) {
+                console.error('Failed to mark group as read:', err);
+            }
+        }
     };
 
     const getFileTypeInfo = (text: string) => {
@@ -187,16 +208,49 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
     const filteredLogs = logsToSummarize.filter((log: any) => {
         if (selectedDept === 'ALL') return true;
         // In this PoC, we check if title contains the department name in brackets
-        // A more robust way would be adding deptId to notification/log schema
         const dept = departments.find(d => d.id === selectedDept);
         return log.title?.includes(`[${dept?.name}]`) || log.message?.includes(`[${dept?.name}]`);
     });
 
+    // 1. 로그 그룹화 (동일 작업 단위)
+    const logGroups = Object.entries(
+        filteredLogs.reduce((acc: any, log: any) => {
+            const openItemMatch = typeof log.link === 'string' ? log.link.match(/[?&]openItem=([^&]+)/) : null;
+            const wsItemId = openItemMatch ? decodeURIComponent(openItemMatch[1]) : null;
+            const reportMatch = log.title?.match(/\[(.*?)\]/);
+            const reportName = reportMatch ? reportMatch[1] : 'SYSTEM';
+            const summaryMatch = log.message?.match(/\[(.*?)\]/) || log.message?.match(/([^\s]+?\.(png|jpg|jpeg|gif|pdf|xlsx|xls|mp3|wav|m4a))/i);
+            const summary = summaryMatch ? (summaryMatch[1] || summaryMatch[0]) : '';
+            
+            // [수정] userId를 키에서 제외합니다. 한 작업(wsItemId)에 여러 명(기안자, 관리자)이 알림을 받아도 
+            // 관리자 화면에서는 하나의 카드(작업 단위)로 병합하여 보여주기 위함입니다.
+            const key = wsItemId ? `ws_${wsItemId}` : summary ? `${reportName}_${summary}` : `${reportName}_${log.link}`;
+            if (!acc[key]) acc[key] = { reportName, summary, logs: [] };
+            acc[key].logs.push(log);
+            return acc;
+        }, {} as Record<string, any>)
+    ).map(([groupKey, group]: [string, any]) => {
+        const sortedLogs = [...group.logs].sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        
+        // [수정] 상세 내역 내 중복 제거: 동일한 내용(title+message)의 로그는 수신자가 달라도 하나만 표시합니다.
+        const seen = new Set();
+        const dedupedLogs = sortedLogs.filter((log: any) => {
+            const contentKey = `${log.title}_${log.message}`;
+            if (seen.has(contentKey)) return false;
+            seen.add(contentKey);
+            return true;
+        });
+
+        const fileLog = dedupedLogs.find((l: any) => l.link && l.link.includes('/uploads/'));
+        return { groupKey, ...group, sortedLogs: dedupedLogs, latestLog: fileLog || dedupedLogs[0] };
+    });
+
+    // 2. 고유 작업 단위 기반 통계 계산
     const stats = {
-        total: filteredLogs.length,
-        todo: filteredLogs.filter((l: any) => l.taskStatus === 'TODO').length,
-        inProgress: filteredLogs.filter((l: any) => l.taskStatus === 'IN_PROGRESS').length,
-        done: filteredLogs.filter((l: any) => l.taskStatus === 'DONE').length,
+        total: logGroups.length,
+        todo: logGroups.filter((g: any) => g.latestLog.taskStatus === 'TODO').length,
+        inProgress: logGroups.filter((g: any) => g.latestLog.taskStatus === 'IN_PROGRESS').length,
+        done: logGroups.filter((g: any) => g.latestLog.taskStatus === 'DONE').length,
     };
 
     return (
@@ -324,7 +378,7 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                     <div className="bg-white border border-slate-100 rounded-[32px] p-20 text-center text-slate-300">
                         <SafeIcon icon={Loader2} isMounted={isMounted} size={32} className="animate-spin mb-4 mx-auto" />
                     </div>
-                ) : filteredLogs.length === 0 ? (
+                ) : logGroups.length === 0 ? (
                     <div className="bg-white border border-slate-100 rounded-[32px] p-20 text-center text-slate-300">
                         <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                             <SafeIcon icon={Inbox} isMounted={isMounted} size={28} />
@@ -332,37 +386,8 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                         <p className="text-xs font-black uppercase tracking-widest">분석된 업무 여정이 없습니다.</p>
                     </div>
                 ) : (
-                    Object.entries(
-                        filteredLogs.reduce((acc: any, log: any) => {
-                            const openItemMatch =
-                                typeof log.link === 'string' ? log.link.match(/[?&]openItem=([^&]+)/) : null;
-                            const wsItemId = openItemMatch
-                                ? decodeURIComponent(openItemMatch[1])
-                                : null;
-                            const reportMatch = log.title?.match(/\[(.*?)\]/);
-                            const reportName = reportMatch ? reportMatch[1] : 'SYSTEM';
-                            const summaryMatch =
-                                log.message?.match(/\[(.*?)\]/) ||
-                                log.message?.match(/([^\s]+?\.(png|jpg|jpeg|gif|pdf|xlsx|xls|mp3|wav|m4a))/i);
-                            const summary = summaryMatch ? (summaryMatch[1] || summaryMatch[0]) : '';
-                            // 워크스페이스 항목: openItem 기준으로 동일 작업 통합 (수신자별로 분리)
-                            const key = wsItemId
-                                ? `ws_${wsItemId}_u_${log.userId || ''}`
-                                : summary
-                                  ? `${reportName}_${summary}`
-                                  : `${reportName}_${log.link}`;
-                            if (!acc[key]) acc[key] = { reportName, summary, logs: [] };
-                            acc[key].logs.push(log);
-                            return acc;
-                        }, {})
-                    ).map(([groupKey, group]: [string, any]) => {
-                        const sortedLogs = [...group.logs].sort(
-                            (a: any, b: any) =>
-                                new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-                        );
-                        // 📂 그룹 내 로그 중 실제 파일 링크(/uploads/)가 있는 로그를 우선적으로 찾아 마스터로 사용
-                        const fileLog = sortedLogs.find((l: any) => l.link && l.link.includes('/uploads/'));
-                        const latestLog = fileLog || sortedLogs[0];
+                    logGroups.map((group: any) => {
+                        const { groupKey, sortedLogs, latestLog } = group;
                         
                         const isExpanded = !!expandedGroups[groupKey];
                         const fileInfo = getFileTypeInfo(latestLog.title + latestLog.message);
@@ -446,7 +471,7 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                                                 </p>
                                             </div>
                                             <button 
-                                                onClick={() => toggleGroup(groupKey)}
+                                                onClick={() => toggleGroup(groupKey, latestLog)}
                                                 className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
                                                     isExpanded ? 'bg-slate-900 text-white rotate-180' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
                                                 }`}
