@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Mic, Camera, Send, Loader2, Check, ArrowLeft, AlertCircle, Plus, FileText } from 'lucide-react';
-import { confirmWorkspaceDataAction, deleteWorkspaceItemAction } from '@/app/workspace/actions';
-import { Trash2 } from 'lucide-react';
+import { confirmWorkspaceDataAction, deleteWorkspaceItemAction, searchAutocompleteTagsAction } from '@/app/workspace/actions';
+import { 
+    Trash2, Tag, User as UserIcon, Settings, Package, Hash,
+    X, Mic, Camera, Send, Loader2, Check, ArrowLeft, AlertCircle, Plus, FileText 
+} from 'lucide-react';
 
 interface AiInputOverlayProps {
     isOpen: boolean;
@@ -61,6 +63,57 @@ export function AiInputOverlay({
     const [reportName, setReportName] = useState<string | null>(null);
     const [columns, setColumns] = useState<any[]>([]);
 
+    // 자동완성 관련 상태
+    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [suggestionQuery, setSuggestionQuery] = useState('');
+    const [cursorPosition, setCursorPosition] = useState(0);
+    const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
+    const [triggerChar, setTriggerChar] = useState('#');
+    const editorRef = useRef<HTMLDivElement>(null);
+
+    // 태그를 시각적 칩으로 변환하는 헬퍼 (HTML 문자열 반환)
+    const getChipHtml = (type: string, name: string) => {
+        let colorClass = "bg-blue-100 text-blue-600 border-blue-200";
+        if (type === '사원' || type === '거래처직원') colorClass = "bg-amber-100 text-amber-600 border-amber-200";
+        else if (type === '부서') colorClass = "bg-indigo-100 text-indigo-600 border-indigo-200";
+        else if (type === '거래처') colorClass = "bg-emerald-100 text-emerald-600 border-emerald-200";
+
+        const iconHtml = (type === '사원' || type === '거래처직원') ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' :
+                         (type === '부서') ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' :
+                         (type === '거래처') ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>' :
+                         '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>';
+
+        return `<span contenteditable="false" data-tag="true" data-type="${type}" data-name="${name}" class="inline-flex items-center px-2 py-0.5 rounded-md border text-[13px] mx-0.5 shadow-sm align-baseline ${colorClass}">${iconHtml}${name}</span>`;
+    };
+
+    const parseTextToHtml = (text: string) => {
+        return text.split(/(\[.*?:.*?\])/g).map(part => {
+            const match = part.match(/^\[(.*?):(.*?)]$/);
+            if (match) return getChipHtml(match[1], match[2]);
+            return part;
+        }).join('');
+    };
+
+    const parseHtmlToText = (html: string) => {
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        let text = '';
+        temp.childNodes.forEach(node => {
+            if (node.nodeType === Node.TEXT_NODE) {
+                text += node.textContent;
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                const el = node as HTMLElement;
+                if (el.dataset.tag === 'true') {
+                    text += `[${el.dataset.type}:${el.dataset.name}]`;
+                } else {
+                    text += el.innerText;
+                }
+            }
+        });
+        return text;
+    };
+
     // 초기 데이터/모드 처리
     React.useEffect(() => {
         if (!isOpen) return;
@@ -108,6 +161,37 @@ export function AiInputOverlay({
             }
         }
     }, [isOpen, initialMode, initialData]);
+
+    useEffect(() => {
+        if (isOpen && editorRef.current && !editorRef.current.innerHTML.trim() && inputText) {
+            editorRef.current.innerHTML = parseTextToHtml(inputText);
+        }
+    }, [isOpen, inputText]);
+
+    // 실시간 자동완성 처리 (ContentEditable용)
+    useEffect(() => {
+        const timer = setTimeout(async () => {
+            console.log(`[AiInputOverlay] suggestionQuery changed: "${suggestionQuery}", trigger: "${triggerChar}"`);
+            if (suggestionQuery && suggestionQuery.length >= 2) { 
+                try {
+                    // 기호가 있으면 제외한 순수 검색어, 없으면 단어 전체 사용
+                    const query = triggerChar ? suggestionQuery.substring(1) : suggestionQuery;
+                    console.log(`[AiInputOverlay] Calling searchAutocompleteTagsAction with query: "${query}", trigger: "${triggerChar}"`);
+                    const results = await searchAutocompleteTagsAction(query, triggerChar);
+                    console.log(`[AiInputOverlay] Results received: ${results.length}`);
+                    setSuggestions(results);
+                    setShowSuggestions(results.length > 0);
+                    setActiveSuggestionIndex(0);
+                } catch (err) {
+                    console.error('[AiInputOverlay] searchAutocompleteTagsAction failed:', err);
+                }
+            } else {
+                setShowSuggestions(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [suggestionQuery, triggerChar]);
 
     if (!isOpen) return null;
 
@@ -231,6 +315,89 @@ export function AiInputOverlay({
         setAiData(prev => ({ ...prev, [key]: value }));
     };
 
+
+    const handleEditorInput = () => {
+        if (!editorRef.current) return;
+        
+        const html = editorRef.current.innerHTML;
+        const text = parseHtmlToText(html);
+        setInputText(text);
+
+        // 현재 선택(커서) 위치 찾기
+        const selection = window.getSelection();
+        if (!selection || !selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        const textBeforeCursor = range.startContainer.textContent?.substring(0, range.startOffset) || '';
+        
+        // '@' 또는 '#' 감지 로직
+        const match = textBeforeCursor.match(/([@#][^\s@#]*)$/);
+        // 기호가 없는 경우: 한글 기준 2글자 이상의 단어 감지 (암시적 트리거)
+        const ambientMatch = textBeforeCursor.match(/([^\s@#]{2,})$/);
+
+        if (match) {
+            const fullMatch = match[0];
+            const trigger = fullMatch[0];
+            setTriggerChar(trigger);
+            setSuggestionQuery(fullMatch);
+        } else if (ambientMatch) {
+            const word = ambientMatch[0];
+            setTriggerChar(null); // 기호 없음 표시
+            setSuggestionQuery(word);
+        } else {
+            setSuggestionQuery('');
+            setShowSuggestions(false);
+        }
+    };
+
+    const handleSuggestionSelect = (suggestion: any) => {
+        if (!editorRef.current) return;
+        
+        // 1. 데이터(Value) 레벨에서 텍스트 교체 (기존 기호를 새로운 태그로 치환)
+        // 현재 제안된 쿼리(@박 등)가 포함된 문장의 마지막 위치를 정확히 교체
+        const lastTriggerIndex = inputText.lastIndexOf(suggestionQuery);
+        if (lastTriggerIndex === -1) return;
+
+        const textBefore = inputText.substring(0, lastTriggerIndex);
+        const textAfter = inputText.substring(lastTriggerIndex + suggestionQuery.length);
+        const tagText = `[${suggestion.type}:${suggestion.name}] `;
+        const newText = textBefore + tagText + textAfter;
+
+        // 2. 가치 중심의 동기화: 텍스트 상태 업데이트 및 HTML 전체 재랜더링
+        setInputText(newText);
+        editorRef.current.innerHTML = parseTextToHtml(newText);
+
+        // 3. 커서 위치 복구 (문장 맨 끝으로)
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(editorRef.current);
+        range.collapse(false);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+
+        // UI 상태 초기화
+        setShowSuggestions(false);
+        setSuggestionQuery('');
+        editorRef.current.focus();
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (showSuggestions) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setActiveSuggestionIndex(prev => (prev + 1) % suggestions.length);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setActiveSuggestionIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSuggestionSelect(suggestions[activeSuggestionIndex]);
+            } else if (e.key === 'Escape') {
+                setShowSuggestions(false);
+            }
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[60] bg-black bg-opacity-60 backdrop-blur-sm flex flex-col justify-end animate-in fade-in duration-200">
             <div className="flex-1" onClick={resetAndClose} />
@@ -263,14 +430,62 @@ export function AiInputOverlay({
                                 어떤 작업을 도와드릴까요?
                             </p>
                             
-                            <div className="relative">
-                                <textarea
-                                    value={inputText}
-                                    onChange={(e) => setInputText(e.target.value)}
-                                    placeholder="예: 오늘 신용카드 영수증 찍었어"
-                                    className="w-full h-32 p-4 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500/50 resize-none outline-none text-gray-800 leading-relaxed transition-all placeholder:text-gray-400"
-                                    disabled={isSubmitting}
+                            <div className="relative bg-gray-50 border border-gray-200 rounded-xl focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
+                                <div
+                                    ref={editorRef}
+                                    contentEditable={!isSubmitting}
+                                    onInput={handleEditorInput}
+                                    onKeyDown={handleKeyDown}
+                                    className="w-full min-h-[128px] max-h-64 p-4 bg-transparent outline-none text-gray-800 leading-relaxed overflow-y-auto no-scrollbar relative z-10"
+                                    data-placeholder="예: 오늘 @박대리 님이랑 #삼진정밀 다녀옴"
                                 />
+                                {!inputText && (
+                                    <div className="absolute top-4 left-4 text-gray-400 pointer-events-none font-medium">
+                                        예: 오늘 @박대리 님이랑 #삼진정밀 다녀옴
+                                    </div>
+                                )}
+
+                                {/* 🏷️ 자동완성 추천 리스트 UI */}
+                                {showSuggestions && suggestions.length > 0 && (
+                                    <div className="absolute z-[70] bottom-full left-0 mb-2 w-full max-w-[300px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-in slide-in-from-bottom-2 duration-200">
+                                        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                                            <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">
+                                                {!triggerChar ? '✨ 지능형 태그 제안' : '자동 완성 추천'}
+                                            </span>
+                                            {triggerChar ? <Hash size={12} className="text-blue-400" /> : <Tag size={12} className="text-blue-400" />}
+                                        </div>
+                                        <div className="max-h-[240px] overflow-y-auto no-scrollbar">
+                                            {suggestions.map((s, idx) => (
+                                                <div 
+                                                    key={idx}
+                                                    onClick={() => handleSuggestionSelect(s)}
+                                                    className={`px-4 py-3 cursor-pointer flex items-center justify-between transition-colors ${
+                                                        idx === activeSuggestionIndex ? 'bg-blue-50' : 'hover:bg-gray-50'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`p-2 rounded-lg ${
+                                                            s.type === '사원' ? 'bg-amber-100 text-amber-600' :
+                                                            s.type === '부서' ? 'bg-indigo-100 text-indigo-600' :
+                                                            s.type === '거래처' ? 'bg-emerald-100 text-emerald-600' :
+                                                            'bg-blue-100 text-blue-600'
+                                                        }`}>
+                                                            {s.type === '사원' ? <UserIcon size={14} /> :
+                                                             s.type === '부서' ? <Settings size={14} /> :
+                                                             s.type === '거래처' ? <Tag size={14} /> :
+                                                             <Package size={14} />}
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-bold text-gray-800">{s.name}</span>
+                                                            <span className="text-[10px] text-gray-400 font-medium">{s.sub}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-[10px] font-black text-gray-300 uppercase">{s.type}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 
                                 {selectedFiles.length > 0 && (
                                     <div className="mt-3 flex flex-wrap gap-2">

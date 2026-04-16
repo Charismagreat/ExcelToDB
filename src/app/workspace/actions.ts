@@ -863,3 +863,90 @@ async function getAddressFromCoords(lat: number, lng: number): Promise<string> {
         return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     }
 }
+/**
+ * # 태그 자동 완성을 위해 마스터 데이터를 통합 검색합니다.
+ */
+/**
+ * @ 또는 # 태그 자동 완성을 위해 마스터 데이터를 필터링 검색합니다.
+ * 기호가 없는 경우(trigger=null) 모든 카테고리를 통합 검색합니다.
+ */
+export async function searchAutocompleteTagsAction(query: string, trigger: string | null = '#') {
+    // 쿼리어가 단어 검색일 경우(ambient) 너무 짧으면 빈 결과 반환 (한글 2자 미만 등)
+    if (!trigger && (!query || query.trim().length < 2)) {
+        return [];
+    }
+
+    const safeQuery = query || '';
+
+    try {
+        const lowerQuery = safeQuery.toLowerCase();
+
+        // 트리거에 따른 검색 대상 필터링
+        // @: 인물 (사원, 거래처 직원)
+        // #: 조직/사물 (부서, 거래처, 제품)
+        // null: 지능형 통합 검색 (전체)
+        const isAmbient = !trigger;
+        const isPeopleSearch = trigger === '@' || isAmbient;
+        const isObjectSearch = trigger === '#' || isAmbient;
+
+        // 1. 트리거별 대상 소스 병렬 조회
+        const [users, depts, clients, products, clientEmployees] = await Promise.all([
+            isPeopleSearch ? queryTable('user', { filters: { isActive: '1' } }) : Promise.resolve([]),
+            isObjectSearch ? queryTable('department', {}) : Promise.resolve([]),
+            (isObjectSearch || isPeopleSearch) ? queryTable('master_client', {}) : Promise.resolve([]),
+            isObjectSearch ? queryTable('master_product', {}) : Promise.resolve([]),
+            isPeopleSearch ? queryTable('master_client_employee', {}) : Promise.resolve([])
+        ]);
+
+        const results: any[] = [];
+
+        // 2. 검색어 매칭 및 통합
+        if (isPeopleSearch) {
+            // [우리회사 사원]
+            (users || []).forEach((u: any) => {
+                if (u.fullName?.toLowerCase().includes(lowerQuery) || u.username?.toLowerCase().includes(lowerQuery)) {
+                    results.push({ type: '사원', name: u.fullName, id: u.id, sub: u.position || '사원' });
+                }
+            });
+
+            // [거래처 담당자]
+            (clientEmployees || []).forEach((e: any) => {
+                if (e.name?.toLowerCase().includes(lowerQuery)) {
+                    const client = (clients || []).find((c: any) => c.id === e.clientId);
+                    results.push({ type: '거래처직원', name: e.name, id: e.id, sub: client?.name || '거래처' });
+                }
+            });
+        }
+
+        if (isObjectSearch) {
+            // [우리회사 부서]
+            (depts || []).forEach((d: any) => {
+                if (d.name?.toLowerCase().includes(lowerQuery)) {
+                    results.push({ type: '부서', name: d.name, id: d.id, sub: '부서' });
+                }
+            });
+
+            // [거래처]
+            (clients || []).forEach((c: any) => {
+                if (c.name?.toLowerCase().includes(lowerQuery)) {
+                    results.push({ type: '거래처', name: c.name, id: c.id, sub: '거래처' });
+                }
+            });
+
+            // [제품]
+            (products || []).forEach((p: any) => {
+                if (p.name?.toLowerCase().includes(lowerQuery) || p.spec?.toLowerCase().includes(lowerQuery)) {
+                    results.push({ type: '제품', name: p.name, id: p.id, sub: p.spec || '제품' });
+                }
+            });
+        }
+
+        // 지능형 검색 시 중복 제거 (여러 카테고리에 걸친 경우 등)
+        const uniqueResults = Array.from(new Map(results.map(item => [`${item.type}-${item.name}`, item])).values());
+
+        return uniqueResults.slice(0, 15);
+    } catch (err) {
+        console.error('[Autocomplete Action] Failed to search tags:', err);
+        return [];
+    }
+}
