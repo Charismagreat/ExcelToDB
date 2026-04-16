@@ -23,13 +23,16 @@ export function SmartFAB() {
         setActiveMode(null);
     };
 
-    const handleSubmit = async (text: string, files: File[]) => {
+    const handleSubmit = async (text: string, files: File[], lat?: number, lng?: number) => {
         try {
             const formData = new FormData();
             formData.append('text', text);
             files.forEach(file => {
                 formData.append('image', file);
             });
+            
+            if (lat) formData.append('lat', lat.toString());
+            if (lng) formData.append('lng', lng.toString());
             
             const result = await submitWorkspaceDataAction(formData);
             return result; // 결과를 반환하여 Overlay에서 처리하게 함

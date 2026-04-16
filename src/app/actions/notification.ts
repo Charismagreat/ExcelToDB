@@ -13,7 +13,8 @@ type WorkspacePurgeStats = {
 function normalizePurgeDays(days?: number): number {
     const numeric = Number(days);
     if (!Number.isFinite(numeric) || numeric <= 0) return 30;
-    return Math.min(Math.floor(numeric), 365);
+    // 최대 10년(3650일)까지 허용하여 전체 삭제 지원
+    return Math.min(Math.floor(numeric), 3650);
 }
 
 async function collectWorkspacePurgeTargets(days?: number): Promise<WorkspacePurgeStats> {
@@ -229,6 +230,42 @@ export async function markNotificationAsReadAction(notificationId: string, link?
 
     revalidatePath('/');
     return { success: true };
+}
+
+/**
+ * 특정 알림 그룹(link)과 관련된 모든 알림을 물리적으로 삭제합니다. (관리자용)
+ */
+export async function deleteNotificationGroupAction(link: string) {
+    const session = await getSessionAction();
+    if (!session || session.role !== 'ADMIN') {
+        throw new Error('관리자 권한이 필요합니다.');
+    }
+
+    try {
+        console.log(`[Notification Delete] Group Link: ${link}`);
+        // 1. 해당 링크(작업 단위)와 관련된 모든 알림을 물리적으로 삭제하여 대시보드에서 제거
+        await deleteRows('notification', { filters: { link } });
+        
+        // 2. [추가] 워크스페이스 항목 연계 삭제 (사원 피드에서도 제거하기 위함)
+        // 링크 패턴 예: /workspace?openItem=itemId
+        const openItemMatch = link.match(/[?&]openItem=([^&]+)/);
+        if (openItemMatch) {
+            const itemId = decodeURIComponent(openItemMatch[1]);
+            console.log(`[Notification Delete Sync] Deleting Linked Data Item: ${itemId}`);
+            
+            // workspace_item 및 report_row 하드 삭제 시도하여 데이터 정합성 확보
+            await deleteRows('workspace_item', { filters: { id: itemId } });
+            await deleteRows('report_row', { filters: { id: itemId } });
+        }
+
+        revalidatePath('/notifications');
+        revalidatePath('/(dashboard)/notifications');
+        revalidatePath('/workspace');
+        return { success: true };
+    } catch (err) {
+        console.error('[Notification Action] deleteNotificationGroupAction failed:', err);
+        throw new Error('알림 그룹 삭제 및 데이터 동기화에 실패했습니다.');
+    }
 }
 
 /**

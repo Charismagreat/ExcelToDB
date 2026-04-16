@@ -63,9 +63,10 @@ export async function getWorkspaceFeedAction() {
                 orderDirection: 'DESC'
             });
             const allItems = (workspaceResult?.rows || workspaceResult || []) as any[];
-            // 모든 상태(pending, completed, deleted)를 피드에 노출하여 히스토리로 관리
+            // [수정] 삭제되지 않은 항목만 피드에 노출합니다. (관리자 삭제 피드백 반영)
             workspaceItems = allItems.filter(item => 
-                String(item.creatorId) === creatorId
+                String(item.creatorId) === creatorId &&
+                item.status !== WORKSPACE_STATUS.DELETED
             );
         } catch (e) {
             console.error("[Feed Debug] workspace_item query failed:", e);
@@ -139,7 +140,7 @@ export async function getWorkspaceFeedAction() {
                 status: item.status || 'pending',
                 isAnalyzing, 
                 isCompleted: item.status === 'completed',
-                isDeleted: item.status === 'deleted'
+                isDeleted: item.status === 'deleted', locationName: item.location_name
             };
         });
 
@@ -232,10 +233,17 @@ export async function submitWorkspaceDataAction(formData: FormData) {
     const text = formData.get('text') as string;
     const images = formData.getAll('image') as File[];
     const validImages = images.filter(img => img && img.size > 0);
+    const lat = formData.get('lat') ? parseFloat(formData.get('lat') as string) : undefined;
+    const lng = formData.get('lng') ? parseFloat(formData.get('lng') as string) : undefined;
+    let locationName = '';
 
-    console.log(`[Workspace AI Input] Text: "${text}" | Images: ${validImages.length}`);
+    console.log(`[Workspace AI Input] Text: "${text}" | Images: ${validImages.length} | Loc: ${lat}, ${lng}`);
 
     try {
+        if (lat && lng) {
+            locationName = await getAddressFromCoords(lat, lng);
+        }
+
         // 1. 이미지가 여러 장인 경우: 선 저장 후 순차/수동 분류 유도
         if (validImages.length > 1) {
             console.log(`[Batch Upload] Processing ${validImages.length} images...`);
@@ -259,7 +267,10 @@ export async function submitWorkspaceDataAction(formData: FormData) {
                         suggestedSummary: "여러 장의 사진을 한꺼번에 올렸습니다. 피드에서 개별적으로 분류해 주세요.",
                         status: 'pending',
                         createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString()
+                        updatedAt: new Date().toISOString(),
+                        location_lat: lat,
+                        location_lng: lng,
+                        location_name: locationName
                     }]);
 
                     // 개별 항목 배경 분석 트리거
@@ -309,7 +320,10 @@ export async function submitWorkspaceDataAction(formData: FormData) {
             suggestedSummary: "", // 안내 문구 제거
             status: 'pending',
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            location_lat: lat,
+            location_lng: lng,
+            location_name: locationName
         }]);
 
         // [핵심] 배경 분석 트리거 (await 하지 않음 - 사용자 응답 속도 최우선)
@@ -593,7 +607,9 @@ async function analyzeWorkspaceItemAction(itemId: string) {
         // [추가] Audit Trail의 시작점: 분석 시작 알림 생성
         const startLink = workspaceOpenItemLink(itemId);
         const startTitle = '🔍 분석 단계 시작';
-        const startMessage = `[${creatorUser?.fullName || '사원'}]님이 업로드한 항목의 분석을 시작합니다.`;
+        const locationCoords = (item.location_lat && item.location_lng) ? ` [geo:${item.location_lat},${item.location_lng}]` : '';
+        const locationInfo = item.location_name ? `\n📍 위치: ${item.location_name}${locationCoords}` : '';
+        const startMessage = `[${creatorUser?.fullName || '사원'}]님이 업로드한 항목의 분석을 시작합니다.${locationInfo}`;
         
         await upsertInAppNotificationByLink({
             userId: String(item.creatorId),
@@ -708,20 +724,20 @@ async function analyzeWorkspaceItemAction(itemId: string) {
 
         // 알림 메시지 구성 (상태별 분기 — DB에 반영된 updateData 기준)
         let alertTitle = 'AI 분석 완료';
-        let alertMessage = `[${displayTitle}] 분석이 완료되었습니다. 확인 후 저장해 주세요.`;
+        let alertMessage = `[${displayTitle}] 분석이 완료되었습니다. 확인 후 저장해 주세요.${locationInfo}`;
         let alertType: 'INFO' | 'ALERT' | 'WARNING' = 'ALERT';
 
         if (isAutoConfirmed) {
             alertTitle = '데이터 자동 기록 완료';
-            alertMessage = `${updateData.suggestedSummary}`;
+            alertMessage = `${updateData.suggestedSummary}${locationInfo}`;
             alertType = 'INFO';
         } else if (isBlockedFinal) {
             alertTitle = '🔴 데이터 등록 차단됨';
-            alertMessage = `보안 정책에 의해 [${displayTitle}] 등록이 차단되었습니다.`;
+            alertMessage = `보안 정책에 의해 [${displayTitle}] 등록이 차단되었습니다.${locationInfo}`;
             alertType = 'WARNING';
         } else if (isUnresolvedFinal) {
             alertTitle = '⚠️ 미분류 데이터 발생 — 조치 필요';
-            alertMessage = `[${displayTitle}] 매칭되는 테이블이 없습니다. 관리자의 확인 또는 보고서 추가가 필요합니다.`;
+            alertMessage = `[${displayTitle}] 매칭되는 테이블이 없습니다. 관리자의 확인 또는 보고서 추가가 필요합니다.${locationInfo}`;
             alertType = 'ALERT';
         }
 
@@ -787,11 +803,13 @@ export async function deleteWorkspaceItemAction(itemId: string) {
         console.log(`[Workspace Delete] Item: ${itemId}`);
 
         // 1. 이미지 파일 경로 확인 (workspace_item 또는 report_row)
-        let imageUrl = '';
         const items = await queryTable('workspace_item', { filters: { id: String(itemId) } });
         const item = Array.isArray(items) ? items[0] : (items.rows?.[0]);
 
         if (item) {
+            // 항목 삭제 시 연관된 알림도 물리적으로 삭제 (대시보드 잔상 제거)
+            await deleteRows('notification', { filters: { link: `/workspace?openItem=${itemId}` } });
+
             // 실제 삭제 대신 'deleted' 상태로 업데이트 (히스토리 보존)
             await updateRows('workspace_item', { 
                 status: WORKSPACE_STATUS.DELETED,
@@ -812,13 +830,36 @@ export async function deleteWorkspaceItemAction(itemId: string) {
             }
         }
 
-        // 파일은 삭제하지 않고 기록용으로 보존합니다.
-        // (필요 시 일정 기간 후 삭제하는 배치 작업 등으로 관리 가능)
-
         revalidatePath('/workspace');
         return { success: true, message: "항목이 삭제되었습니다." };
     } catch (err: any) {
         console.error("Failed to delete workspace item:", err);
         return { success: false, message: err.message };
+    }
+}
+
+/**
+ * 좌표를 사람이 읽을 수 있는 주소로 변환하는 헬퍼 함수 (OSM Nominatim 활용)
+ */
+async function getAddressFromCoords(lat: number, lng: number): Promise<string> {
+    try {
+        console.log(`[Reverse Geocoding] Fetching address for ${lat}, ${lng}...`);
+        // Nominatim API 사용 (PoC 단계에서는 공개 API 사용)
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+            headers: {
+                'User-Agent': 'EGDesk-App/1.0'
+            }
+        });
+        
+        if (!response.ok) return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        
+        const data = await response.json();
+        const address = data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        
+        // 너무 긴 주소는 줄임 (예: 구/동 단위까지만)
+        return address.length > 50 ? address.substring(0, 50) + '...' : address;
+    } catch (e) {
+        console.error('[Reverse Geocoding Error]', e);
+        return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     }
 }

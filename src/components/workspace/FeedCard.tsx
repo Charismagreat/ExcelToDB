@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CheckCircle, Clock, Eye, FileText, Camera, ShieldX, AlertTriangle } from 'lucide-react';
+import { CheckCircle, Clock, Eye, FileText, Camera, ShieldX, AlertTriangle, MapPin } from 'lucide-react';
 
 interface FeedCardProps {
     id: string;
@@ -20,6 +20,7 @@ interface FeedCardProps {
     onClassify?: (id: string) => void;
     onImageClick?: (url: string) => void;
     isAnalyzing?: boolean;
+    locationName?: string;
 }
 
 export function FeedCard({
@@ -38,7 +39,8 @@ export function FeedCard({
     unclassifiedReason,
     onClassify,
     onImageClick,
-    isAnalyzing
+    isAnalyzing,
+    locationName
 }: FeedCardProps) {
     const isTask = type === 'TASK';
     const isUnclassified = type === 'UNCLASSIFIED';
@@ -152,11 +154,19 @@ export function FeedCard({
                     </div>
 
                     <div className="flex items-center justify-between mt-3">
-                        <div className="flex items-center text-[10px] text-muted-foreground font-medium">
-                            <span className="flex items-center">
-                                <Clock size={10} className="mr-1" />
-                                {timestamp}
-                            </span>
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center text-[10px] text-muted-foreground font-medium">
+                                <span className="flex items-center">
+                                    <Clock size={10} className="mr-1" />
+                                    {timestamp}
+                                </span>
+                            </div>
+                            {locationName && (
+                                <div className="flex items-center text-[9px] text-blue-500/70 font-bold bg-blue-500/5 px-1.5 py-0.5 rounded-md border border-blue-500/10 truncate max-w-[140px]" title={locationName}>
+                                    <MapPin size={8} className="mr-1 flex-shrink-0" />
+                                    <span className="truncate">{locationName}</span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex items-center space-x-2">

@@ -21,7 +21,10 @@ import {
     Clock,
     Inbox,
     Loader2,
-    UserCheck
+    UserCheck,
+    AlertTriangle,
+    MapPin,
+    Trash2
 } from 'lucide-react';
 import { 
     markNotificationAsReadAction, 
@@ -29,7 +32,8 @@ import {
     clearOldNotificationsAction,
     getAdminNotificationLogsAction,
     previewWorkspaceTestDataPurgeAction,
-    purgeWorkspaceTestDataAction
+    purgeWorkspaceTestDataAction,
+    deleteNotificationGroupAction
 } from '@/app/actions/notification';
 import { FieldReportSection } from '@/components/FieldReportSection';
 import { Filter } from 'lucide-react';
@@ -105,6 +109,28 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
             } catch (err) {
                 console.error('Failed to mark group as read:', err);
             }
+        }
+    };
+
+    const handleDeleteGroup = async (latestLog: any) => {
+        if (!isAdmin || !latestLog.link) return;
+        
+        if (!window.confirm('해당 작업과 관련된 모든 알림을 삭제하시겠습니까?\n(워크스페이스 항목 데이터는 유지되며 대시보드에서만 제거됩니다)')) return;
+        
+        setLoading(true);
+        try {
+            const result = await deleteNotificationGroupAction(latestLog.link);
+            if (result.success) {
+                // 로컬 상태 즉시 갱신
+                const refreshed = await getAdminNotificationLogsAction({ searchTerm });
+                setAdminLogs(refreshed);
+                window.dispatchEvent(new Event('notification:updated'));
+            }
+        } catch (err) {
+            console.error('Failed to delete group:', err);
+            alert('그룹 삭제에 실패했습니다.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -249,6 +275,11 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
     const stats = {
         total: logGroups.length,
         todo: logGroups.filter((g: any) => g.latestLog.taskStatus === 'TODO').length,
+        actionRequired: logGroups.filter((g: any) => 
+            g.latestLog.title?.includes('조치 필요') || 
+            g.latestLog.type === 'ALERT' || 
+            g.latestLog.taskStatus === 'UNRESOLVED'
+        ).length,
         inProgress: logGroups.filter((g: any) => g.latestLog.taskStatus === 'IN_PROGRESS').length,
         done: logGroups.filter((g: any) => g.latestLog.taskStatus === 'DONE').length,
     };
@@ -261,10 +292,11 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
             )}
 
             {/* 2. Stats Grid - Unified with Department Workspace Design */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 {[
                     { label: '전체 소식', count: stats.total, icon: Bell, color: 'text-blue-600', bg: 'bg-blue-50' },
                     { label: '진행 대기', count: stats.todo, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+                    { label: '조치 필요', count: stats.actionRequired, icon: AlertTriangle, color: 'text-rose-600', bg: 'bg-rose-50' },
                     { label: '진행 중', count: stats.inProgress, icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-50' },
                     { label: '완료됨', count: stats.done, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
                 ].map((s, idx) => (
@@ -390,12 +422,19 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                         const { groupKey, sortedLogs, latestLog } = group;
                         
                         const isExpanded = !!expandedGroups[groupKey];
+                        const isActionRequired = latestLog.title?.includes('조치 필요') || 
+                                              latestLog.type === 'ALERT' || 
+                                              latestLog.taskStatus === 'UNRESOLVED';
                         const fileInfo = getFileTypeInfo(latestLog.title + latestLog.message);
                         
                         return (
                             <div key={groupKey} className="relative group animate-in fade-in slide-in-from-bottom-2 duration-500">
                                 {/* 🛡️ 마스터 통합 카드 (Consolidated Job Card) */}
-                                <div className={`bg-white border transition-all duration-300 rounded-[32px] overflow-hidden shadow-sm hover:shadow-xl ${isExpanded ? 'ring-2 ring-blue-500/10 border-blue-500/20' : 'border-slate-100'}`}>
+                                <div className={`bg-white border transition-all duration-300 rounded-[32px] overflow-hidden shadow-sm hover:shadow-xl ${
+                                    isExpanded 
+                                    ? (isActionRequired ? 'ring-2 ring-rose-500/10 border-rose-500/20' : 'ring-2 ring-blue-500/10 border-blue-500/20') 
+                                    : (isActionRequired ? 'border-rose-200' : 'border-slate-100')
+                                }`}>
                                     {/* 1. 카드 상단: 작업 정보 & 파일 타입 아이콘 */}
                                     <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-br from-white to-slate-50/50">
                                         <div className="flex items-center gap-6">
@@ -420,9 +459,44 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                                             
                                             <div>
                                                 <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                                                    <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md uppercase tracking-widest border border-blue-100">
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border ${
+                                                        isActionRequired 
+                                                        ? 'text-rose-600 bg-rose-50 border-rose-100' 
+                                                        : 'text-blue-600 bg-blue-50 border-blue-100'
+                                                    }`}>
                                                         {group.reportName}
                                                     </span>
+                                                    {latestLog.message?.includes('📍') && (
+                                                        (() => {
+                                                            const match = latestLog.message.match(/📍 위치: (.*)/);
+                                                            const locFull = match ? match[1].trim() : '현장 확인됨';
+                                                            const geoMatch = locFull.match(/\[geo:(.*)\]/);
+                                                            const coords = geoMatch ? geoMatch[1] : null;
+                                                            // geo 태그를 제거한 순수 주소 명칭
+                                                            const locName = geoMatch ? locFull.replace(geoMatch[0], '').trim() : locFull;
+                                                            
+                                                            // 구글 지도 URL 구성 (좌표 우선, 없으면 주소 검색)
+                                                            const googleMapsUrl = coords 
+                                                                ? `https://www.google.com/maps/search/?api=1&query=${coords}`
+                                                                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locName)}`;
+
+                                                            return (
+                                                                <a 
+                                                                    href={googleMapsUrl}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase tracking-widest border border-emerald-100 flex items-center gap-1 max-w-[220px] hover:bg-emerald-100 hover:border-emerald-200 transition-all group/map cursor-pointer shadow-sm"
+                                                                    title={`${locName}\n(클릭 시 지도에서 보기)`}
+                                                                    onClick={(e) => e.stopPropagation()} // 카드 클릭 이벤트와 별개로 처리
+                                                                >
+                                                                    <MapPin size={10} className="shrink-0 group-hover/map:scale-110 transition-transform text-emerald-500" /> 
+                                                                    <span className="truncate">
+                                                                        {locName.length > 22 ? locName.substring(0, 20) + '...' : locName}
+                                                                    </span>
+                                                                </a>
+                                                            );
+                                                        })()
+                                                    )}
                                                     {group.summary && (
                                                         <span className="text-[10px] font-bold text-slate-400 truncate max-w-[120px]">
                                                             {group.summary}
@@ -454,16 +528,32 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                                                         </div>
                                                     )}
                                                 </div>
-                                                <h3 className="text-lg font-black text-slate-800 tracking-tight leading-tight">
+                                                <h3 className={`text-lg font-black tracking-tight leading-tight ${
+                                                    isActionRequired ? 'text-rose-600' : 'text-slate-800'
+                                                }`}>
                                                     {latestLog.title}
                                                 </h3>
                                                 <p className="text-sm font-medium text-slate-500 mt-1 line-clamp-1 italic">
-                                                    {latestLog.message}
+                                                    {latestLog.message?.split('\n📍')[0]}
                                                 </p>
                                             </div>
                                         </div>
 
                                         <div className="flex items-center gap-4">
+                                            {/* 🗑️ 삭제 버튼 (관리자 전용) */}
+                                            {isAdmin && (
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteGroup(latestLog);
+                                                    }}
+                                                    className="w-12 h-12 rounded-xl flex items-center justify-center bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-all border border-transparent hover:border-rose-100 group/trash"
+                                                    title="이 작업의 모든 알림 삭제"
+                                                >
+                                                    <SafeIcon icon={Trash2} isMounted={isMounted} size={20} className="group-hover/trash:scale-110 transition-transform" />
+                                                </button>
+                                            )}
+
                                             <div className="text-right hidden md:block">
                                                 <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">최종 업데이트</p>
                                                 <p className="text-xs font-bold text-slate-600">

@@ -7,7 +7,7 @@ import { Trash2 } from 'lucide-react';
 interface AiInputOverlayProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (text: string, files: File[]) => Promise<any>;
+    onSubmit: (text: string, files: File[], lat?: number, lng?: number) => Promise<any>;
     initialMode?: 'camera' | 'mic' | 'file' | null;
     initialData?: Record<string, any> | null;
     initialReportId?: string | null;
@@ -28,6 +28,26 @@ export function AiInputOverlay({
     workspaceItemId
 }: AiInputOverlayProps) {
     const [inputText, setInputText] = useState('');
+    const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
+
+    useEffect(() => {
+        // 위치 정보 수집 로직 (백그라운드에서 조용히 수행)
+        if (typeof window !== 'undefined' && navigator.geolocation && isOpen) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    console.log(`[Geolocation] Location captured: ${pos.coords.latitude}, ${pos.coords.longitude}`);
+                    setLocation({
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude
+                    });
+                },
+                (err) => {
+                    console.warn('[Geolocation] Failed to capture location:', err.message);
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+    }, [isOpen]);
     const [isListening, setIsListening] = useState(false);
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -95,7 +115,7 @@ export function AiInputOverlay({
         if (!inputText.trim() && selectedFiles.length === 0) return;
         setIsSubmitting(true);
         try {
-            const result = await onSubmit(inputText, selectedFiles);
+            const result = await onSubmit(inputText, selectedFiles, location?.lat, location?.lng);
             
             if (result && result.success) {
                 if (result.isBatch || result.isUnclassified) {
