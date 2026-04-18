@@ -5,6 +5,8 @@ import NavigationSidebar from '@/components/NavigationSidebar';
 import DashboardLayoutClient from '@/components/DashboardLayoutClient';
 import { queryTable } from '@/egdesk-helpers';
 
+import { SystemConfigService } from '@/lib/services/system-config-service';
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -13,6 +15,12 @@ export default async function DashboardLayout({
   const user = await getSessionAction();
   if (!user) {
     redirect('/login');
+  }
+
+  // Check if system is initialized. If not, redirect to setup (except on setup page itself)
+  const settings = await SystemConfigService.getSettings();
+  if (!settings || !settings.isInitialized) {
+    redirect('/setup');
   }
 
   // VIEWER 권한은 대시보드 접근 불가 -> 워크스페이스로 리다이렉트

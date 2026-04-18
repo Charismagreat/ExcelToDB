@@ -42,7 +42,8 @@ export default function SetupPage() {
         formDataPayload.append('file', file);
 
         try {
-            const res = await fetch('/api/setup/analyze-excel', {
+            const apiUrl = window.location.pathname.replace(/\/setup\/?$/, '/api/setup/analyze-excel');
+            const res = await fetch(apiUrl, {
                 method: 'POST',
                 body: formDataPayload
             });
@@ -83,7 +84,8 @@ export default function SetupPage() {
         setError('');
         
         try {
-            const res = await fetch('/api/setup/initialize', {
+            const apiUrl = window.location.pathname.replace(/\/setup\/?$/, '/api/setup/initialize');
+            const res = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
