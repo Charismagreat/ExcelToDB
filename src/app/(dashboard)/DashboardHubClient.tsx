@@ -16,14 +16,17 @@ import { NewTableSection } from '@/components/NewTableSection';
 import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 import { DeleteReportButton } from '@/components/DeleteReportButton';
 import BackupManager from '@/components/BackupManager';
+import UpcomingEventsWidget from '@/components/dashboard/UpcomingEventsWidget';
+import { CalendarEvent } from '@/lib/services/calendar-service';
 
 interface DashboardHubClientProps {
   user: any;
   isStaff: boolean;
   reports: any[];
+  events: CalendarEvent[];
 }
 
-export function DashboardHubClient({ user, isStaff, reports }: DashboardHubClientProps) {
+export function DashboardHubClient({ user, isStaff, reports, events }: DashboardHubClientProps) {
   const [showManualModal, setShowManualModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'reports' | 'backups'>('reports'); // 탭 상태 추가
 
@@ -80,6 +83,10 @@ export function DashboardHubClient({ user, isStaff, reports }: DashboardHubClien
                 setShowManualModal={setShowManualModal} 
               />
             )}
+            
+            {/* Upcoming Schedule Widget (NEW) */}
+            <UpcomingEventsWidget events={events} />
+
 
             {/* Reports List */}
             <section className="max-w-[1600px] mx-auto">

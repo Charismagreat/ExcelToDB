@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ClipboardList, Bell, Settings } from 'lucide-react';
+import { Home, ClipboardList, Bell, Settings, Calendar } from 'lucide-react';
 
 export function BottomNav() {
     const pathname = usePathname();
@@ -11,6 +11,7 @@ export function BottomNav() {
     const tabs = [
         { name: '홈', href: '/workspace', icon: <Home size={24} /> },
         { name: '할일', href: '/workspace/todo', icon: <ClipboardList size={24} /> },
+        { name: '캘린더', href: '/workspace/calendar', icon: <Calendar size={24} /> },
         { name: '알림', href: '/workspace/notifications', icon: <Bell size={24} /> },
         { name: '설정', href: '/workspace/settings', icon: <Settings size={24} /> },
     ];

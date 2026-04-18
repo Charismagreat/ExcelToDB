@@ -353,7 +353,9 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                     <div className="px-4 py-2 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center gap-2">
                         <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> LIVE
                     </div>
-                    {isAdmin && (
+                    {/* 
+                        [정지] 테스트 데이터 일괄 삭제 기능 - 필요 시 주석 해제하여 사용
+                        isAdmin && (
                         <>
                             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200">
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">최근</span>
@@ -400,7 +402,7 @@ export default function BusinessWorkflowHub({ user, initialNotifications, initia
                                 {isPurgingTestData ? '삭제 중...' : '테스트 데이터 일괄 삭제'}
                             </button>
                         </>
-                    )}
+                    )*/}
                 </div>
             </div>
 

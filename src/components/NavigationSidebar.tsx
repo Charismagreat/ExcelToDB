@@ -18,7 +18,8 @@ import {
   Bell,
   Users,
   ShieldCheck,
-  Loader2
+  Loader2,
+  Calendar
 } from 'lucide-react';
 // 🚀 DEFAULT IMPORTS: New consistency standard
 import LogoutButton from './LogoutButton';
@@ -51,7 +52,7 @@ export default function NavigationSidebar({ user, isCollapsed = false, onToggle 
       name: 'DASHBOARD',
       href: '/dashboard',
       icon: Star,
-      active: pathname === '/dashboard' || pathname?.startsWith('/dashboard/'),
+      active: pathname === '/dashboard',
       desc: '주요 리포트 한눈에 보기'
     },
     {
@@ -74,6 +75,13 @@ export default function NavigationSidebar({ user, isCollapsed = false, onToggle 
       icon: Compass,
       active: pathname === '/dashboard/studio',
       desc: 'AI 기반 데이터 시각화'
+    },
+    {
+      name: 'SYSTEM CALENDAR',
+      href: '/dashboard/calendar',
+      icon: Calendar,
+      active: pathname === '/dashboard/calendar',
+      desc: '전사 일정 및 공지 관리'
     },
     {
       name: 'ORGANIZATION',

@@ -25,6 +25,7 @@ import { queryTable, aggregateTable, listTables } from '@/egdesk-helpers';
 import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 import PageHeader from '@/components/PageHeader';
 import { DashboardHubClient } from './DashboardHubClient';
+import { getCalendarEvents } from '@/lib/services/calendar-service';
 
 export default async function DashboardPage() {
   // 실제 세션 사용자 정보 가져오기
@@ -137,11 +138,17 @@ export default async function DashboardPage() {
 
   const isStaff = user.role === 'VIEWER';
 
+  // 3. 캘린더 일정 데이터 가져오기
+  const events = await getCalendarEvents({
+    userRole: user.role
+  });
+
   return (
     <DashboardHubClient 
       user={user} 
       isStaff={isStaff} 
       reports={reports} 
+      events={events}
     />
   );
 }
