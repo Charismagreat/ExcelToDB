@@ -1,136 +1,169 @@
+'use server';
+
 import { 
     createTable, 
     insertRows, 
     queryTable, 
     deleteRows, 
-    listTables 
+    listTables,
+    deleteTable
 } from '@/egdesk-helpers';
 import { SAMPLE_DEPARTMENTS, SAMPLE_USERS, SAMPLE_TAG } from '@/lib/constants/system-samples';
 import { INDUSTRY_TEMPLATES } from '@/lib/constants/industry-templates';
-import { SYSTEM_TABLES } from '@/app/actions/shared';
+import { DEMO_DASHBOARD_CHARTS } from '@/lib/constants/dashboard-samples';
+import { 
+    loadAllPinnedChartsAction, 
+    saveAllPinnedChartsAction 
+} from '@/lib/services/chart-service';
 
 /**
- * Service to manage the lifecycle of demo/sample data.
- */
-export class DemoService {
-    
-    /**
-     * One-click installation of the full industry suite + organizational samples.
-     */
-    static async initializeDemoSetup() {
-        console.log('[DemoService] Starting Full Suite Initialization...');
-        
-        // 1. Initialize Departments
-        console.log('[DemoService] Creating Departments...');
-        const deptRows = SAMPLE_DEPARTMENTS.map(d => ({
-            ...d,
-            metadata: SAMPLE_TAG,
-            createdAt: new Date().toISOString()
-        }));
-        await insertRows('department', deptRows);
-
-        // 2. Initialize Sample Users
-        console.log('[DemoService] Creating Sample Users...');
-        const userRows = SAMPLE_USERS.map(u => ({
-            ...u,
-            isActive: 1,
-            metadata: SAMPLE_TAG,
-            createdAt: new Date().toISOString()
-        }));
-        await insertRows('user', userRows);
-
-        // 3. Create 100 Industry Tables & Inject Samples
-        console.log('[DemoService] Creating Industry Tables...');
-        for (const tpl of INDUSTRY_TEMPLATES) {
-            try {
-                // Prepare columns
-                const columns = tpl.schema.map(col => ({
-                    name: col.name,
-                    type: col.type,
-                    notNull: col.notNull || false
-                }));
-
-                // Ensure metadata column is always there
-                if (!columns.find(c => c.name === 'metadata')) {
-                    columns.push({ name: 'metadata', type: 'TEXT', notNull: false });
-                }
-
-                // Create Table
-                await createTable({
-                    tableName: tpl.id,
-                    columns: columns
-                });
-
-                // Inject Sample Data if available
-                if (tpl.initialData && tpl.initialData.length > 0) {
-                    await insertRows(tpl.id, tpl.initialData);
-                }
-            } catch (err) {
-                console.warn(`[DemoService] Failed to create table ${tpl.id}:`, err);
-            }
-        }
-
-        console.log('[DemoService] Full Suite Initialization Complete!');
-        return { success: true };
-    }
-
-    /**
-     * One-click Purge of all sample data to transition to LIVE mode.
-     */
-    static async purgeAllSampleData() {
-        console.log('[DemoService] Starting Global Sample Purge...');
-        
-        // Get all tables in the database
-        const tables = await listTables();
-        const results = [];
-
-        for (const table of tables) {
-            try {
-                // We use a safe query to find rows with is_sample tag
-                // Since SQLite doesn't have native JSON path indexing in all versions, 
-                // we use a simple LIKE check on the text column as a safety measure.
-                
-                // 1. Count samples first (optional, but good for reporting)
-                const samples = await queryTable(table, {
-                    // Logic: metadata LIKE '%"is_sample":true%'
-                    // Note: egdesk-helpers filters are usually exact match. 
-                    // If exact match doesn't work for JSON strings, we might need a custom query helper.
-                    // For now, let's assume standard filtering logic or a scan-and-purge approach.
-                });
-
-                // Real Filter (In-memory for small tables, or we can add 'where' raw support)
-                const targetIds = samples
-                    .filter(row => {
-                        try {
-                            const meta = JSON.parse(row.metadata || '{}');
-                            return meta.is_sample === true;
-                        } catch (e) { return false; }
-                    })
-                    .map(row => row.id);
-
-                if (targetIds.length > 0) {
-                    for (const id of targetIds) {
-                        await deleteRows(table, { id });
-                    }
-                    results.push({ table, deleted: targetIds.length });
-                }
-            } catch (err) {
-                console.warn(`[DemoService] Skipping table ${table} during purge:`, err);
-            }
-        }
-
-        console.log('[DemoService] Global Sample Purge Complete!', results);
-        return { success: true, results };
-    }
-}
-
-/**
- * Server Action wrappers for the DemoService
+ * One-click installation of the full industry suite + organizational samples.
  */
 export async function initializeDemoSetupAction() {
-    return await DemoService.initializeDemoSetup();
+    console.log('[DemoService] Starting Full Suite Initialization...');
+    
+    // 1. Initialize Departments
+    console.log('[DemoService] Creating Departments...');
+    const deptRows = SAMPLE_DEPARTMENTS.map(d => ({
+        ...d,
+        metadata: SAMPLE_TAG,
+        createdAt: new Date().toISOString()
+    }));
+    await insertRows('department', deptRows);
+
+    // 2. Initialize Sample Users
+    console.log('[DemoService] Creating Sample Users...');
+    const userRows = SAMPLE_USERS.map(u => ({
+        ...u,
+        isActive: 1,
+        metadata: SAMPLE_TAG,
+        createdAt: new Date().toISOString()
+    }));
+    await insertRows('user', userRows);
+
+    // 3. Create 100 Industry Tables & Inject Samples
+    console.log('[DemoService] Creating Industry Tables...');
+    for (const tpl of INDUSTRY_TEMPLATES) {
+        try {
+            // Prepare columns
+            const columns = tpl.schema.map(col => ({
+                name: col.name,
+                type: col.type,
+                notNull: col.notNull || false
+            }));
+
+            // Ensure mandatory system columns exist
+            if (!columns.find(c => c.name === 'metadata')) {
+                columns.push({ name: 'metadata', type: 'TEXT', notNull: false });
+            }
+            if (!columns.find(c => c.name === 'isDeleted')) {
+                columns.push({ name: 'isDeleted', type: 'INTEGER', notNull: false });
+            }
+
+            // Clean Install: 기존 테이블이 있으면 삭제 후 최신 스키마로 재생성
+            try {
+                await deleteTable(tpl.id);
+            } catch (e) {
+                // Table might not exist, skip
+            }
+
+            // Create Table
+            await createTable(
+                tpl.displayName, 
+                columns, 
+                { tableName: tpl.id }
+            );
+
+            // Inject Sample Data if available
+            if (tpl.initialData && tpl.initialData.length > 0) {
+                const dataWithSysColumns = tpl.initialData.map(row => ({
+                    ...row,
+                    isDeleted: 0 // Default to not deleted
+                }));
+                await insertRows(tpl.id, dataWithSysColumns);
+            }
+        } catch (err) {
+            console.warn(`[DemoService] Failed to create table ${tpl.id}:`, err);
+        }
+    }
+
+    // 4. Inject Demo Dashboard Charts
+    console.log('[DemoService] Injecting Demo Dashboard Charts...');
+    await injectDemoDashboardChartsAction();
+
+    console.log('[DemoService] Full Suite Initialization Complete!');
+    return { success: true };
 }
 
+/**
+ * Inject Pinned Charts for the Demo Dashboard
+ */
+export async function injectDemoDashboardChartsAction() {
+    const adminId = "1"; // Default admin after setup
+    const existingCharts = await loadAllPinnedChartsAction();
+    
+    const newDemoCharts = DEMO_DASHBOARD_CHARTS.map(demo => ({
+        id: `demo-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        userId: adminId,
+        config: {
+            type: demo.type,
+            data: [], // Will be hydrated on refresh or initial load
+            xAxis: demo.xAxis,
+            series: demo.series,
+            title: demo.title,
+            showLabels: true,
+            sourceDescription: demo.description,
+            refreshMetadata: demo.refreshMetadata
+        },
+        layout: { span: demo.span },
+        createdAt: new Date().toISOString(),
+        isSample: true // Tag for purging
+    }));
+
+    await saveAllPinnedChartsAction([...existingCharts, ...newDemoCharts]);
+}
+
+/**
+ * One-click Purge of all sample data to transition to LIVE mode.
+ */
 export async function purgeAllSampleDataAction() {
-    return await DemoService.purgeAllSampleData();
+    console.log('[DemoService] Starting Global Sample Purge...');
+    
+    // 1. Purge Pinned Charts (Demo Widgets)
+    const allCharts = await loadAllPinnedChartsAction();
+    const filteredCharts = allCharts.filter((c: any) => !c.isSample);
+    if (allCharts.length !== filteredCharts.length) {
+        await saveAllPinnedChartsAction(filteredCharts);
+        console.log(`[DemoService] Purged ${allCharts.length - filteredCharts.length} demo charts.`);
+    }
+
+    // 2. Purge Table Data
+    const tables = await listTables();
+    const results = [];
+
+    for (const table of tables) {
+        try {
+            const samples = await queryTable(table, {});
+            const targetIds = samples
+                .filter(row => {
+                    try {
+                        const meta = JSON.parse(row.metadata || '{}');
+                        return meta.is_sample === true;
+                    } catch (e) { return false; }
+                })
+                .map(row => row.id);
+
+            if (targetIds.length > 0) {
+                for (const id of targetIds) {
+                    await deleteRows(table, { id });
+                }
+                results.push({ table, deleted: targetIds.length });
+            }
+        } catch (err) {
+            console.warn(`[DemoService] Skipping table ${table} during purge:`, err);
+        }
+    }
+
+    console.log('[DemoService] Global Sample Purge Complete!', results);
+    return { success: true, results };
 }

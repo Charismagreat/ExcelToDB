@@ -1,13 +1,13 @@
 /**
  * EGDesk User Data Configuration
- * Generated at: 2026-04-18T01:31:13.327Z
+ * Generated at: 2026-04-18T11:41:42.818Z
  *
  * This file contains type-safe definitions for your EGDesk tables.
  */
 
 export const EGDESK_CONFIG = {
   apiUrl: 'http://localhost:8080',
-  apiKey: '84eb800a-8612-4ae4-86be-8602c1eb7dc9',
+  apiKey: 'daad43dc-3a9f-4f45-99f0-a227407284e9',
 } as const;
 
 export interface TableDefinition {
@@ -97,7 +97,7 @@ export const TABLES = {
   table11: {
     name: 'department',
     displayName: 'Organization Departments',
-    rowCount: 3,
+    rowCount: 9,
     columnCount: 5,
     columns: ['id', 'name', 'description', 'icon', 'createdAt']
   } as TableDefinition,
@@ -159,7 +159,7 @@ export const TABLES = {
   table21: {
     name: 'user',
     displayName: 'System Users',
-    rowCount: 5,
+    rowCount: 10,
     columnCount: 11,
     columns: ['id', 'username', 'email', 'password', 'role', 'fullName', 'employeeId', 'departmentId', 'position', 'isActive', 'createdAt']
   } as TableDefinition,

@@ -195,7 +195,22 @@ export const INDUSTRY_TEMPLATES: TableTemplate[] = [
     { id: 'tpl_sales_orders', category: 'Sales', displayName: '수주/주문 대장', description: 'Confirmed orders.', schema: [{ name: 'order_no', type: 'TEXT', displayName: '주문번호' }, { name: 'amount', type: 'REAL', displayName: '주문액' }, { name: 'metadata', type: 'TEXT', displayName: '기타정보' }] },
     { id: 'tpl_sales_customer_contacts', category: 'Sales', displayName: '거래처 담당자 명부', description: 'Contact list.', schema: [{ name: 'company', type: 'TEXT', displayName: '회사명' }, { name: 'person', type: 'TEXT', displayName: '담당자' }, { name: 'phone', type: 'TEXT', displayName: '연락처' }, { name: 'metadata', type: 'TEXT', displayName: '기타정보' }] },
     { id: 'tpl_sales_competitors', category: 'Sales', displayName: '경쟁사 동향 분석', description: 'Market intelligence.', schema: [{ name: 'competitor', type: 'TEXT', displayName: '경쟁사' }, { name: 'intel', type: 'TEXT', displayName: '특이사항' }, { name: 'metadata', type: 'TEXT', displayName: '기타정보' }] },
-    { id: 'tpl_sales_revenue_target', category: 'Sales', displayName: '매출 목표 대비 실적', description: 'Performance vs Target.', schema: [{ name: 'month', type: 'TEXT', displayName: '해당월' }, { name: 'target', type: 'REAL', displayName: '목표액' }, { name: 'actual', type: 'REAL', displayName: '실적액' }, { name: 'metadata', type: 'TEXT', displayName: '기타정보' }] },
+    { 
+        id: 'tpl_sales_revenue_target', 
+        category: 'Sales', 
+        displayName: '매출 목표 대비 실적', 
+        description: 'Performance vs Target.', 
+        schema: [
+            { name: 'month', type: 'TEXT', displayName: '해당월' }, 
+            { name: 'target', type: 'REAL', displayName: '목표액' }, 
+            { name: 'actual', type: 'REAL', displayName: '실적액' }, 
+            { name: 'metadata', type: 'TEXT', displayName: '기타정보' }
+        ], 
+        initialData: [
+            { month: '2026-03', target: 500000000, actual: 485000000, metadata: JSON.stringify({ is_sample: true }) },
+            { month: '2026-04', target: 550000000, actual: 520000000, metadata: JSON.stringify({ is_sample: true }) }
+        ]
+    },
     { id: 'tpl_sales_collections', category: 'Sales', displayName: '수금/채권 관리', description: 'Accounts receivable tracking.', schema: [{ name: 'customer', type: 'TEXT', displayName: '고객사' }, { name: 'unpaid', type: 'REAL', displayName: '미수금액' }, { name: 'due_date', type: 'DATE', displayName: '입금예정일' }, { name: 'metadata', type: 'TEXT', displayName: '기타정보' }] },
     { id: 'tpl_sales_marketing_eff', category: 'Sales', displayName: '마케팅 캠페인 효율', description: 'Marketing ROI.', schema: [{ name: 'campaign', type: 'TEXT', displayName: '캠페인명' }, { name: 'lead_count', type: 'INTEGER', displayName: '리드수' }, { name: 'metadata', type: 'TEXT', displayName: '기타정보' }] },
     { id: 'tpl_sales_partnership', category: 'Sales', displayName: '전략적 제휴 이력', description: 'Partnerships.', schema: [{ name: 'partner', type: 'TEXT', displayName: '제휴사' }, { name: 'scope', type: 'TEXT', displayName: '협력범위' }, { name: 'metadata', type: 'TEXT', displayName: '기타정보' }] },

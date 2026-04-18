@@ -59,9 +59,13 @@ export async function runAITool(name: string, args: any) {
       return await executeSQL(sql);
     }
     case "get_aggregated_report_data": {
-      // UI와 동일한 필터: isDeleted='0' (정확히 0인 행만 포함, null인 불완전 행 제외)
-      const rows = await queryTable('report_row', { 
-        filters: { reportId: args.tableId, isDeleted: '0' },
+      // 업종별 템플릿은 별도의 물리 테이블로 생성되므로, report_row가 아닌 경우 해당 테이블을 직접 쿼리
+      const targetTable = (args.tableId && args.tableId !== 'report_row' && !args.tableId.includes('-')) ? args.tableId : 'report_row';
+      const filters: any = { isDeleted: '0' };
+      if (targetTable === 'report_row') filters.reportId = args.tableId;
+      
+      const rows = await queryTable(targetTable, { 
+        filters,
         limit: 5000
       });
       const allRows = Array.isArray(rows) ? rows : (rows?.rows || []);
@@ -72,14 +76,24 @@ export async function runAITool(name: string, args: any) {
       
       const summary: Record<string, number> = {};
       validRows.forEach((row: any) => {
-        const rawData = typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {});
-        const groupValue = rawData[args.groupByKey];
+        // report_row의 경우 데이터가 data 컬럼 내 JSON으로 존재, 물리 테이블의 경우 row 자체에 존재
+        const rowData = targetTable === 'report_row' 
+          ? (typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {}))
+          : row;
+
+        const groupValue = rowData[args.groupByKey];
         // groupByKey 값이 비어있거나 없는 행은 집계에서 제외
         if (groupValue === undefined || groupValue === null || groupValue === '') return;
         
-        let amountStr = rawData[args.sumKey] || '0';
+        let amountRaw = rowData[args.sumKey];
+        let amount = 0;
         
-        let amount = typeof amountStr === 'number' ? amountStr : parseFloat(String(amountStr).replace(/,/g, ''));
+        if (typeof amountRaw === 'number') {
+          amount = amountRaw;
+        } else if (typeof amountRaw === 'string') {
+          amount = parseFloat(amountRaw.replace(/,/g, ''));
+        }
+        
         if (isNaN(amount)) amount = 0;
 
         summary[String(groupValue)] = (summary[String(groupValue)] || 0) + amount;
@@ -92,9 +106,12 @@ export async function runAITool(name: string, args: any) {
       })).sort((a, b) => b.value - a.value);
     }
     case "query_workspace_table": {
-      // UI와 동일한 필터: isDeleted='0'
-      const wsRows = await queryTable('report_row', { 
-        filters: { reportId: args.tableId, isDeleted: '0' },
+      const targetTable = (args.tableId && args.tableId !== 'report_row' && !args.tableId.includes('-')) ? args.tableId : 'report_row';
+      const filters: any = { isDeleted: '0' };
+      if (targetTable === 'report_row') filters.reportId = args.tableId;
+
+      const wsRows = await queryTable(targetTable, { 
+        filters,
         limit: args.limit || 100,
         offset: args.offset || 0
       });

@@ -16,7 +16,13 @@ import { getSessionAction } from './auth';
 import { analyzeExcelImage, extractDataFromImage } from '@/lib/ai-vision';
 import { getVisualizationRecommendation } from '@/lib/dashboard-ai';
 import { runAITool } from '@/lib/ai-tools';
-import { ChartService } from '@/lib/services/chart-service';
+import { 
+    loadAllPinnedChartsAction, 
+    saveAllPinnedChartsAction, 
+    refreshUserChartsAction, 
+    refreshSingleChartAction,
+    updateChartLayoutAction as updateChartLayoutService
+} from '@/lib/services/chart-service';
 
 /**
  * 시각화 추천을 가져옵니다.
@@ -83,7 +89,7 @@ export async function savePinnedChartAction(chartId: string, config: any) {
     const user = await getSessionAction();
     if (!user) throw new Error('인증이 필요합니다.');
     
-    const pinned = await ChartService.loadAllPinnedCharts();
+    const pinned = await loadAllPinnedChartsAction();
     const existingIndex = pinned.findIndex(p => p.id === chartId);
     
     if (existingIndex > -1) {
@@ -102,7 +108,7 @@ export async function savePinnedChartAction(chartId: string, config: any) {
         });
     }
     
-    await ChartService.saveAllPinnedCharts(pinned);
+    await saveAllPinnedChartsAction(pinned);
     revalidatePath('/dashboard');
     return { success: true };
 }
@@ -114,7 +120,7 @@ export async function getPinnedChartsAction() {
     const user = await getSessionAction();
     if (!user) return [];
     
-    const { charts } = await ChartService.refreshUserCharts(user.id);
+    const { charts } = await refreshUserChartsAction(user.id);
     return charts;
 }
 
@@ -125,12 +131,12 @@ export async function deletePinnedChartAction(chartId: string) {
     const user = await getSessionAction();
     if (!user) throw new Error('인증이 필요합니다.');
     
-    let pinned = await ChartService.loadAllPinnedCharts();
+    let pinned = await loadAllPinnedChartsAction();
     const originalLength = pinned.length;
     pinned = pinned.filter(p => p.id !== chartId);
     
     if (pinned.length !== originalLength) {
-        await ChartService.saveAllPinnedCharts(pinned);
+        await saveAllPinnedChartsAction(pinned);
         revalidatePath('/dashboard');
     }
     return { success: true };
@@ -143,15 +149,15 @@ export async function refreshIndividualChartAction(chartId: string) {
     const user = await getSessionAction();
     if (!user) throw new Error('인증이 필요합니다.');
     
-    const pinned = await ChartService.loadAllPinnedCharts();
+    const pinned = await loadAllPinnedChartsAction();
     const chartIndex = pinned.findIndex(p => p.id === chartId);
     if (chartIndex === -1) throw new Error('차트를 찾을 수 없습니다.');
     
-    const updatedItem = await ChartService.refreshSingleChart(pinned[chartIndex]);
+    const updatedItem = await refreshSingleChartAction(pinned[chartIndex]);
     
     if (updatedItem.refreshedAt) {
         pinned[chartIndex] = updatedItem;
-        await ChartService.saveAllPinnedCharts(pinned);
+        await saveAllPinnedChartsAction(pinned);
         revalidatePath('/dashboard');
     }
     
@@ -165,14 +171,14 @@ export async function updateChartLayoutAction(chartId: string, layout: any) {
     const user = await getSessionAction();
     if (!user) throw new Error('인증이 필요합니다.');
     
-    const pinned = await ChartService.loadAllPinnedCharts();
+    const pinned = await loadAllPinnedChartsAction();
     const chartIndex = pinned.findIndex(p => p.id === chartId);
     if (chartIndex === -1) throw new Error('차트를 찾을 수 없습니다.');
     
     pinned[chartIndex].layout = layout;
     pinned[chartIndex].updatedAt = new Date().toISOString();
     
-    await ChartService.saveAllPinnedCharts(pinned);
+    await saveAllPinnedChartsAction(pinned);
     revalidatePath('/dashboard');
     return { success: true };
 }
