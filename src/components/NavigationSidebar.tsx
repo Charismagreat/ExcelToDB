@@ -24,6 +24,7 @@ import {
 // 🚀 DEFAULT IMPORTS: New consistency standard
 import LogoutButton from './LogoutButton';
 import NotificationCenter from './NotificationCenter';
+import { useBranding } from './providers/BrandingProvider';
 
 interface NavigationSidebarProps {
   user: any;
@@ -38,6 +39,7 @@ interface NavigationSidebarProps {
 export default function NavigationSidebar({ user, isCollapsed = false, onToggle }: NavigationSidebarProps) {
   const [isMounted, setIsMounted] = React.useState(false);
   const pathname = usePathname();
+  const { companyName, themeColor } = useBranding();
 
   React.useEffect(() => {
     setIsMounted(true);
@@ -150,7 +152,12 @@ export default function NavigationSidebar({ user, isCollapsed = false, onToggle 
           {!isCollapsed && (
             <div className="min-w-0 animate-in fade-in slide-in-from-left-2">
               <h1 className="text-lg font-black text-slate-900 tracking-tight leading-none uppercase whitespace-nowrap">CEO DASHBOARD</h1>
-              <p className="text-[11px] font-black uppercase text-blue-600 tracking-[0.2em] mt-1.5 opacity-80 whitespace-nowrap">WON CONDUCTOR</p>
+              <p 
+                className="text-[11px] font-black uppercase tracking-[0.2em] mt-1.5 opacity-80 whitespace-nowrap"
+                style={{ color: themeColor }}
+              >
+                {companyName}
+              </p>
             </div>
           )}
         </Link>

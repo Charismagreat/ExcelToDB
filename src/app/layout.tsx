@@ -18,11 +18,16 @@ export const metadata: Metadata = {
   description: "나만의 스마트한 데이터베이스 솔루션, CEO DASHBOARD",
 };
 
-export default function RootLayout({
+import { SystemConfigService } from "@/lib/services/system-config-service";
+import { BrandingProvider } from "@/components/providers/BrandingProvider";
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const settings = await SystemConfigService.getSettings();
+
   return (
     <html
       lang="ko"
@@ -30,9 +35,11 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <ThemeProvider>
-          {children}
-        </ThemeProvider>
+        <BrandingProvider settings={settings}>
+          <ThemeProvider>
+            {children}
+          </ThemeProvider>
+        </BrandingProvider>
       </body>
     </html>
   );
