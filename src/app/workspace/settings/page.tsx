@@ -24,18 +24,36 @@ export default function SettingsPage() {
         console.log('[DEBUG] Logout button clicked successfully.');
     };
 
+    const handlePurgeSamples = async () => {
+        if (!confirm('경고: 모든 샘플 부서, 사원, 그리고 업무 데이터를 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없으며 시스템은 실전(Live) 모드로 전환됩니다.')) {
+            return;
+        }
+
+        try {
+            const { purgeAllSampleDataAction } = await import('@/lib/services/demo-service');
+            const res = await purgeAllSampleDataAction();
+            if (res.success) {
+                alert('모든 샘플 데이터가 성공적으로 삭제되었습니다. 시스템이 실전 모드로 전환되었습니다.');
+                router.refresh();
+            }
+        } catch (err: any) {
+            alert('데이터 삭제 중 오류가 발생했습니다: ' + err.message);
+        }
+    };
+
     const sections = [
         {
             title: '내 계정 (Account)',
             items: [
-                { icon: <User size={18} />, title: '프로필 수정', subtitle: '이름, 연락처, 부서 정보 변경' },
-                { icon: <Shield size={18} />, title: '비밀번호 및 보안', subtitle: '로그인 보안 및 생체 인증 설정' }
+                { id: 'profile', icon: <User size={18} />, title: '프로필 수정', subtitle: '이름, 연락처, 부서 정보 변경' },
+                { id: 'security', icon: <Shield size={18} />, title: '비밀번호 및 보안', subtitle: '로그인 보안 및 생체 인증 설정' }
             ]
         },
         {
             title: '화면 설정 (Appearance)',
             items: [
                 { 
+                    id: 'dark-mode',
                     icon: <Moon size={18} />, 
                     title: '다크 모드', 
                     subtitle: '눈이 편안한 어두운 화면 사용', 
@@ -48,24 +66,41 @@ export default function SettingsPage() {
         {
             title: '알림 설정 (Notifications)',
             items: [
-                { icon: <Bell size={18} />, title: '푸시 알림', subtitle: '업무 관련 실시간 알림 받기', type: 'toggle', isOn: true },
-                { icon: <Clock size={18} />, title: '근무 시간 알람', subtitle: '출근/퇴근 10분 전 알림 받기', type: 'toggle', isOn: true }
+                { id: 'push', icon: <Bell size={18} />, title: '푸시 알림', subtitle: '업무 관련 실시간 알림 받기', type: 'toggle', isOn: true },
+                { id: 'work-alarm', icon: <Clock size={18} />, title: '근무 시간 알람', subtitle: '출근/퇴근 10분 전 알림 받기', type: 'toggle', isOn: true }
             ]
         },
         {
             title: '워크 환경 (Workspace)',
             items: [
-                { icon: <MapPin size={18} />, title: '기본 출근지 설정', subtitle: '📍 현재: 본사 2층 지원팀', type: 'text', value: '변경' }
+                { id: 'location', icon: <MapPin size={18} />, title: '기본 출근지 설정', subtitle: '📍 현재: 본사 2층 지원팀', type: 'text', value: '변경' }
             ]
         },
+        ...(user?.role === 'ADMIN' ? [
+            {
+                title: '데모 데이터 관리 (Management)',
+                items: [
+                    { 
+                        id: 'purge-samples', 
+                        icon: <Shield size={18} className="text-orange-500" />, 
+                        title: '샘플 데이터 일괄 삭제', 
+                        subtitle: '실물 데이터만 남기고 모든 데모용 기록을 삭제합니다',
+                        type: 'text',
+                        value: '실행',
+                        onClick: handlePurgeSamples
+                    }
+                ]
+            }
+        ] : []),
         {
             title: '기타 (Others)',
             items: [
-                { icon: <Smartphone size={18} />, title: '버전 정보', type: 'text', value: 'v2.1.0' },
-                { icon: <HelpCircle size={18} />, title: '고객 센터 및 도움말' }
+                { id: 'version', icon: <Smartphone size={18} />, title: '버전 정보', type: 'text', value: 'v2.1.0' },
+                { id: 'help', icon: <HelpCircle size={18} />, title: '고객 센터 및 도움말' }
             ]
         }
     ];
+
 
     const container = {
         hidden: { opacity: 0 },
@@ -116,10 +151,9 @@ export default function SettingsPage() {
             >
                 {sections.map((section) => (
                     <div key={section.title} className="px-4">
-                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">
+                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 ml-1">
                             {section.title}
                         </h3>
-                        <h3 className="text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-4 ml-1">{section.title}</h3>
                         <div className="space-y-2">
                             {section.items.map((item) => (
                                 <SettingsItem key={item.id} {...item} />

@@ -95,6 +95,7 @@ export const SYSTEM_TABLES = [
             { name: 'departmentId', type: 'TEXT' }, // 소속 부서 ID
             { name: 'position', type: 'TEXT' }, // 직위 (팀장, 사원 등)
             { name: 'isActive', type: 'INTEGER', defaultValue: 1 },
+            { name: 'metadata', type: 'TEXT' }, // 샘플 데이터 태깅 용도
             { name: 'createdAt', type: 'TEXT', notNull: true }
         ] as any[]
     },
@@ -177,6 +178,7 @@ export const SYSTEM_TABLES = [
             { name: 'status', type: 'TEXT', defaultValue: 'pending' },
             { name: 'reportId', type: 'TEXT' },
             { name: 'rowId', type: 'TEXT' },
+            { name: 'metadata', type: 'TEXT' }, // 샘플 데이터 태깅 용도
             { name: 'createdAt', type: 'TEXT', notNull: true },
             { name: 'updatedAt', type: 'TEXT', notNull: true }
         ] as any[]
@@ -190,6 +192,7 @@ export const SYSTEM_TABLES = [
             { name: 'link', type: 'TEXT' },
             { name: 'type', type: 'TEXT', defaultValue: 'INFO' },
             { name: 'isRead', type: 'INTEGER', defaultValue: 0 },
+            { name: 'metadata', type: 'TEXT' }, // 샘플 데이터 태깅 용도
             { name: 'createdAt', type: 'TEXT', notNull: true }
         ] as any[]
     },
@@ -225,6 +228,7 @@ export const SYSTEM_TABLES = [
             { name: 'assigneeId', type: 'TEXT' },
             { name: 'assigneeRole', type: 'TEXT' },
             { name: 'dueAt', type: 'TEXT' },
+            { name: 'metadata', type: 'TEXT' }, // 샘플 데이터 태깅 용도
             { name: 'completedAt', type: 'TEXT' },
             { name: 'createdAt', type: 'TEXT', notNull: true }
         ] as any[]
@@ -245,7 +249,9 @@ export const SYSTEM_TABLES = [
             { name: 'name', type: 'TEXT', notNull: true },
             { name: 'description', type: 'TEXT' },
             { name: 'icon', type: 'TEXT' },
+            { name: 'metadata', type: 'TEXT' }, // 샘플 데이터 태깅 용도
             { name: 'createdAt', type: 'TEXT', notNull: true }
         ] as any[]
     }
+
 ];

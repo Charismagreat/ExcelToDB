@@ -155,40 +155,69 @@ export default function SetupPage() {
                     {step === 2 && (
                         <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                             <div className="space-y-2">
-                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">기존 데이터를 연결할까요?</h2>
-                                <p className="text-sm text-slate-400 font-medium leading-relaxed">준비된 엑셀 파일이 있다면 AI가 구조를 즉시 분석해 드립니다.</p>
+                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">시스템을 어떻게 시작할까요?</h2>
+                                <p className="text-sm text-slate-400 font-medium leading-relaxed">준비된 데이터를 연결하거나, 업종별 전문 템플릿으로 즉시 시작하세요.</p>
                             </div>
 
-                            <div className="flex flex-col items-center justify-center border-4 border-dashed border-slate-100 rounded-[40px] p-12 hover:border-primary/30 transition-all group cursor-pointer relative min-h-[240px]">
-                                {loading ? (
-                                    <div className="flex flex-col items-center gap-4">
-                                        <Loader2 size={48} className="text-primary animate-spin" />
-                                        <p className="font-black text-primary animate-pulse uppercase tracking-widest">AI 분석 중...</p>
+                            <div className="grid grid-cols-1 gap-4">
+                                {/* Option 1: AI Analytics */}
+                                <div 
+                                    className="flex items-center gap-6 border-2 border-slate-100 rounded-[32px] p-6 hover:border-primary/30 transition-all group cursor-pointer relative"
+                                    onClick={() => { /* This trigger handled by input file below */ }}
+                                >
+                                    <input 
+                                        type="file" 
+                                        accept=".xlsx, .xls, .csv"
+                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                        onChange={handleAnalyzeExcel}
+                                    />
+                                    <div className="bg-slate-50 p-4 rounded-2xl text-slate-300 group-hover:text-primary group-hover:bg-primary/10 transition-all">
+                                        <Database size={32} />
                                     </div>
-                                ) : (
-                                    <>
-                                        <input 
-                                            type="file" 
-                                            accept=".xlsx, .xls, .csv"
-                                            className="absolute inset-0 opacity-0 cursor-pointer"
-                                            onChange={handleAnalyzeExcel}
-                                        />
-                                        <div className="bg-slate-50 p-6 rounded-full text-slate-300 group-hover:text-primary group-hover:bg-primary/10 transition-all">
-                                            <Database size={48} />
-                                        </div>
-                                        <p className="mt-4 font-black text-slate-400 group-hover:text-primary text-center">여기에 파일을 드래그하거나<br/>클릭하여 업로드하세요</p>
-                                    </>
-                                )}
+                                    <div className="flex-1">
+                                        <p className="font-black text-slate-900">기본 데이터 연결 (Excel/CSV)</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">AI가 파일 구조를 분석하여 테이블을 구축합니다</p>
+                                    </div>
+                                    <ChevronRight className="text-slate-200 group-hover:text-primary transition-all" />
+                                </div>
+
+                                {/* Option 2: Full Industry Suite (Demo Mode) */}
+                                <div 
+                                    className="flex items-center gap-6 border-2 border-slate-100 rounded-[32px] p-6 hover:border-primary/30 transition-all group cursor-pointer"
+                                    onClick={async () => {
+                                        setLoading(true);
+                                        try {
+                                            const { initializeDemoSetupAction } = await import('@/lib/services/demo-service');
+                                            await initializeDemoSetupAction();
+                                            setTableCreated(true);
+                                            setStep(3);
+                                        } catch (err: any) {
+                                            setError('시스템 구축 중 오류 발생: ' + err.message);
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }}
+                                >
+                                    <div className="bg-primary/5 p-4 rounded-2xl text-primary group-hover:bg-primary/20 transition-all">
+                                        <Sparkles size={32} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-black text-slate-900">전문 업종별 풀 세트 설치</p>
+                                        <p className="text-[10px] font-bold text-primary uppercase tracking-tight">100개 이상의 필수 테이블과 샘플 데이터를 즉시 구축합니다</p>
+                                    </div>
+                                    {loading ? <Loader2 size={24} className="text-primary animate-spin" /> : <ChevronRight className="text-slate-200 group-hover:text-primary transition-all" />}
+                                </div>
                             </div>
 
                             <button 
                                 onClick={() => setStep(3)}
                                 className="w-full py-5 text-slate-400 font-black uppercase tracking-widest hover:text-slate-900 transition-all"
                             >
-                                파일 없이 일단 시작하기
+                                건너뛰고 빈 시스템으로 시작하기
                             </button>
                         </div>
                     )}
+
 
                     {step === 4 && (
                         <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">

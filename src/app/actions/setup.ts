@@ -17,6 +17,13 @@ export async function createScaffoldTableAction(tableName: string, schema: any[]
             notNull: col.notNull || false
         }));
 
+        // Always inject a 'metadata' column for future-proofing (JSON info, extra fields, etc.)
+        columns.push({
+            name: 'metadata',
+            type: 'TEXT',
+            notNull: false
+        });
+
         const result = await createTable({
             tableName: tableName,
             columns: columns
