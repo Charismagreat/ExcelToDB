@@ -113,19 +113,39 @@ export async function mapRefreshedDataAction(rawData: any, mapping: any): Promis
  * 모든 핀 고정 차트 목록을 로드합니다.
  */
 export async function loadAllPinnedChartsAction(): Promise<ChartConfig[]> {
-    try {
-        const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
-        return JSON.parse(fileContent);
-    } catch (e) {
-        return [];
+    let retries = 3;
+    while (retries > 0) {
+        try {
+            const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
+            if (!fileContent || fileContent.trim() === '') return [];
+            return JSON.parse(fileContent);
+        } catch (e) {
+            retries--;
+            if (retries === 0) {
+                console.error('[ChartService] Failed to load pinned charts after retries:', e);
+                return [];
+            }
+            // 잠시 대기 후 재시도 (경쟁 상태 완화)
+            await new Promise(resolve => setTimeout(resolve, 50 * (3 - retries)));
+        }
     }
+    return [];
 }
 
 /**
- * 차트 목록을 파일에 저장합니다.
+ * 차트 목록을 파일에 저장합니다. (원자적 쓰기 방식 도입)
  */
 export async function saveAllPinnedChartsAction(charts: ChartConfig[]): Promise<void> {
-    await fs.writeFile(PINNED_CHARTS_PATH, JSON.stringify(charts, null, 2));
+    const tempPath = `${PINNED_CHARTS_PATH}.${Math.random().toString(36).slice(2)}.tmp`;
+    try {
+        await fs.writeFile(tempPath, JSON.stringify(charts, null, 2), 'utf-8');
+        await fs.rename(tempPath, PINNED_CHARTS_PATH);
+    } catch (e) {
+        console.error('[ChartService] Failed to save pinned charts atomically:', e);
+        // 에러 발생 시 임시 파일 삭제 시도
+        try { await fs.unlink(tempPath); } catch {}
+        throw e;
+    }
 }
 
 /**

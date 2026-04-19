@@ -14,7 +14,9 @@ export function GalleryClient({ initialCharts }: GalleryClientProps) {
   const [charts, setCharts] = useState(initialCharts);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
-  // 컴포넌트 마운트 시 모든 차트 자동 새로고침 (사용자 요청 사항: 자동으로 데이터를 갱신하도록)
+  // 컴포넌트 마운트 시 자동 새로고침 로직 제거 
+  // (서버 사이드에서 getPinnedChartsAction이 이미 최신 데이터를 가져오므로 중복 호출 방지)
+  /*
   React.useEffect(() => {
     initialCharts.forEach(chart => {
       if (chart.config?.refreshMetadata) {
@@ -22,6 +24,7 @@ export function GalleryClient({ initialCharts }: GalleryClientProps) {
       }
     });
   }, []);
+  */
 
   const handleDelete = async (id: string) => {
     if (!confirm('이 차트를 갤러리에서 삭제하시겠습니까?')) return;
