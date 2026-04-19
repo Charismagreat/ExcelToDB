@@ -18,8 +18,8 @@ export default async function UsersPage() {
     const users = await getUsersAction();
 
     return (
-        <div className="px-8 pt-6 pb-12 font-[family-name:var(--font-geist-sans)]">
-            <header className="max-w-6xl mx-auto flex justify-between items-center mb-12">
+        <div className="px-8 md:px-12 pt-6 pb-12 font-[family-name:var(--font-geist-sans)]">
+            <header className="max-w-[1600px] mx-auto flex justify-between items-center mb-12">
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-3">
                         <Link href="/dashboard" className="bg-blue-600 p-2 rounded-xl text-white hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">
@@ -37,7 +37,7 @@ export default async function UsersPage() {
                 </div>
             </header>
 
-            <main className="max-w-6xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <main className="max-w-[1600px] mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <section>
                     <div className="mb-10 flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -55,7 +55,7 @@ export default async function UsersPage() {
                 </section>
             </main>
 
-            <footer className="max-w-6xl mx-auto mt-20 pt-10 border-t border-gray-100 flex justify-between items-center text-gray-400">
+            <footer className="max-w-[1600px] mx-auto mt-20 pt-10 border-t border-gray-100 flex justify-between items-center text-gray-400">
                 <p className="text-[10px] font-black uppercase tracking-[0.3em]">© 2026 Smart Data Management System - Admin Core</p>
                 <Link href="/" className="text-xs font-black hover:text-blue-600 transition-colors border-b border-gray-200">BACK TO DASHBOARD</Link>
             </footer>

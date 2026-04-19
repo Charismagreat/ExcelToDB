@@ -393,8 +393,8 @@ export default async function ReportDetailPage({
   }
 
   return (
-    <div className="px-8 pt-6 pb-12 font-[family-name:var(--font-geist-sans)]">
-      <header className="max-w-6xl mx-auto flex justify-between items-center mb-8">
+    <div className="px-8 md:px-12 pt-6 pb-12 font-[family-name:var(--font-geist-sans)]">
+      <header className="max-w-[1600px] mx-auto flex justify-between items-center mb-8">
         <div />
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-4 bg-white px-4 py-2 border rounded-full shadow-sm text-sm font-medium text-gray-700">

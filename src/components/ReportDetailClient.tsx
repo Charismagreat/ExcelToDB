@@ -55,7 +55,7 @@ export function ReportDetailClient({
     };
 
     return (
-        <main className="max-w-6xl mx-auto space-y-10 pb-32">
+        <main className="max-w-[1600px] mx-auto space-y-10 pb-32">
             <ReportHeader 
                 reportId={id} 
                 initialName={report.name} 
