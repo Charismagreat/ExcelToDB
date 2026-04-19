@@ -326,35 +326,35 @@ export function DynamicTable({
   }
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-[24px] border border-gray-100 shadow-sm">
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row gap-6 justify-between items-center bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-900/5">
         <div className="relative w-full md:w-96 group">
-          <SafeIcon icon={Search} isMounted={isMounted} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+          <SafeIcon icon={Search} isMounted={isMounted} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
           <input 
             type="text" 
-            placeholder="데이터 내 검색..."
-            className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all placeholder:text-gray-400 font-medium"
+            placeholder="Search within records..."
+            className="w-full pl-12 pr-6 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 font-bold"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
             {hasBaseEditAuth && (onToggleAddRecord || onToggleBulkUpload || onToggleAIImport) && (
-              <div className="flex items-center gap-2 mr-2 border-r pr-4 border-gray-100">
+              <div className="flex items-center gap-3 mr-3 border-r pr-6 border-slate-100">
                 {onToggleAddRecord && (
-                  <button onClick={onToggleAddRecord} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/10 active:scale-95 text-[11px] uppercase tracking-widest whitespace-nowrap">
-                    <SafeIcon icon={Plus} isMounted={isMounted} size={14} strokeWidth={3} /> Add Record
+                  <button onClick={onToggleAddRecord} className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95 text-xs uppercase tracking-widest whitespace-nowrap">
+                    <SafeIcon icon={Plus} isMounted={isMounted} size={16} strokeWidth={3} /> Add Record
                   </button>
                 )}
                 {onToggleBulkUpload && (
-                  <button onClick={onToggleBulkUpload} className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white font-black rounded-2xl hover:bg-green-700 transition-all shadow-lg text-[11px] uppercase tracking-widest whitespace-nowrap">
-                    <SafeIcon icon={FileSpreadsheet} isMounted={isMounted} size={14} /> Bulk Upload
+                  <button onClick={onToggleBulkUpload} className="flex items-center gap-2 px-6 py-3.5 bg-slate-900 text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-slate-900/10 active:scale-95 text-xs uppercase tracking-widest whitespace-nowrap">
+                    <SafeIcon icon={FileSpreadsheet} isMounted={isMounted} size={16} /> Bulk Upload
                   </button>
                 )}
                 {onToggleAIImport && (
-                  <button onClick={onToggleAIImport} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-lg text-[11px] uppercase tracking-widest group whitespace-nowrap">
-                    <SafeIcon icon={Sparkles} isMounted={isMounted} size={14} className="text-yellow-300 group-hover:scale-110 transition-transform" /> AI Photo
+                  <button onClick={onToggleAIImport} className="flex items-center gap-2 px-6 py-3.5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-500/10 active:scale-95 text-xs uppercase tracking-widest group whitespace-nowrap">
+                    <SafeIcon icon={Sparkles} isMounted={isMounted} size={16} className="text-yellow-300 group-hover:scale-110 transition-transform" /> AI Photo
                   </button>
                 )}
               </div>
@@ -363,17 +363,17 @@ export function DynamicTable({
             <div className="relative">
                 <button
                     onClick={() => setIsExportingMenuOpen(!isExportingMenuOpen)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 text-gray-600 font-black rounded-2xl border border-gray-100 hover:bg-gray-100 transition-all text-[11px] uppercase"
+                    className="flex items-center gap-2 px-6 py-3.5 bg-white text-slate-600 font-black rounded-2xl border border-slate-100 hover:bg-slate-50 hover:border-slate-200 transition-all text-xs uppercase tracking-widest active:scale-95 shadow-lg shadow-slate-900/5"
                 >
-                    <SafeIcon icon={FileDown} isMounted={isMounted} size={14} /> 내보내기
+                    <SafeIcon icon={FileDown} isMounted={isMounted} size={16} /> Export
                 </button>
                 {isExportingMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-2xl shadow-xl z-20 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                        <button onClick={exportToExcel} className="w-full px-4 py-3 text-left text-xs font-bold text-gray-600 hover:bg-green-50 hover:text-green-700 flex items-center gap-2 border-b border-gray-50">
-                            <SafeIcon icon={TableIcon} isMounted={isMounted} size={14} /> 엑셀 파일 (.xlsx)
+                    <div className="absolute right-0 mt-3 w-56 bg-white border border-slate-100 rounded-[24px] shadow-2xl z-20 overflow-hidden animate-in fade-in slide-in-from-top-2 border-slate-200/50">
+                        <button onClick={exportToExcel} className="w-full px-6 py-4 text-left text-xs font-black text-slate-600 hover:bg-green-50 hover:text-green-700 flex items-center gap-3 border-b border-slate-50 transition-colors">
+                            <SafeIcon icon={TableIcon} isMounted={isMounted} size={16} /> 엑셀 파일 (.xlsx)
                         </button>
-                        <button onClick={exportToCSV} className="w-full px-4 py-3 text-left text-xs font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
-                            <SafeIcon icon={FileText} isMounted={isMounted} size={14} /> CSV 파일 (.csv)
+                        <button onClick={exportToCSV} className="w-full px-6 py-4 text-left text-xs font-black text-slate-600 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 transition-colors">
+                            <SafeIcon icon={FileText} isMounted={isMounted} size={16} /> CSV 파일 (.csv)
                         </button>
                     </div>
                 )}
@@ -381,27 +381,27 @@ export function DynamicTable({
 
             <button
                 onClick={() => { setShowDeleted(!showDeleted); setSelectedIds([]); }}
-                className={`flex items-center gap-2 px-4 py-2.5 font-black rounded-2xl border transition-all text-[11px] uppercase tracking-widest ${showDeleted ? 'bg-red-50 text-red-600 border-red-200' : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100'}`}
+                className={`flex items-center gap-2 px-6 py-3.5 font-black rounded-2xl border transition-all text-xs uppercase tracking-widest active:scale-95 shadow-lg ${showDeleted ? 'bg-red-50 text-red-600 border-red-200 shadow-red-500/5' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50 hover:border-slate-200'}`}
             >
-                <SafeIcon icon={Trash2} isMounted={isMounted} size={14} className={showDeleted ? 'animate-pulse' : ''} />
+                <SafeIcon icon={Trash2} isMounted={isMounted} size={16} className={showDeleted ? 'animate-pulse' : ''} />
                 {showDeleted ? 'EXIT TRASH' : '삭제 내역'}
             </button>
             
             {hasBaseEditAuth && selectedIds.length > 0 && (
-               <div className="bg-blue-50/50 flex items-center gap-1 pl-3 pr-1 py-1 rounded-2xl border border-blue-100/50 animate-in fade-in slide-in-from-right-4 duration-300">
+               <div className="bg-blue-600 flex items-center gap-2 p-1.5 rounded-[22px] shadow-2xl shadow-blue-500/30 animate-in fade-in slide-in-from-right-4 duration-500">
                   {!showDeleted && (
-                    <button onClick={() => setIsBulkEditOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-[11px] font-black rounded-xl hover:bg-blue-700 shadow-lg active:scale-95 transition-all">
-                        <SafeIcon icon={Edit3} isMounted={isMounted} size={12} /> 일괄 수정
+                    <button onClick={() => setIsBulkEditOpen(true)} className="flex items-center gap-2 px-6 py-3 bg-white/10 text-white text-[11px] font-black rounded-xl hover:bg-white/20 active:scale-95 transition-all uppercase tracking-widest">
+                        <SafeIcon icon={Edit3} isMounted={isMounted} size={14} /> Edit All
                     </button>
                   )}
                   {showDeleted ? (
-                    <button onClick={handleRestoreSelected} disabled={isRestoring} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-[11px] font-black rounded-xl hover:bg-green-700 shadow-lg active:scale-95 disabled:opacity-50 transition-all">
-                        <SafeIcon icon={RotateCcw} isMounted={isMounted} size={12} /> 복구
+                    <button onClick={handleRestoreSelected} disabled={isRestoring} className="flex items-center gap-2 px-6 py-3 bg-green-500 text-white text-[11px] font-black rounded-xl hover:bg-green-600 active:scale-95 disabled:opacity-50 transition-all uppercase tracking-widest">
+                        <SafeIcon icon={RotateCcw} isMounted={isMounted} size={14} /> Restore
                     </button>
                   ) : (
                     hasBaseDeleteAuth && (
-                        <button onClick={handleDeleteSelected} disabled={isDeleting} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-[11px] font-black rounded-xl hover:bg-red-700 shadow-lg active:scale-95 disabled:opacity-50 transition-all">
-                            <SafeIcon icon={Trash2} isMounted={isMounted} size={12} /> 삭제
+                        <button onClick={handleDeleteSelected} disabled={isDeleting} className="flex items-center gap-2 px-6 py-3 bg-red-500 text-white text-[11px] font-black rounded-xl hover:bg-red-600 active:scale-95 disabled:opacity-50 transition-all uppercase tracking-widest">
+                            <SafeIcon icon={Trash2} isMounted={isMounted} size={14} /> Delete
                         </button>
                     )
                   )}
@@ -410,17 +410,17 @@ export function DynamicTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto border border-gray-100 rounded-[24px] shadow-sm bg-white min-h-[400px]">
-        <table className="min-w-full divide-y divide-gray-100">
-          <thead className="bg-gray-50/50">
+      <div className="overflow-x-auto border border-slate-100 rounded-[32px] shadow-2xl shadow-slate-900/5 bg-white min-h-[400px]">
+        <table className="min-w-full divide-y divide-slate-100">
+          <thead className="bg-slate-50/50">
             <tr>
               {hasBaseEditAuth && (
-                <th className="px-6 py-4 text-left w-10">
-                  <input type="checkbox" checked={processedData.length > 0 && selectedIds.length === processedData.length} onChange={toggleSelectAll} className="w-5 h-5 rounded border-gray-300 text-blue-600 cursor-pointer" />
+                <th className="px-6 py-5 text-left w-12">
+                  <input type="checkbox" checked={processedData.length > 0 && selectedIds.length === processedData.length} onChange={toggleSelectAll} className="w-5 h-5 rounded border-slate-300 text-blue-600 cursor-pointer transition-all focus:ring-blue-500" />
                 </th>
               )}
               {columns.map((col) => (
-                <th key={col.name} onClick={() => toggleSort(col.name)} className={`px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest cursor-pointer group transition-all whitespace-nowrap ${sortConfig.key === col.name ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
+                <th key={col.name} onClick={() => toggleSort(col.name)} className={`px-6 py-5 text-left text-[11px] font-black uppercase tracking-widest cursor-pointer group transition-all whitespace-nowrap ${sortConfig.key === col.name ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
                   <div className="flex items-center gap-2">
                     {col.name}
                     <span className={`transition-all ${sortConfig.key === col.name ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
@@ -429,23 +429,23 @@ export function DynamicTable({
                   </div>
                 </th>
               ))}
-              {hasBaseEditAuth && <th className="px-6 py-4 text-center text-[11px] font-black uppercase tracking-widest text-gray-400 w-24">Actions</th>}
+              {hasBaseEditAuth && <th className="px-6 py-5 text-center text-[11px] font-black uppercase tracking-widest text-slate-400 w-24">Actions</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-slate-50">
             {paginatedData.map((row, rowIndex) => (
-              <tr key={row.id || rowIndex} className={`hover:bg-blue-50/20 transition-colors group ${selectedIds.includes(row.id) ? 'bg-blue-50/40' : ''} ${row.isDeleted ? 'bg-red-50/10 opacity-70' : ''}`}>
+              <tr key={row.id || rowIndex} className={`hover:bg-blue-50/30 transition-colors group ${selectedIds.includes(row.id) ? 'bg-blue-50/50' : ''} ${row.isDeleted ? 'bg-red-50/10 opacity-70' : ''}`}>
                 {hasBaseEditAuth && (
                   <td className="px-6 py-4">
-                    {isRowManager(row) && <input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleSelectRow(row.id)} className="w-5 h-5 rounded border-gray-300 text-blue-600 cursor-pointer" />}
+                    {isRowManager(row) && <input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleSelectRow(row.id)} className="w-5 h-5 rounded border-slate-300 text-blue-600 cursor-pointer transition-all focus:ring-blue-500" />}
                   </td>
                 )}
                 {columns.map((col) => {
                   const val = row[col.name];
                   const isEditing = editingRowId === row.id;
                   if (isEditing) {
-                    if (col.isAutoGenerated) return <td key={col.name} className="px-4 py-2"><span className="text-xs font-black text-blue-400 bg-gray-100 px-2 py-1 rounded-md border border-gray-100 italic">{row[col.name]}</span></td>;
-                    return <td key={col.name} className="px-4 py-2"><input type={col.type === 'date' ? 'date' : (col.type === 'number' ? 'number' : 'text')} value={col.type === 'date' && typeof editFormData[col.name] === 'number' ? new Date(Math.round((editFormData[col.name] - 25569) * 86400 * 1000)).toISOString().split('T')[0] : (editFormData[col.name] || '')} onChange={(e) => handleEditChange(col.name, e.target.value)} className="w-full bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs font-bold text-gray-700 focus:bg-white outline-none" /></td>;
+                    if (col.isAutoGenerated) return <td key={col.name} className="px-6 py-4"><span className="text-[10px] font-black text-blue-500 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 uppercase tracking-widest">{row[col.name]}</span></td>;
+                    return <td key={col.name} className="px-4 py-2"><input type={col.type === 'date' ? 'date' : (col.type === 'number' ? 'number' : 'text')} value={col.type === 'date' && typeof editFormData[col.name] === 'number' ? new Date(Math.round((editFormData[col.name] - 25569) * 86400 * 1000)).toISOString().split('T')[0] : (editFormData[col.name] || '')} onChange={(e) => handleEditChange(col.name, e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all" /></td>;
                   }
                   
                   let displayValue = val?.toString() || '-';
@@ -453,42 +453,42 @@ export function DynamicTable({
                     return (
                         <td key={col.name} className="px-6 py-4 whitespace-nowrap">
                           {val === 'Yes' ? (
-                            <span className="flex items-center gap-1.5 text-blue-600 font-bold text-xs bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100 italic">
+                            <span className="flex items-center gap-1.5 text-blue-600 font-bold text-[10px] bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100 uppercase tracking-widest">
                               <SafeIcon icon={CheckCircle2} isMounted={isMounted} size={12} /> YES
                             </span>
                           ) : val === 'No' ? (
-                            <span className="flex items-center gap-1.5 text-red-500 font-bold text-xs bg-red-50 px-2.5 py-1 rounded-full border border-red-100 italic">
+                            <span className="flex items-center gap-1.5 text-red-500 font-bold text-[10px] bg-red-50 px-3 py-1.5 rounded-full border border-red-100 uppercase tracking-widest">
                               <SafeIcon icon={XCircle} isMounted={isMounted} size={12} /> NO
                             </span>
-                          ) : <span className="text-gray-300">-</span>}
+                          ) : <span className="text-slate-300">-</span>}
                         </td>
                       );
                   }
                   if (col.type === 'currency' || col.type === 'number') {
                     const numericVal = typeof val === 'number' ? val : Number(String(val || '').replace(/[^0-9.-]/g, ''));
                     const displayVal = !isNaN(numericVal) ? numericVal.toLocaleString() : (val || '-');
-                    return <td key={col.name} className="px-6 py-4 text-sm font-black text-gray-900 text-right font-mono tracking-tight">{displayVal}</td>;
+                    return <td key={col.name} className="px-6 py-4 text-sm font-black text-slate-900 text-right font-mono tracking-tight">{displayVal}</td>;
                   }
-                  if (col.type === 'email' && val) return <td key={col.name} className="px-6 py-4"><a href={`mailto:${val}`} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors font-black text-xs"><SafeIcon icon={Mail} isMounted={isMounted} size={12} />{val}</a></td>;
-                  if (col.type === 'phone' && val) return <td key={col.name} className="px-6 py-4 text-indigo-600 font-black text-xs"><div className="flex items-center gap-2"><SafeIcon icon={Phone} isMounted={isMounted} size={12} />{val}</div></td>;
-                  if (col.type === 'textarea' && val) return <td key={col.name} className="px-6 py-4"><div className="flex items-center gap-2 truncate max-w-[200px] text-xs"><SafeIcon icon={FileText} isMounted={isMounted} size={12} className="text-gray-400" />{val.toString()}</div></td>;
-                  if (col.type === 'file' && val) return <td key={col.name} className="px-6 py-4"><a href={val} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2"><SafeIcon icon={Eye} isMounted={isMounted} size={12} className="text-blue-500" /><SafeIcon icon={ExternalLink} isMounted={isMounted} size={10} className="text-gray-300" /></a></td>;
-                  return <td key={col.name} className={`px-6 py-4 text-xs font-medium ${col.autoPrefix ? 'text-blue-600 font-black' : 'text-gray-700'}`}>{displayValue}</td>;
+                  if (col.type === 'email' && val) return <td key={col.name} className="px-6 py-4"><a href={`mailto:${val}`} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors font-black text-xs decoration-2 underline-offset-4"><SafeIcon icon={Mail} isMounted={isMounted} size={12} />{val}</a></td>;
+                  if (col.type === 'phone' && val) return <td key={col.name} className="px-6 py-4 text-slate-900 font-black text-xs"><div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full w-fit"><SafeIcon icon={Phone} isMounted={isMounted} size={12} className="text-blue-500" />{val}</div></td>;
+                  if (col.type === 'textarea' && val) return <td key={col.name} className="px-6 py-4"><div className="flex items-center gap-2 truncate max-w-[200px] text-xs font-medium text-slate-500"><SafeIcon icon={FileText} isMounted={isMounted} size={12} className="text-slate-300" />{val.toString()}</div></td>;
+                  if (col.type === 'file' && val) return <td key={col.name} className="px-6 py-4"><a href={val} target="_blank" rel="noopener noreferrer" className="p-2 bg-slate-50 rounded-xl hover:bg-blue-50 transition-colors inline-block group/file"><SafeIcon icon={Eye} isMounted={isMounted} size={16} className="text-slate-400 group-hover/file:text-blue-500" /></a></td>;
+                  return <td key={col.name} className={`px-6 py-4 text-xs font-bold ${col.autoPrefix ? 'text-blue-600 font-black' : 'text-slate-700'}`}>{displayValue}</td>;
                 })}
                 {hasBaseEditAuth && (
                   <td className="px-6 py-4 text-right">
                     {editingRowId === row.id ? (
                       <div className="flex items-center justify-center gap-2">
-                        <button onClick={handleEditSave} className="p-1.5 bg-blue-600 text-white rounded-lg"><SafeIcon icon={Check} isMounted={isMounted} size={14} /></button>
-                        <button onClick={handleEditCancel} className="p-1.5 bg-gray-100 text-gray-500 rounded-lg"><SafeIcon icon={XIcon} isMounted={isMounted} size={14} /></button>
+                        <button onClick={handleEditSave} className="p-2.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all"><SafeIcon icon={Check} isMounted={isMounted} size={16} strokeWidth={3} /></button>
+                        <button onClick={handleEditCancel} className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:bg-slate-200 active:scale-95 transition-all"><SafeIcon icon={XIcon} isMounted={isMounted} size={16} strokeWidth={3} /></button>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setHistoryRowId(row.id)} className="p-2 text-gray-400 hover:text-indigo-600 transition-all"><SafeIcon icon={HistoryIcon} isMounted={isMounted} size={16} /></button>
+                      <div className="flex items-center justify-end gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setHistoryRowId(row.id)} className="p-2.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="변경 이력"><SafeIcon icon={HistoryIcon} isMounted={isMounted} size={18} /></button>
                         {row.isDeleted ? (
-                            isRowManager(row) && <button onClick={() => handleSingleRestore(row.id)} className="p-2 text-gray-400 hover:text-green-600 transition-all"><SafeIcon icon={RotateCcw} isMounted={isMounted} size={16} /></button>
+                            isRowManager(row) && <button onClick={() => handleSingleRestore(row.id)} className="p-2.5 text-slate-300 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all" title="데이터 복구"><SafeIcon icon={RotateCcw} isMounted={isMounted} size={18} /></button>
                         ) : (
-                            isRowManager(row) && <button onClick={() => handleEditStart(row)} className="p-2 text-gray-400 hover:text-blue-600 transition-all"><SafeIcon icon={Edit3} isMounted={isMounted} size={16} /></button>
+                            isRowManager(row) && <button onClick={() => handleEditStart(row)} className="p-2.5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" title="데이터 수정"><SafeIcon icon={Edit3} isMounted={isMounted} size={18} /></button>
                         )}
                       </div>
                     )}
@@ -497,25 +497,30 @@ export function DynamicTable({
               </tr>
             ))}
             {paginatedData.length === 0 && (
-              <tr><td colSpan={columns.length + 2} className="px-6 py-20 text-center"><div className="flex flex-col items-center gap-3"><SafeIcon icon={FilterX} isMounted={isMounted} size={48} className="text-gray-100" /><p className="text-gray-300 font-bold uppercase text-[10px]">No Data Found</p></div></td></tr>
+              <tr><td colSpan={columns.length + 2} className="px-6 py-32 text-center"><div className="flex flex-col items-center gap-4"><div className="p-6 bg-slate-50 rounded-[32px]"><SafeIcon icon={FilterX} isMounted={isMounted} size={48} className="text-slate-200" /></div><p className="text-slate-300 font-black uppercase text-xs tracking-widest mt-2">Zero records matching current criteria</p></div></td></tr>
             )}
           </tbody>
         </table>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-[24px] border border-gray-100 shadow-sm">
-        <div className="flex items-center gap-6">
-          <p className="text-xs font-black text-gray-900">Total {processedData.length} records</p>
-          {isReadOnly && <span className="px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-md text-[9px] font-black uppercase tracking-tight">Read-Only</span>}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-6 bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-900/5">
+        <div className="flex items-center gap-8">
+          <div className="flex flex-col">
+            <p className="text-xs font-black text-slate-900 uppercase tracking-widest">Total Population</p>
+            <p className="text-2xl font-black text-blue-600 font-mono leading-none mt-1">{processedData.length}<span className="text-[10px] text-slate-300 ml-1">RECORDS</span></p>
+          </div>
+          {isReadOnly && <span className="px-4 py-1.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-sm animate-pulse">Read-Only Mode</span>}
         </div>
-        <div className="flex items-center gap-2">
-            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 bg-gray-50 rounded-xl hover:bg-gray-100 disabled:opacity-30 transition-all"><SafeIcon icon={ChevronsLeft} isMounted={isMounted} size={16} /></button>
-            <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 bg-gray-50 rounded-xl hover:bg-gray-100 disabled:opacity-30 transition-all"><SafeIcon icon={ChevronLeft} isMounted={isMounted} size={16} /></button>
-            <div className="flex items-center px-4 py-1.5 bg-slate-900 rounded-xl">
-                <span className="text-[10px] font-black text-white">{currentPage} / {totalPages || 1}</span>
+        <div className="flex items-center gap-3">
+            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 transition-all active:scale-90 border border-slate-100/50"><SafeIcon icon={ChevronsLeft} isMounted={isMounted} size={18} /></button>
+            <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 transition-all active:scale-90 border border-slate-100/50"><SafeIcon icon={ChevronLeft} isMounted={isMounted} size={18} /></button>
+            
+            <div className="flex items-center px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl shadow-slate-900/20 min-w-[100px] justify-center">
+                <span className="text-xs font-black text-white tracking-widest">{currentPage} <span className="text-slate-500 mx-1">/</span> {totalPages || 1}</span>
             </div>
-            <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 bg-gray-50 rounded-xl hover:bg-gray-100 disabled:opacity-30 transition-all"><SafeIcon icon={ChevronRight} isMounted={isMounted} size={16} /></button>
-            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || totalPages === 0} className="p-2 bg-gray-50 rounded-xl hover:bg-gray-100 disabled:opacity-30 transition-all"><SafeIcon icon={ChevronsRight} isMounted={isMounted} size={16} /></button>
+            
+            <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 transition-all active:scale-90 border border-slate-100/50"><SafeIcon icon={ChevronRight} isMounted={isMounted} size={18} /></button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || totalPages === 0} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 transition-all active:scale-90 border border-slate-100/50"><SafeIcon icon={ChevronsRight} isMounted={isMounted} size={18} /></button>
         </div>
       </div>
 

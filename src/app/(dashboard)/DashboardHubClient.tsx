@@ -14,6 +14,7 @@ import {
   Check
 } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import { NewTableSection } from '@/components/NewTableSection';
 import { SyncStatusBadge } from '@/components/SyncStatusBadge';
@@ -30,6 +31,7 @@ interface DashboardHubClientProps {
 }
 
 export function DashboardHubClient({ user, isStaff, reports, events }: DashboardHubClientProps) {
+  const pathname = usePathname();
   const [showManualModal, setShowManualModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'reports' | 'backups'>('reports');
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,10 +90,10 @@ export function DashboardHubClient({ user, isStaff, reports, events }: Dashboard
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       <main className="max-w-[1600px] mx-auto px-8 md:px-12 pt-6 pb-12 space-y-12 w-full overflow-y-auto">
         <PageHeader 
-          title={isStaff ? "Employee Hub" : (activeTab === 'reports' ? "Data Center" : "Snapshot Center")}
+          title={isStaff ? "Employee Hub" : (pathname === '/dashboard' ? "Dashboard" : "My DB")}
           description={isStaff ? "부서별로 공유된 데이터 테이블과 입력 양식을 확인할 수 있습니다." : 
                       (activeTab === 'reports' ? "조직의 모든 데이터를 관리하고 분석할 수 있는 데이터 센터입니다." : "데이터베이스 전체를 시점별로 저장하고 복구할 수 있는 백업 센터입니다.")}
-          icon={activeTab === 'reports' ? Database : History}
+          icon={pathname === '/dashboard' ? Star : Database}
           rightElement={
             !isStaff && activeTab === 'reports' && (
               <button 
@@ -142,43 +144,43 @@ export function DashboardHubClient({ user, isStaff, reports, events }: Dashboard
             <UpcomingEventsWidget events={events} />
 
             {/* Smart Toolbox (Search & Filters) */}
-            <section className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm space-y-8">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-50 p-2.5 rounded-xl text-blue-600">
-                    <Filter size={20} />
+            <section className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-2xl shadow-slate-900/5 space-y-10">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                <div className="flex items-center gap-4">
+                  <div className="bg-blue-50 p-3 rounded-2xl text-blue-600">
+                    <Filter size={24} />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 leading-tight">지능형 탐색</h2>
-                    <p className="text-xs text-slate-400 font-medium tracking-tight">키워드 또는 카테고리로 테이블을 검색하세요.</p>
+                    <h2 className="text-xl font-black text-slate-900 leading-tight tracking-tight">지능형 탐색</h2>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Total {reports.length} tables integrated</p>
                   </div>
                 </div>
 
-                <div className="relative flex-1 lg:max-w-md">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <div className="relative flex-1 lg:max-w-md group">
+                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
                   <input 
                     type="text" 
-                    placeholder="테이블 이름, 설명 또는 DB 식별자로 검색..."
+                    placeholder="Search by name, ID or description..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500/20 transition-all outline-none placeholder:text-slate-400"
+                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:bg-white transition-all outline-none placeholder:text-slate-400"
                   />
                 </div>
               </div>
 
               {/* Category Chips */}
-              <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-50">
+              <div className="flex flex-wrap gap-2 pt-6 border-t border-slate-50">
                 {categories.map(cat => (
                   <button
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
-                    className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                    className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 relative ${
                       selectedCategory === cat 
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 ring-2 ring-blue-600 ring-offset-2' 
-                      : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
+                      ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20 ring-4 ring-slate-900/5' 
+                      : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100 hover:border-slate-200'
                     }`}
                   >
-                    {selectedCategory === cat && <Check size={12} />}
+                    {selectedCategory === cat && <Check size={12} strokeWidth={3} className="text-blue-400" />}
                     {cat}
                   </button>
                 ))}
@@ -188,15 +190,20 @@ export function DashboardHubClient({ user, isStaff, reports, events }: Dashboard
 
             {/* Reports List */}
             <section className="max-w-[1600px] mx-auto">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <FileSpreadsheet size={20} className="text-blue-600" />
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">{isStaff ? 'My Workspace' : 'MY DB Repository'}</h2>
+              <div className="flex items-center justify-between mb-8 px-2">
+                <div className="flex items-center gap-3">
+                  <FileSpreadsheet size={24} className="text-blue-600" />
+                  <div className="flex flex-col">
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase leading-none">{isStaff ? 'My Workspace' : 'MY DB Repository'}</h2>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Authorized data objects only</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
-                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    Matching Results: <span className="text-blue-600 text-sm ml-1">{filteredReports.length}</span> / {reports.length}
-                   </span>
+                   <div className="px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        Results: <span className="text-blue-600 text-sm ml-1">{filteredReports.length}</span>
+                    </span>
+                   </div>
                 </div>
               </div>
 
@@ -205,8 +212,18 @@ export function DashboardHubClient({ user, isStaff, reports, events }: Dashboard
                    const rCat = report.category || (report.uiConfig ? JSON.parse(report.uiConfig).category : 'Uncategorized');
                    
                    return (
-                    <div key={report.id} className="relative group bg-white border border-slate-100 rounded-[32px] hover:border-blue-200 hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)] transition-all duration-500 overflow-hidden">
-                      <div className="p-8">
+                    <div key={report.id} className="relative group bg-white border border-slate-100 rounded-[40px] hover:border-blue-500/30 hover:shadow-2xl hover:shadow-slate-900/10 transition-all duration-500 overflow-hidden">
+                      {/* Entire card is a link */}
+                      <Link
+                        href={
+                          report.isSystemTable && report.id === 'user' ? '/users' :
+                          (report.isSystemTable || report.isDirectTable) ? `/report/${report.id}` :
+                            (isStaff ? `/report/${report.id}/input` : `/report/${report.id}`)
+                        }
+                        className="absolute inset-0 z-0"
+                      />
+
+                      <div className="p-10 relative z-10 pointer-events-none">
                         <div className="flex justify-between items-start mb-6">
                           <div className={`p-3 rounded-2xl transition-all duration-500 ${
                               report.isFinanceTable ? 'bg-indigo-50 text-indigo-600' :
@@ -224,13 +241,17 @@ export function DashboardHubClient({ user, isStaff, reports, events }: Dashboard
                               <span className="px-2 py-1 bg-slate-50 text-slate-400 text-[9px] font-black rounded-lg border border-slate-100 uppercase tracking-tighter">
                                 {rCat}
                               </span>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 pointer-events-auto">
                                   {report.isReadOnly && (
                                     <span className="px-2 py-1 bg-rose-50 text-rose-600 text-[9px] font-black rounded-lg uppercase tracking-widest border border-rose-100">
                                       Locked
                                     </span>
                                   )}
-                                  {!isStaff && !report.isReadOnly && <DeleteReportButton reportId={report.id} reportName={report.name} />}
+                                  {!isStaff && !report.isReadOnly && (
+                                    <div className="opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+                                      <DeleteReportButton reportId={report.id} reportName={report.name} />
+                                    </div>
+                                  )}
                               </div>
                           </div>
                         </div>
@@ -244,7 +265,7 @@ export function DashboardHubClient({ user, isStaff, reports, events }: Dashboard
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-3 mb-8">
+                        <div className="flex items-center gap-3">
                           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-tight">
                             <span className="text-blue-600">ID:</span> {report.tableName}
                           </div>
@@ -252,24 +273,6 @@ export function DashboardHubClient({ user, isStaff, reports, events }: Dashboard
                             {report._count?.rows ?? '0'} Rows
                           </div>
                         </div>
-
-                        <Link
-                          href={
-                              report.isSystemTable && report.id === 'user' ? '/users' :
-                              (report.isSystemTable || report.isDirectTable) ? `/report/${report.id}` :
-                                (isStaff ? `/report/${report.id}/input` : `/report/${report.id}`)
-                          }
-                          className={`flex items-center justify-center w-full py-4 px-6 font-black rounded-2xl transition-all text-xs uppercase tracking-[0.2em] border shadow-sm ${
-                              report.isSystemTable ? 'bg-purple-600 text-white hover:bg-slate-900 border-purple-600 shadow-purple-200' 
-                              : (isStaff ? 'bg-amber-600 text-white hover:bg-slate-900 border-amber-600 shadow-amber-200' : 'bg-white text-blue-600 border-blue-50 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 shadow-slate-100')
-                            }`}
-                        >
-                          {
-                            report.isSystemTable && report.id === 'user' ? 'Manage Users' :
-                            report.isSystemTable ? 'System View' :
-                            report.isDirectTable ? 'Raw View' :
-                              (isStaff ? 'Open Entry' : 'Open Explorer')}
-                        </Link>
                       </div>
                     </div>
                   );

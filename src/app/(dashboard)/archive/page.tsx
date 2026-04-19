@@ -36,7 +36,7 @@ export default async function ArchivePage() {
     <div className="flex-1 overflow-y-auto">
       <main className="max-w-[1600px] mx-auto p-8 md:p-12">
         <PageHeader 
-          title="Data Archive"
+          title="ARCHIVE"
           description="삭제된 테이블과 리포트들을 복구하거나 영구 삭제할 수 있는 공간입니다."
           icon={Archive}
         />

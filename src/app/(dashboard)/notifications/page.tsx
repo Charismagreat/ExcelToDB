@@ -45,7 +45,7 @@ export default async function NotificationsPage() {
         <div className="flex-1 overflow-y-auto">
             <main className="max-w-[1600px] mx-auto p-8 md:p-12 space-y-12">
                 <PageHeader 
-                    title="Workflow Hub"
+                    title="WORKFLOW HUB"
                     description={user.role === 'ADMIN' 
                         ? "전사 업무 여정을 실시간으로 관제하고 진행 상태를 모니터링합니다." 
                         : "본인에게 할당된 업무 흐름과 실시간 알림을 확인합니다."}

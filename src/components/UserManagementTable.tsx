@@ -155,32 +155,34 @@ export function UserManagementTable({ users: initialUsers }: UserManagementTable
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+      <div className="flex flex-col md:flex-row gap-6 justify-between items-center bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-900/5">
+        <div className="relative w-full md:w-96 group">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
           <input 
             type="text" 
-            placeholder="사용자 검색 (ID, 이름, 사번)..."
-            className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-transparent rounded-2xl text-sm focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold"
+            placeholder="Search users (ID, Name, Employee ID)..."
+            className="w-full pl-12 pr-6 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 font-bold"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <button 
-          onClick={() => setIsAdding(!isAdding)}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95 text-xs uppercase tracking-widest"
-        >
-          {isAdding ? <X size={16} /> : <UserPlus size={16} />}
-          {isAdding ? '취소' : '신규 사용자 등록'}
-        </button>
-        
-        <button 
-          onClick={() => setShowBulkUpload(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-700 font-black rounded-2xl hover:bg-indigo-100 transition-all active:scale-95 text-xs uppercase tracking-widest border border-indigo-100"
-        >
-          <FileSpreadsheet size={16} />
-          엑셀 일괄 등록
-        </button>
+        <div className="flex items-center gap-3">
+            <button 
+                onClick={() => setIsAdding(!isAdding)}
+                className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95 text-xs uppercase tracking-widest whitespace-nowrap"
+            >
+                {isAdding ? <X size={16} strokeWidth={3} /> : <UserPlus size={16} strokeWidth={3} />}
+                {isAdding ? '취소' : '신규 사용자 등록'}
+            </button>
+            
+            <button 
+                onClick={() => setShowBulkUpload(true)}
+                className="flex items-center gap-2 px-6 py-3.5 bg-slate-900 text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-slate-900/10 active:scale-95 text-xs uppercase tracking-widest border border-slate-800 whitespace-nowrap"
+            >
+                <FileSpreadsheet size={16} />
+                엑셀 일괄 등록
+            </button>
+        </div>
       </div>
 
       {isAdding && (
@@ -253,18 +255,18 @@ export function UserManagementTable({ users: initialUsers }: UserManagementTable
         </div>
       )}
 
-      <div className="bg-white border border-gray-100 rounded-[32px] shadow-sm overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-50">
-          <thead className="bg-gray-50/50">
+      <div className="bg-white border border-slate-100 rounded-[40px] shadow-2xl shadow-slate-900/5 overflow-hidden">
+        <table className="min-w-full divide-y divide-slate-100">
+          <thead className="bg-slate-50/50">
             <tr>
-              <th className="px-8 py-5 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">Employee</th>
-              <th className="px-8 py-5 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">Role</th>
-              <th className="px-8 py-5 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">Status</th>
-              <th className="px-8 py-5 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">Last Access</th>
-              <th className="px-8 py-5 text-center text-[11px] font-black text-gray-400 uppercase tracking-widest">Actions</th>
+              <th className="px-8 py-6 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">Employee</th>
+              <th className="px-8 py-6 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">Role</th>
+              <th className="px-8 py-6 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+              <th className="px-8 py-6 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">Last Access</th>
+              <th className="px-8 py-6 text-center text-[11px] font-black text-slate-400 uppercase tracking-widest">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-slate-50">
             {filteredUsers.map((user) => (
               <tr key={user.id} className="hover:bg-blue-50/20 transition-colors group">
                 <td className="px-8 py-5">

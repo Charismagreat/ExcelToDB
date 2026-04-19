@@ -14,40 +14,58 @@ export default async function CalendarPage() {
   });
 
   return (
-    <div className="container mx-auto p-4 md:p-8 max-w-7xl">
+    <div className="px-8 md:px-12 pt-6 pb-12">
       <PageHeader 
         title="SYSTEM CALENDAR"
         description="전사 공지사항, 프로젝트 마감 기한 및 사원들의 주요 일정을 한눈에 관리하세요."
         icon={Calendar}
       />
 
-      <div className="mt-8">
+      <main className="max-w-[1600px] mx-auto mt-12 space-y-12">
         <FullCalendarView 
           events={events} 
           isAdmin={true} 
         />
-      </div>
-      
-      {/* Legend / Key */}
-      <div className="mt-8 flex flex-wrap gap-6 p-6 bg-slate-50/50 rounded-2xl border border-slate-100">
-        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest w-full mb-2">Calendar Legend</p>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500 shadow-sm" />
-          <span className="text-xs font-bold text-slate-600">업무 마감 (TASK)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-500 shadow-sm" />
-          <span className="text-xs font-bold text-slate-600">전사 공지 (NOTICE)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-yellow-500 shadow-sm" />
-          <span className="text-xs font-bold text-slate-600">회사 행사 (EVENT)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-500 shadow-sm" />
-          <span className="text-xs font-bold text-slate-600">휴가/부재 (VACATION)</span>
-        </div>
-      </div>
+        
+        {/* Premium Legend / Key */}
+        <section className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-2xl shadow-slate-900/5">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
+            <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">Calendar Legend</h2>
+          </div>
+          
+          <div className="flex flex-wrap gap-10">
+            <div className="flex items-center gap-4 group">
+            <div className="w-4 h-4 rounded-full bg-blue-500 shadow-lg shadow-blue-500/20 group-hover:scale-125 transition-transform" />
+            <div className="flex flex-col">
+                <span className="text-xs font-black text-slate-900 uppercase tracking-widest">업무 마감</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">TASK Deadline</span>
+            </div>
+            </div>
+            <div className="flex items-center gap-4 group">
+            <div className="w-4 h-4 rounded-full bg-red-500 shadow-lg shadow-red-500/20 group-hover:scale-125 transition-transform" />
+            <div className="flex flex-col">
+                <span className="text-xs font-black text-slate-900 uppercase tracking-widest">전사 공지</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">NOTICE / Announcement</span>
+            </div>
+            </div>
+            <div className="flex items-center gap-4 group">
+            <div className="w-4 h-4 rounded-full bg-yellow-500 shadow-lg shadow-yellow-500/20 group-hover:scale-125 transition-transform" />
+            <div className="flex flex-col">
+                <span className="text-xs font-black text-slate-900 uppercase tracking-widest">회사 행사</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">EVENT / Meetup</span>
+            </div>
+            </div>
+            <div className="flex items-center gap-4 group">
+            <div className="w-4 h-4 rounded-full bg-green-500 shadow-lg shadow-green-500/20 group-hover:scale-125 transition-transform" />
+            <div className="flex flex-col">
+                <span className="text-xs font-black text-slate-900 uppercase tracking-widest">휴가/부재</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">VACATION / Absence</span>
+            </div>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }

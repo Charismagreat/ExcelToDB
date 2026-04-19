@@ -85,13 +85,13 @@ export function ReportDetailClient({
 
             {/* Data List Section */}
             <section className="space-y-6">
-                <div className="flex items-center justify-between px-2">
+                <div className="flex items-center justify-between px-6">
                     <div className="flex flex-col gap-1">
-                        <h2 className="text-xl font-black text-gray-900 tracking-tight">데이터 내역 전체보기</h2>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Total {rows.length} rows detected in current sheet</p>
+                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">데이터 내역 전체보기</h2>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Total {rows.length} records detected</p>
                     </div>
                 </div>
-                <div className="bg-white p-2 rounded-[32px] border border-gray-100 shadow-2xl shadow-gray-900/5 overflow-hidden">
+                <div className="bg-white p-4 rounded-[40px] border border-slate-100 shadow-2xl shadow-slate-900/5 overflow-hidden">
                     <DynamicTable 
                         reportId={id} 
                         columns={columns} 

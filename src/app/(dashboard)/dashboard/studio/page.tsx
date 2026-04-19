@@ -52,9 +52,9 @@ export default async function DataAnalysisStudioPage() {
     <div className="flex-1 overflow-y-auto">
       <main className="max-w-[1600px] mx-auto px-8 md:px-12 pt-6 pb-12">
         <PageHeader 
-          title="Analysis Studio"
+          title="ANALYSIS STUDIO"
           description="테이블 데이터를 AI가 분석하여 최적의 차트와 인사이트를 생성합니다."
-          icon={Bot}
+          icon={Compass}
         />
         <DashboardClient 
           allTables={allTables}

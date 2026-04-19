@@ -71,120 +71,127 @@ export function ReportHeader({
 
   return (
     <>
-      <section className="bg-white p-8 border rounded-[32px] shadow-sm animate-in fade-in slide-in-from-top-4 duration-500 relative">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
-          <div className="flex items-center gap-6">
-            <div className="bg-blue-600 text-white p-4 rounded-[20px] shadow-xl shadow-blue-500/20 shrink-0">
-              <FileText size={32} strokeWidth={2.5} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {isEditing ? (
-                <div className="flex items-center gap-2 group">
+      <section className="animate-in fade-in slide-in-from-top-4 duration-500 mb-12">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
+          {/* Left Side: Title & Info */}
+          <div className="flex-1 min-w-0">
+            {isEditing ? (
+              <div className="flex items-center gap-4 animate-in zoom-in-95 duration-300">
+                <div className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-500/20">
+                  <FileText size={24} strokeWidth={2.5} />
+                </div>
+                <div className="flex items-center gap-2 flex-1">
                   <input
                     autoFocus
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-                    className="text-3xl font-black text-gray-900 border-b-4 border-blue-500 bg-transparent outline-none py-1 transition-all w-full max-md"
+                    className="text-4xl font-black text-slate-900 border-b-4 border-blue-500 bg-transparent outline-none py-1 w-full max-w-xl"
                     disabled={pending}
                   />
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button 
                       onClick={handleSave}
                       disabled={pending}
-                      className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-md active:scale-95 disabled:opacity-50"
+                      className="p-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-500/20 transition-all active:scale-90"
                     >
-                      <Check size={20} />
+                      <Check size={20} strokeWidth={3} />
                     </button>
                     <button 
                       onClick={() => { setIsEditing(false); setName(initialName); }}
                       disabled={pending}
-                      className="p-2 bg-gray-100 text-gray-400 rounded-xl hover:bg-gray-200 transition-colors active:scale-95 disabled:opacity-50"
+                      className="p-3 bg-slate-100 text-slate-400 rounded-2xl hover:bg-slate-200 transition-all active:scale-90"
                     >
-                      <X size={20} />
+                      <X size={20} strokeWidth={3} />
                     </button>
                   </div>
                 </div>
-              ) : (
-                <div className="flex items-center gap-3 group">
-                  <h1 className="text-3xl font-black text-gray-900 tracking-tight">{name}</h1>
+              </div>
+            ) : (
+              <div className="group relative">
+                <div className="flex items-center gap-4">
+                  <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter flex items-center gap-4 leading-tight uppercase font-[family-name:var(--font-geist-sans)]">
+                    {name}
+                    <FileText className="text-blue-600 shrink-0" size={40} />
+                    {isOwner && !isReadOnly && (
+                      <button 
+                        onClick={() => setIsEditing(true)}
+                        className="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100"
+                        title="이름 수정"
+                      >
+                        <Edit2 size={24} />
+                      </button>
+                    )}
+                  </h1>
                   {isReadOnly && (
-                    <div className="px-3 py-1 bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border border-amber-200 shadow-sm animate-pulse">
+                    <div className="px-4 py-1.5 bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-[0.25em] rounded-full border border-amber-200 shadow-sm animate-pulse shrink-0">
                       Read-Only
                     </div>
                   )}
-                  {isOwner && !isReadOnly && (
-                    <button 
-                      onClick={() => setIsEditing(true)}
-                      className="p-2 text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100"
-                    >
-                      <Edit2 size={18} />
-                    </button>
-                  )}
                 </div>
-              )}
-              <div className="flex items-center gap-4 text-xs font-bold">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sheet</span>
-                  <span className="text-gray-600">{sheetName}</span>
+                
+                <div className="flex items-center gap-4 mt-4">
+                  <div className="text-slate-500 font-bold leading-relaxed max-w-2xl flex items-center gap-3">
+                    <div className="flex items-center gap-2 bg-blue-50 px-3 py-1 rounded-xl">
+                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Repository</span>
+                        <span className="text-slate-900 font-black text-xs">{sheetName}</span>
+                    </div>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Synchronized at {createdAt}</span>
+                  </div>
                 </div>
-                <div className="w-px h-3 bg-gray-200" />
-                <div className="text-gray-400 font-medium">Created at {createdAt}</div>
               </div>
-            </div>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Right Side: Action Buttons */}
+          <div className="flex flex-wrap items-center gap-4 shrink-0">
             {!isReadOnly && canEdit && (
-              <div className="flex items-center gap-3">
+              <>
                 {(isAdmin || isOwner) && (
-                    <button 
-                        onClick={onToggleAccessManager}
-                        className="flex items-center gap-2 px-6 py-3.5 bg-white text-gray-500 font-black rounded-[18px] border border-gray-100 hover:text-amber-600 hover:border-amber-100 hover:bg-amber-50/30 transition-all shadow-sm active:scale-95 text-[11px] uppercase tracking-widest"
-                    >
-                        <ShieldCheck size={16} strokeWidth={2.5} />
-                        Access Permissions
-                    </button>
+                  <button 
+                    onClick={onToggleAccessManager}
+                    className="flex items-center gap-2 px-8 py-4 bg-white text-slate-500 font-black rounded-[20px] border border-slate-100 hover:text-blue-600 hover:border-blue-100 hover:bg-blue-50/50 transition-all shadow-xl shadow-slate-900/5 active:scale-95 text-xs uppercase tracking-widest"
+                  >
+                    <ShieldCheck size={18} strokeWidth={2.5} />
+                    Permissions
+                  </button>
                 )}
 
                 <button 
-                    onClick={handleShare}
-                    className={`
-                        flex items-center gap-2 px-6 py-3.5 font-black rounded-[18px] transition-all text-[11px] uppercase tracking-widest active:scale-95 border
-                        ${copied 
-                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-lg shadow-indigo-100 scale-105' 
-                            : 'bg-white border-gray-100 text-gray-500 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50/30 shadow-sm'
-                        }
-                    `}
+                  onClick={handleShare}
+                  className={`
+                    flex items-center gap-2 px-8 py-4 font-black rounded-[20px] transition-all text-xs uppercase tracking-widest active:scale-95 border
+                    ${copied 
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-2xl shadow-blue-500/30 scale-105' 
+                        : 'bg-white border-slate-100 text-slate-500 hover:text-blue-600 hover:border-blue-100 hover:bg-blue-50/50 shadow-xl shadow-slate-900/5'
+                    }
+                  `}
                 >
-                    {copied ? (
-                        <>
-                            <Check size={16} strokeWidth={3} className="text-indigo-600" />
-                            Link Copied!
-                        </>
-                    ) : (
-                        <>
-                            <Link size={16} />
-                            워크스페이스 URL 복사
-                        </>
-                    )}
+                  {copied ? (
+                    <>
+                      <Check size={18} strokeWidth={3} className="text-white" />
+                      URL Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Link size={18} strokeWidth={2.5} />
+                      Share Link
+                    </>
+                  )}
                 </button>
-              </div>
+              </>
             )}
             
             {!isReadOnly && (isOwner || isAdmin) && (
-              <div className="flex items-center gap-3 ml-2 relative">
-                <div className="w-px h-8 bg-gray-100 mx-1" />
-                
-                <button 
-                  onClick={() => setShowConfig(true)}
-                  className="flex items-center gap-2 px-5 py-3.5 bg-gray-50 text-gray-500 font-black rounded-[18px] hover:bg-white border border-gray-100 hover:shadow-xl hover:border-gray-200 transition-all text-[11px] uppercase tracking-widest active:scale-95 group"
-                >
-                  <Settings size={18} className="text-gray-400 group-hover:rotate-90 transition-transform duration-500" />
-                  테이블 설정 수정
-                </button>
-              </div>
+              <button 
+                onClick={() => setShowConfig(true)}
+                className="flex items-center gap-2 px-8 py-4 bg-slate-900 text-white font-black rounded-[20px] hover:bg-blue-600 transition-all text-xs uppercase tracking-widest active:scale-95 shadow-2xl shadow-slate-900/20 group"
+              >
+                <Settings size={18} strokeWidth={2.5} className="group-hover:rotate-90 transition-transform duration-500" />
+                Table Config
+              </button>
             )}
           </div>
         </div>

@@ -14,17 +14,20 @@ export default async function OrganizationPage() {
     const { departments, members } = await getOrganizationDataAction();
 
     return (
-        <main className="max-w-[1600px] mx-auto p-8 md:p-12 space-y-12">
+        <div className="px-8 md:px-12 pt-6 pb-12">
             <PageHeader 
-                title="Organization"
+                title="ORGANIZATION"
                 description="전사 조직도와 구성원 정보를 관리하고 엑셀을 통해 일괄 동기화합니다."
                 icon={Users}
             />
+
+            <main className="max-w-[1600px] mx-auto mt-12 space-y-12">
 
             <OrganizationManager 
                 initialDepartments={departments}
                 initialMembers={members}
             />
-        </main>
+            </main>
+        </div>
     );
 }

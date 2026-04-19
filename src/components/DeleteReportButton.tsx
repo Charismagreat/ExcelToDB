@@ -36,13 +36,13 @@ export function DeleteReportButton({ reportId, reportName }: DeleteReportButtonP
         </p>
         <div className="flex gap-2 w-full max-w-[160px]">
           <button
-            onClick={() => setShowConfirm(false)}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowConfirm(false); }}
             className="flex-1 py-1.5 px-3 bg-gray-100 text-gray-600 text-[10px] font-bold rounded-lg hover:bg-gray-200 transition-colors"
           >
             취소
           </button>
           <button
-            onClick={handleDelete}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(); }}
             disabled={isDeleting}
             className="flex-1 py-1.5 px-3 bg-red-600 text-white text-[10px] font-bold rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-1 shadow-sm shadow-red-100"
           >
@@ -56,7 +56,7 @@ export function DeleteReportButton({ reportId, reportName }: DeleteReportButtonP
 
   return (
     <button 
-      onClick={() => setShowConfirm(true)}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowConfirm(true); }}
       className="text-gray-400 hover:text-red-500 transition-colors p-1"
       title="삭제"
     >

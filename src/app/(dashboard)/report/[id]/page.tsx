@@ -379,9 +379,9 @@ export default async function ReportDetailPage({
             creatorId: r.creatorId
           }));
       }
-      }
     }
   }
+}
 
   const isOwner = report.ownerId === user?.id || report.ownerId === 'system';
   const isAdmin = user?.role === 'ADMIN';
@@ -393,18 +393,7 @@ export default async function ReportDetailPage({
   }
 
   return (
-    <div className="px-8 md:px-12 pt-6 pb-12 font-[family-name:var(--font-geist-sans)]">
-      <header className="max-w-[1600px] mx-auto flex justify-between items-center mb-8">
-        <div />
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-4 bg-white px-4 py-2 border rounded-full shadow-sm text-sm font-medium text-gray-700">
-            <User size={18} className="text-blue-500" />
-            <span>{user?.username || 'GUEST'} ({user?.role || 'NONE'})</span>
-          </div>
-          <LogoutButton />
-        </div>
-      </header>
-
+    <div className="px-8 md:px-12 pt-6 pb-12">
       <ReportDetailClient
         id={id}
         report={report}
