@@ -8,7 +8,8 @@ import {
   CheckCircle2, 
   PartyPopper, 
   PlaneTakeoff,
-  AlertCircle
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -70,17 +71,28 @@ export default function UpcomingEventsWidget({ events }: UpcomingEventsWidgetPro
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.1 }}
                 key={event.id}
-                className="bg-white border border-slate-100 p-5 rounded-[28px] shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all group relative overflow-hidden"
+                className="bg-white border border-slate-100 p-5 rounded-[28px] shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all group relative overflow-hidden flex flex-col justify-between"
               >
                 {isToday && (
-                  <div className="absolute top-0 right-0 p-1.5 px-3 bg-blue-600 text-white text-[8px] font-black uppercase tracking-widest rounded-bl-xl shadow-lg">
+                  <div className="absolute top-0 right-0 p-1.5 px-3 bg-blue-600 text-white text-[8px] font-black uppercase tracking-widest rounded-bl-xl shadow-lg z-10">
                     Today
                   </div>
                 )}
                 
                 <div className="flex flex-col gap-4">
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${config.bg} ${config.color}`}>
-                    <Icon size={20} />
+                  <div className="flex items-center justify-between">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${config.bg} ${config.color}`}>
+                      <Icon size={20} />
+                    </div>
+                    {event.reportId && (
+                       <Link 
+                        href={`/report/${event.reportId}`}
+                        className="p-2 text-slate-300 hover:text-blue-600 transition-colors"
+                        title="해당 테이블로 이동"
+                       >
+                         <ExternalLink size={14} />
+                       </Link>
+                    )}
                   </div>
                   
                   <div>
@@ -94,7 +106,7 @@ export default function UpcomingEventsWidget({ events }: UpcomingEventsWidgetPro
                     </h4>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-50 flex items-center justify-between">
+                  <div className="pt-3 border-t border-slate-50 flex items-center justify-between mt-auto">
                     <span className="text-[10px] font-bold text-slate-400">
                       {eventDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' })}
                     </span>
