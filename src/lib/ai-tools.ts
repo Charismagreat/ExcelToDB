@@ -74,36 +74,53 @@ export async function runAITool(name: string, args: any) {
         row.isDeleted === 0 || row.isDeleted === '0'
       );
       
-      const summary: Record<string, number> = {};
+      // 집계 모드 (sum 또는 count, 기본값은 sum)
+      const mode = args.mode || 'sum';
+      // sumKey를 배열로 처리 가능하도록 정규화 (단일 문자열인 경우도 배열로 변환)
+      const sumKeys = Array.isArray(args.sumKey) ? args.sumKey : [args.sumKey || 'value'];
+      
+      const summary: Record<string, Record<string, number>> = {};
       validRows.forEach((row: any) => {
-        // report_row의 경우 데이터가 data 컬럼 내 JSON으로 존재, 물리 테이블의 경우 row 자체에 존재
         const rowData = targetTable === 'report_row' 
           ? (typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {}))
           : row;
 
         const groupValue = rowData[args.groupByKey];
-        // groupByKey 값이 비어있거나 없는 행은 집계에서 제외
         if (groupValue === undefined || groupValue === null || groupValue === '') return;
         
-        let amountRaw = rowData[args.sumKey];
-        let amount = 0;
-        
-        if (typeof amountRaw === 'number') {
-          amount = amountRaw;
-        } else if (typeof amountRaw === 'string') {
-          amount = parseFloat(amountRaw.replace(/,/g, ''));
+        const gKey = String(groupValue);
+        if (!summary[gKey]) {
+          summary[gKey] = {};
+          sumKeys.forEach(sk => summary[gKey][sk] = 0);
         }
         
-        if (isNaN(amount)) amount = 0;
-
-        summary[String(groupValue)] = (summary[String(groupValue)] || 0) + amount;
+        sumKeys.forEach(sk => {
+          if (mode === 'count') {
+            summary[gKey][sk] += 1;
+          } else {
+            let amountRaw = rowData[sk];
+            let amount = 0;
+            if (typeof amountRaw === 'number') {
+              amount = amountRaw;
+            } else if (typeof amountRaw === 'string') {
+              amount = parseFloat(amountRaw.replace(/,/g, ''));
+            }
+            if (!isNaN(amount)) summary[gKey][sk] += amount;
+          }
+        });
       });
 
-      // 항상 고정된 키 'label'과 'value'를 사용하여 반환 (AI가 xAxis='label', series key='value'로 매칭)
-      return Object.keys(summary).map(key => ({
-        label: key,
-        value: summary[key]
-      })).sort((a, b) => b.value - a.value);
+      // 결과 반환: 각 그룹키별로 모든 sumKeys의 합계를 포함한 객체 배열 생성
+      return Object.keys(summary).map(key => {
+        const item: any = { label: key };
+        // 기존 호환성을 위해 첫 번째 sumKey 결과는 'value' 키로도 제공
+        if (sumKeys.length === 1) {
+          item.value = summary[key][sumKeys[0]];
+        }
+        // 모든 집계 필드 추가
+        Object.assign(item, summary[key]);
+        return item;
+      }).sort((a, b) => (b.value !== undefined ? b.value - (a.value || 0) : 0));
     }
     case "query_workspace_table": {
       const targetTable = (args.tableId && args.tableId !== 'report_row' && !args.tableId.includes('-')) ? args.tableId : 'report_row';

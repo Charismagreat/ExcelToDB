@@ -80,16 +80,22 @@ export async function mapRefreshedDataAction(rawData: any, mapping: any): Promis
                   (rawData && rawData.summary && Array.isArray(rawData.summary)) ? rawData.summary : null;
 
     const processRow = (row: any) => {
-        if (mapping && typeof mapping === 'object' && !mapping.label && !mapping.value) {
+        if (mapping && typeof mapping === 'object' && Object.keys(mapping).length > 0) {
             const mappedRow: any = {};
+            let hasData = false;
             for (const [targetKey, sourceKey] of Object.entries(mapping)) {
-                mappedRow[targetKey] = row[sourceKey as string] ?? row[targetKey] ?? '';
+                const value = row[sourceKey as string] ?? row[targetKey];
+                if (value !== undefined) {
+                    mappedRow[targetKey] = value;
+                    hasData = true;
+                }
             }
-            return mappedRow;
+            if (hasData) return mappedRow;
         }
+
         return {
-            label: mapping?.label && row[mapping.label] !== undefined ? row[mapping.label] : (row.yearMonth || row.month || row.name || row.label || row.date || Object.values(row)[0]),
-            value: mapping?.value && row[mapping.value] !== undefined ? row[mapping.value] : (row.totalWithdrawals || row.amount || row.value || row.count || row.total || Object.values(row)[1])
+            label: row.yearMonth || row.month || row.name || row.label || row.date || Object.values(row)[0],
+            value: row.totalWithdrawals || row.amount || row.value || row.count || row.total || Object.values(row)[1]
         };
     };
 

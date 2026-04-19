@@ -98,7 +98,8 @@ export default async function DashboardPage() {
       _count: { rows: '연동 중' },
       isFinanceTable: true,
       isSystemTable: true,
-      isReadOnly: true
+      isReadOnly: true,
+      category: 'Finance'
     });
     reports.push({
       id: 'finance-hub-bank-table',
@@ -107,7 +108,8 @@ export default async function DashboardPage() {
       _count: { rows: '연동 중' },
       isFinanceTable: true,
       isSystemTable: true,
-      isReadOnly: true
+      isReadOnly: true,
+      category: 'Finance'
     });
   }
 
@@ -128,7 +130,8 @@ export default async function DashboardPage() {
         _count: { rows: t.rowCount !== null && t.rowCount !== undefined ? t.rowCount : 'N/A' },
         isSystemTable: true,
         ownerId: 'system',
-        isReadOnly: t.tableName === 'user' ? false : true // user 테이블은 관리 가능하도록 예외 처리
+        isReadOnly: t.tableName === 'user' ? false : true, // user 테이블은 관리 가능하도록 예외 처리
+        category: 'System'
       }));
     reports = [...reports, ...mappedSystemTables];
   }
