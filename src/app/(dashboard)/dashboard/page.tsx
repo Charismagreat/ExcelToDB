@@ -27,7 +27,7 @@ export default async function ReportGalleryPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <main className="max-w-[1600px] mx-auto p-8 md:p-12">
+      <main className="max-w-[1600px] mx-auto px-8 md:px-12 pt-6 pb-12">
         <PageHeader 
           title="My Dashboard"
           description="분석 스튜디오에서 완성하여 핀으로 고정한 핵심 차트 리포트입니다."

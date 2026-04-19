@@ -86,7 +86,7 @@ export function DashboardHubClient({ user, isStaff, reports, events }: Dashboard
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <main className="max-w-[1600px] mx-auto p-8 md:p-12 space-y-12 w-full overflow-y-auto">
+      <main className="max-w-[1600px] mx-auto px-8 md:px-12 pt-6 pb-12 space-y-12 w-full overflow-y-auto">
         <PageHeader 
           title={isStaff ? "Employee Hub" : (activeTab === 'reports' ? "Data Center" : "Snapshot Center")}
           description={isStaff ? "부서별로 공유된 데이터 테이블과 입력 양식을 확인할 수 있습니다." : 

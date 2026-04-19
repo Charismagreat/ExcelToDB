@@ -50,7 +50,7 @@ export default async function DataAnalysisStudioPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <main className="max-w-[1600px] mx-auto p-8 md:p-12">
+      <main className="max-w-[1600px] mx-auto px-8 md:px-12 pt-6 pb-12">
         <PageHeader 
           title="Analysis Studio"
           description="테이블 데이터를 AI가 분석하여 최적의 차트와 인사이트를 생성합니다."
