@@ -146,4 +146,5 @@ export class SystemConfigService {
             return false;
         }
     }
+}
 
