@@ -31,7 +31,8 @@ export async function getSessionAction() {
     }
 
     try {
-        const users = await queryTable('user', { filters: { id: String(sessionId) } });
+        const result = await queryTable('user', { filters: { id: String(sessionId) } });
+        const users = Array.isArray(result) ? result : (result?.rows || []);
         const user = users[0];
 
         if (!user || user.isActive === 0) {
@@ -53,42 +54,66 @@ export async function getSessionAction() {
 export async function loginAction(username: string, password?: string) {
     const trimmedUsername = username.trim();
 
-    const users = await queryTable('user', { filters: { username: trimmedUsername } });
-    const user = users[0];
-    
-    if (!user || user.isActive === 0) {
-        throw new Error('존재하지 않거나 비활성화된 계정입니다. (복구된 admin 계정으로 로그인해 주세요)');
-    }
-
-    // 비밀번호 검증
-    if (user.password && password) {
-        console.log(`[AUTH_DEBUG] Verifying password for ${trimmedUsername}`);
-        const isValid = verifyPassword(password, user.password);
-        console.log(`[AUTH_DEBUG] Result: ${isValid ? 'SUCCESS' : 'FAILURE'}`);
+    try {
+        const result = await queryTable('user', { filters: { username: trimmedUsername } });
         
-        if (!isValid) {
-            throw new Error('비밀번호가 일치하지 않습니다.');
+        try {
+            const fs = require('fs');
+            const logPath = 'c:\\dev\\ExcelToDB\\auth_error.log';
+            const debugLog = `[${new Date().toISOString()}] DEBUG: queryTable result for [${trimmedUsername}]: ${JSON.stringify(result)}\n`;
+            fs.appendFileSync(logPath, debugLog);
+        } catch (e) {}
+
+        const users = Array.isArray(result) ? result : (result?.rows || []);
+        const user = users[0];
+        
+        if (!user || user.isActive === 0) {
+            throw new Error('존재하지 않거나 비활성화된 계정입니다. (복구된 admin 계정으로 로그인해 주세요)');
         }
-    } else if (user.password && !password) {
-        console.log(`[AUTH_DEBUG] Password missing for ${trimmedUsername}`);
-        throw new Error('비밀번호를 입력해 주세요.');
+
+        // 비밀번호 검증
+        if (user.password && password) {
+            console.log(`[AUTH_DEBUG] Verifying password for ${trimmedUsername}`);
+            const isValid = verifyPassword(password, user.password);
+            console.log(`[AUTH_DEBUG] Result: ${isValid ? 'SUCCESS' : 'FAILURE'}`);
+            
+            if (!isValid) {
+                throw new Error('비밀번호가 일치하지 않습니다.');
+            }
+        } else if (user.password && !password) {
+            console.log(`[AUTH_DEBUG] Password missing for ${trimmedUsername}`);
+            throw new Error('비밀번호를 입력해 주세요.');
+        }
+
+        const cookieStore = await cookies();
+        
+        const cookieOptions = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax' as const,
+            maxAge: 60 * 60 * 24 * 7, // 1 week
+            path: '/' 
+        };
+
+        cookieStore.set('session_user_id', String(user.id), cookieOptions);
+        cookieStore.set('session_user_role', user.role, cookieOptions);
+
+        return { success: true, user };
+    } catch (err: any) {
+        try {
+            const fs = require('fs');
+            const logPath = 'c:\\dev\\ExcelToDB\\auth_error.log';
+            // We need to try to get the result from the scope if possible, but it might not be defined.
+            // So we just log what we have.
+            const logContent = `[${new Date().toISOString()}] Login Error for [${trimmedUsername}]: ${err.message}\nStack: ${err.stack}\n\n`;
+            fs.appendFileSync(logPath, logContent);
+        } catch (e) {}
+        
+        console.error('[LoginAction] Error:', err);
+        throw err; // Re-throw to be handled by the UI
     }
-
-    const cookieStore = await cookies();
-    
-    const cookieOptions = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax' as const,
-        maxAge: 60 * 60 * 24 * 7, // 1 week
-        path: '/' 
-    };
-
-    cookieStore.set('session_user_id', String(user.id), cookieOptions);
-    cookieStore.set('session_user_role', user.role, cookieOptions);
-
-    return { success: true, user };
 }
+
 
 /**
  * 로그아웃 처리를 수행합니다.

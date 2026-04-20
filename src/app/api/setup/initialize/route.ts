@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { SystemConfigService } from '@/lib/services/system-config-service';
+import { listTables, createTable, queryTable, insertRows } from '@/egdesk-helpers';
+import { hashPassword, generateId, SYSTEM_TABLES } from '@/app/actions/shared';
 
 /**
  * API to initialize the system settings for a new company.
@@ -25,9 +27,73 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Failed to update settings in database' }, { status: 500 });
         }
 
+        // Initialize All System Tables
+        let result;
+        try {
+            result = await listTables();
+        } catch (e: any) {
+            throw new Error(`listTables failed at route: ${e.message}`);
+        }
+
+        const currentTables = Array.isArray(result) ? result : (result?.tables || []);
+        const tableNames = new Set(currentTables.map((t: any) => 
+            (typeof t === 'string' ? t : (t.tableName || t.name))?.toLowerCase()
+        ));
+
+        for (const table of SYSTEM_TABLES) {
+            if (!tableNames.has(table.tableName.toLowerCase())) {
+                try {
+                await createTable(table.displayName, table.schema, { tableName: table.tableName });
+                console.log(`[InitializeAPI] Created table: ${table.tableName}`);
+                } catch (e: any) {
+                    throw new Error(`createTable(${table.tableName}) failed at route: ${e.message}`);
+                }
+            }
+        }
+
+        // Check if admin user exists
+        let adminResult;
+        try {
+            adminResult = await queryTable('user', { filters: { username: 'admin' } });
+        } catch (e: any) {
+            throw new Error(`queryTable(user) failed at route: ${e.message}`);
+        }
+
+        const adminRows = Array.isArray(adminResult) ? adminResult : (adminResult?.rows || []);
+        if (adminRows.length === 0) {
+            const adminPassword = hashPassword('admin123');
+            try {
+            await insertRows('user', [{
+                id: generateId(),
+                username: 'admin',
+                password: adminPassword,
+                role: 'ADMIN',
+                fullName: 'System Administrator',
+                isActive: 1,
+                createdAt: new Date().toISOString()
+            }]);
+            } catch (e: any) {
+                throw new Error(`insertRows(user) failed at route: ${e.message}`);
+            }
+            console.log('[InitializeAPI] Created default admin user');
+        }
+
+
         return NextResponse.json({ success: true, message: 'System initialized successfully' });
+
     } catch (error: any) {
-        console.error('[InitializeAPI] Error:', error);
-        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+        try {
+            const fs = require('fs');
+            const logPath = 'c:\\dev\\ExcelToDB\\api_error.log';
+            const logContent = `[${new Date().toISOString()}] Initialize API Error: ${error.message}\nStack: ${error.stack}\n\n`;
+            fs.appendFileSync(logPath, logContent);
+        } catch (e) {}
+        
+        console.error('[InitializeAPI] Error Details:', error);
+        return NextResponse.json({ 
+            error: error.message || 'Internal Server Error',
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        }, { status: 500 });
     }
 }
+

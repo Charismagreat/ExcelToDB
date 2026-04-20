@@ -73,39 +73,56 @@ export async function getCalendarEvents(options: {
   const isAdmin = userRole === 'ADMIN' || userRole === 'CEO';
 
   try {
-    // 1. Fetch core action_tasks (Standard way)
-    const taskFetch = queryTable('action_task', {
-      limit: 100,
-      orderBy: 'dueAt',
-      orderDirection: 'ASC'
-    }).catch(() => []);
+    // 0. Get list of existing tables to avoid 500 errors on missing template tables
+    let existingTableNames = new Set<string>();
+    try {
+      const tableList: any = await listTables();
+      const tables = Array.isArray(tableList) ? tableList : (tableList?.tables || []);
+      tables.forEach((t: any) => {
+        const name = typeof t === 'string' ? t : (t.tableName || t.name);
+        if (name) existingTableNames.add(name.toLowerCase());
+      });
+    } catch (e) {
+      console.warn('[CalendarService] Failed to list tables, continuing with core tasks only.');
+    }
 
-    // 2. Fetch from industry template tables (Dynamic way)
-    const extraFetches = EXTRA_SOURCES.map(source => 
-      queryTable(source.tableName, { 
-        limit: 50, 
-        orderBy: source.dateField, 
-        orderDirection: 'ASC' 
-      })
-      .then(res => {
-         const rows = Array.isArray(res) ? res : (res?.rows || []);
-         console.log(`Source: ${source.tableName}, Rows found: ${rows.length}`);
-         return rows.map((row: any): CalendarEvent => ({
-            id: `${source.tableName}-${row.id || Math.random()}`,
-            title: `${source.prefix} ${row[source.titleField] || '미지정'}`,
-            description: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata).description : row.metadata.description) : undefined,
-            date: row[source.dateField] || '',
-            type: source.type,
-            status: 'OPEN',
-            sourceTable: source.tableName,
-            reportId: source.tableName // Used for linking to the report
-         }));
-      })
-      .catch((err) => {
-        console.error(`Fetch failed for ${source.tableName}:`, err.message);
-        return [];
-      })
-    );
+    // 1. Fetch core action_tasks (Standard way)
+    const taskFetch = existingTableNames.has('action_task') 
+      ? queryTable('action_task', {
+          limit: 100,
+          orderBy: 'dueAt',
+          orderDirection: 'ASC'
+        }).catch(() => [])
+      : Promise.resolve([]);
+
+    // 2. Fetch from industry template tables (Dynamic way) - FILTERED BY EXISTENCE
+    const extraFetches = EXTRA_SOURCES
+      .filter(source => existingTableNames.has(source.tableName.toLowerCase()))
+      .map(source => 
+        queryTable(source.tableName, { 
+          limit: 50, 
+          orderBy: source.dateField, 
+          orderDirection: 'ASC' 
+        })
+        .then(res => {
+           const rows = Array.isArray(res) ? res : (res?.rows || []);
+           console.log(`Source: ${source.tableName}, Rows found: ${rows.length}`);
+           return rows.map((row: any): CalendarEvent => ({
+              id: `${source.tableName}-${row.id || Math.random()}`,
+              title: `${source.prefix} ${row[source.titleField] || '미지정'}`,
+              description: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata).description : row.metadata.description) : undefined,
+              date: row[source.dateField] || '',
+              type: source.type,
+              status: 'OPEN',
+              sourceTable: source.tableName,
+              reportId: source.tableName // Used for linking to the report
+           }));
+        })
+        .catch((err) => {
+          console.error(`Fetch failed for ${source.tableName}:`, err.message);
+          return [];
+        })
+      );
 
     // 3. Resolve all fetches
     const allResults = await Promise.all([taskFetch, ...extraFetches]);
