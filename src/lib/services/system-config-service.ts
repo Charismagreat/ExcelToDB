@@ -56,9 +56,11 @@ export class SystemConfigService {
 
     /**
      * Update the global system settings.
+     * Ensures the table and initial row exist before updating.
      */
     static async updateSettings(updates: Partial<SystemSettings>): Promise<boolean> {
         try {
+            // 1. Ensure the table exists
             let result;
             try {
                 result = await listTables();
@@ -92,17 +94,16 @@ export class SystemConfigService {
                 console.log('[SystemConfigService] Created missing system_settings table');
             }
 
+            // 2. Prepare data for update
             const dataToUpdate: any = { ...updates };
-            
-            // Convert boolean to numeric for SQLite if needed
             if (updates.isInitialized !== undefined) {
                 dataToUpdate.isInitialized = updates.isInitialized ? 1 : 0;
             }
-            
             dataToUpdate.updatedAt = new Date().toISOString();
 
             console.log('[SystemConfigService] Checking for existing record with ID:', this.SETTINGS_ID);
-            // Check if the record already exists
+            
+            // 3. Check if the record already exists
             let queryResult;
             try {
                 queryResult = await queryTable('system_settings', { 
@@ -113,8 +114,8 @@ export class SystemConfigService {
             }
 
             const rows = Array.isArray(queryResult) ? queryResult : (queryResult?.rows || []);
+            
             if (rows && rows.length > 0) {
-
                 console.log('[SystemConfigService] Record exists, updating...');
                 // Update existing record
                 try {
@@ -128,6 +129,10 @@ export class SystemConfigService {
                 console.log('[SystemConfigService] Record missing, inserting...');
                 // Insert new record
                 dataToUpdate.id = this.SETTINGS_ID;
+                // Add default theme if missing for the first insertion
+                if (dataToUpdate.themeColor === undefined) {
+                    dataToUpdate.themeColor = '#2563eb';
+                }
                 try {
                     await insertRows('system_settings', [dataToUpdate]);
                 } catch (e: any) {
@@ -135,20 +140,10 @@ export class SystemConfigService {
                 }
             }
 
-
             return true;
         } catch (error: any) {
-            try {
-                const fs = require('fs');
-                const logPath = 'c:\\dev\\ExcelToDB\\db_error.log';
-                const logContent = `[${new Date().toISOString()}] DB Update Error: ${error.message}\nStack: ${error.stack}\n\n`;
-                fs.appendFileSync(logPath, logContent);
-            } catch (e) {}
-
             console.error('[SystemConfigService] Failed to update settings:', error);
             return false;
         }
     }
-}
-
 
