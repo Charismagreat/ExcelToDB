@@ -11,6 +11,7 @@ import {
 import { SAMPLE_DEPARTMENTS, SAMPLE_USERS, SAMPLE_TAG } from '@/lib/constants/system-samples';
 import { INDUSTRY_TEMPLATES } from '@/lib/constants/industry-templates';
 import { DEMO_DASHBOARD_CHARTS } from '@/lib/constants/dashboard-samples';
+import { SystemConfigService } from './system-config-service';
 import { 
     loadAllPinnedChartsAction, 
     saveAllPinnedChartsAction 
@@ -21,6 +22,9 @@ import {
  */
 export async function initializeDemoSetupAction() {
     console.log('[DemoService] Starting Full Suite Initialization...');
+    
+    // 0. Ensure system tables exist
+    await SystemConfigService.ensureSystemTables();
     
     // 1. Initialize Departments
     console.log('[DemoService] Creating Departments...');
@@ -42,22 +46,33 @@ export async function initializeDemoSetupAction() {
     await insertRows('user', userRows);
 
     // 3. Create 100 Industry Tables & Inject Samples
-    console.log('[DemoService] Creating Industry Tables...');
+    console.log('[DemoService] Creating Industry Tables and Registering as Reports...');
     for (const tpl of INDUSTRY_TEMPLATES) {
         try {
-            // Prepare columns
-            const columns = tpl.schema.map(col => ({
+            // Prepare columns for physical table
+            const physicalColumns = tpl.schema.map(col => ({
                 name: col.name,
                 type: col.type,
                 notNull: col.notNull || false
             }));
 
-            // Ensure mandatory system columns exist
-            if (!columns.find(c => c.name === 'metadata')) {
-                columns.push({ name: 'metadata', type: 'TEXT', notNull: false });
+            // Prepare columns for virtual report mapping
+            const reportColumns = tpl.schema.map(col => ({
+                id: col.name,
+                name: col.displayName,
+                type: col.type.toLowerCase() === 'text' ? 'string' : 
+                      col.type.toLowerCase() === 'real' ? 'number' : 
+                      col.type.toLowerCase() === 'integer' ? 'number' :
+                      col.type.toLowerCase(),
+                isRequired: col.notNull || false
+            }));
+
+            // Ensure mandatory system columns exist for syncing
+            if (!physicalColumns.find(c => c.name === 'metadata')) {
+                physicalColumns.push({ name: 'metadata', type: 'TEXT', notNull: false });
             }
-            if (!columns.find(c => c.name === 'isDeleted')) {
-                columns.push({ name: 'isDeleted', type: 'INTEGER', notNull: false });
+            if (!physicalColumns.find(c => c.name === 'isDeleted')) {
+                physicalColumns.push({ name: 'isDeleted', type: 'INTEGER', notNull: false });
             }
 
             // Clean Install: 기존 테이블이 있으면 삭제 후 최신 스키마로 재생성
@@ -67,12 +82,35 @@ export async function initializeDemoSetupAction() {
                 // Table might not exist, skip
             }
 
-            // Create Table
+            // Create Physical Table
             await createTable(
                 tpl.displayName, 
-                columns, 
+                physicalColumns, 
                 { tableName: tpl.id }
             );
+
+            // Register as a Report in the system
+            const reportId = `rep-${tpl.id.replace('tpl_', '')}`;
+            
+            // Check if report already exists
+            const existing = await queryTable('report', { filters: { tableName: tpl.id } });
+            const existingRows = Array.isArray(existing) ? existing : (existing?.rows || []);
+            
+            if (existingRows.length === 0) {
+                await insertRows('report', [{
+                    id: reportId,
+                    name: tpl.displayName,
+                    sheetName: tpl.category,
+                    description: tpl.description,
+                    tableName: tpl.id,
+                    columns: JSON.stringify(reportColumns),
+                    ownerId: 'admin',
+                    isDeleted: 0,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    lastSerial: (tpl.initialData?.length || 0)
+                }]);
+            }
 
             // Inject Sample Data if available
             if (tpl.initialData && tpl.initialData.length > 0) {
@@ -83,7 +121,7 @@ export async function initializeDemoSetupAction() {
                 await insertRows(tpl.id, dataWithSysColumns);
             }
         } catch (err) {
-            console.warn(`[DemoService] Failed to create table ${tpl.id}:`, err);
+            console.warn(`[DemoService] Failed to process table ${tpl.id}:`, err);
         }
     }
 

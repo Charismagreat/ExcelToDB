@@ -28,28 +28,7 @@ export async function POST(request: Request) {
         }
 
         // Initialize All System Tables
-        let result;
-        try {
-            result = await listTables();
-        } catch (e: any) {
-            throw new Error(`listTables failed at route: ${e.message}`);
-        }
-
-        const currentTables = Array.isArray(result) ? result : (result?.tables || []);
-        const tableNames = new Set(currentTables.map((t: any) => 
-            (typeof t === 'string' ? t : (t.tableName || t.name))?.toLowerCase()
-        ));
-
-        for (const table of SYSTEM_TABLES) {
-            if (!tableNames.has(table.tableName.toLowerCase())) {
-                try {
-                await createTable(table.displayName, table.schema, { tableName: table.tableName });
-                console.log(`[InitializeAPI] Created table: ${table.tableName}`);
-                } catch (e: any) {
-                    throw new Error(`createTable(${table.tableName}) failed at route: ${e.message}`);
-                }
-            }
-        }
+        await SystemConfigService.ensureSystemTables();
 
         // Check if admin user exists
         let adminResult;

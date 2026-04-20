@@ -518,5 +518,463 @@
     "isSample": true,
     "refreshedAt": "2026-04-19T07:06:58.362Z",
     "updatedAt": "2026-04-19T04:50:45.869Z"
+  },
+  {
+    "id": "demo-1776658823961-k02py",
+    "userId": "1",
+    "config": {
+      "type": "bar",
+      "data": [],
+      "xAxis": "label",
+      "series": [
+        {
+          "key": "value",
+          "name": "실생산수량",
+          "color": "#3b82f6"
+        }
+      ],
+      "title": "실시간 생산 공정 목표 달성률 ($TODAY)",
+      "showLabels": true,
+      "sourceDescription": "오늘 기준 각 작업자별 생산 실적과 목표 대비 달성 현황을 분석한 리포트입니다.",
+      "refreshMetadata": {
+        "tool": "get_aggregated_report_data",
+        "args": {
+          "tableId": "tpl_mfg_work_log",
+          "groupByKey": "worker_name",
+          "sumKey": "actual_quantity"
+        },
+        "mapping": {
+          "label": "label",
+          "value": "value"
+        }
+      }
+    },
+    "layout": {
+      "span": "half"
+    },
+    "createdAt": "2026-04-20T04:20:23.961Z",
+    "isSample": true
+  },
+  {
+    "id": "demo-1776658823961-lvdqq",
+    "userId": "1",
+    "config": {
+      "type": "pie",
+      "data": [],
+      "series": [
+        {
+          "key": "value",
+          "name": "불량수"
+        }
+      ],
+      "title": "공정별 불량 발생 비중 분석",
+      "showLabels": true,
+      "sourceDescription": "작업 과정에서 발생한 불량 데이터를 집계하여 품질 관리 우선순위를 제안합니다.",
+      "refreshMetadata": {
+        "tool": "get_aggregated_report_data",
+        "args": {
+          "tableId": "tpl_mfg_work_log",
+          "groupByKey": "worker_name",
+          "sumKey": "defect_count"
+        },
+        "mapping": {
+          "label": "label",
+          "value": "value"
+        }
+      }
+    },
+    "layout": {
+      "span": "half"
+    },
+    "createdAt": "2026-04-20T04:20:23.961Z",
+    "isSample": true
+  },
+  {
+    "id": "demo-1776658823961-ocn05",
+    "userId": "1",
+    "config": {
+      "type": "bar",
+      "data": [],
+      "xAxis": "label",
+      "series": [
+        {
+          "key": "value",
+          "name": "현재고량",
+          "color": "#10b981"
+        }
+      ],
+      "title": "창고별 재고 자산 가치 현황",
+      "showLabels": true,
+      "sourceDescription": "전사 창고에 분산된 주요 품목들의 재고 레벨을 시각화합니다.",
+      "refreshMetadata": {
+        "tool": "get_aggregated_report_data",
+        "args": {
+          "tableId": "tpl_dist_inventory_stock",
+          "groupByKey": "warehouse_id",
+          "sumKey": "current_qty"
+        },
+        "mapping": {
+          "label": "label",
+          "value": "value"
+        }
+      }
+    },
+    "layout": {
+      "span": "half"
+    },
+    "createdAt": "2026-04-20T04:20:23.961Z",
+    "isSample": true
+  },
+  {
+    "id": "demo-1776658823961-zyh3j",
+    "userId": "1",
+    "config": {
+      "type": "bar",
+      "data": [],
+      "xAxis": "label",
+      "series": [
+        {
+          "key": "target",
+          "name": "목표액",
+          "color": "#94a3b8"
+        },
+        {
+          "key": "actual",
+          "name": "실적액",
+          "color": "#f59e0b"
+        }
+      ],
+      "title": "월간 매출 목표 대비 달성 현황",
+      "showLabels": true,
+      "sourceDescription": "이번 달 세일즈 목표와 현재까지의 실제 매출액을 비교 분석합니다.",
+      "refreshMetadata": {
+        "tool": "get_aggregated_report_data",
+        "args": {
+          "tableId": "tpl_sales_revenue_target",
+          "groupByKey": "month",
+          "sumKey": "actual"
+        },
+        "mapping": {
+          "label": "month",
+          "target": "target",
+          "actual": "actual"
+        }
+      }
+    },
+    "layout": {
+      "span": "half"
+    },
+    "createdAt": "2026-04-20T04:20:23.961Z",
+    "isSample": true
+  },
+  {
+    "id": "demo-1776658823961-nfbxb",
+    "userId": "1",
+    "config": {
+      "type": "pie",
+      "data": [],
+      "series": [
+        {
+          "key": "value",
+          "name": "인원수"
+        }
+      ],
+      "title": "부서별 인원 구성 현황",
+      "showLabels": true,
+      "sourceDescription": "조직 내 부서별 인력 배치 현황을 시각화한 지표입니다.",
+      "refreshMetadata": {
+        "tool": "get_aggregated_report_data",
+        "args": {
+          "tableId": "tpl_hr_employee_master",
+          "groupByKey": "dept",
+          "sumKey": "emp_id"
+        },
+        "mapping": {
+          "label": "label",
+          "value": "value"
+        }
+      }
+    },
+    "layout": {
+      "span": "half"
+    },
+    "createdAt": "2026-04-20T04:20:23.961Z",
+    "isSample": true
+  },
+  {
+    "id": "demo-1776658823961-384st",
+    "userId": "1",
+    "config": {
+      "type": "table",
+      "data": [],
+      "series": [
+        {
+          "key": "date",
+          "name": "결제일"
+        },
+        {
+          "key": "merchant",
+          "name": "가맹점"
+        },
+        {
+          "key": "amount",
+          "name": "금액"
+        },
+        {
+          "key": "user",
+          "name": "사용자"
+        }
+      ],
+      "title": "주요 법인카드 지출 상세 (Top 5)",
+      "showLabels": true,
+      "sourceDescription": "가장 최근에 발생한 법인카드 지출 내역 중 주요 항목을 대시보드에 요약 표시합니다.",
+      "refreshMetadata": {
+        "tool": "query_workspace_table",
+        "args": {
+          "tableId": "tpl_fin_card_expenses",
+          "limit": 5
+        },
+        "mapping": {
+          "date": "date",
+          "merchant": "merchant",
+          "amount": "amount",
+          "user": "user"
+        }
+      }
+    },
+    "layout": {
+      "span": "full"
+    },
+    "createdAt": "2026-04-20T04:20:23.961Z",
+    "isSample": true
+  },
+  {
+    "id": "demo-1776659691767-b9su4",
+    "userId": "1",
+    "config": {
+      "type": "bar",
+      "data": [],
+      "xAxis": "label",
+      "series": [
+        {
+          "key": "value",
+          "name": "실생산수량",
+          "color": "#3b82f6"
+        }
+      ],
+      "title": "실시간 생산 공정 목표 달성률 ($TODAY)",
+      "showLabels": true,
+      "sourceDescription": "오늘 기준 각 작업자별 생산 실적과 목표 대비 달성 현황을 분석한 리포트입니다.",
+      "refreshMetadata": {
+        "tool": "get_aggregated_report_data",
+        "args": {
+          "tableId": "tpl_mfg_work_log",
+          "groupByKey": "worker_name",
+          "sumKey": "actual_quantity"
+        },
+        "mapping": {
+          "label": "label",
+          "value": "value"
+        }
+      }
+    },
+    "layout": {
+      "span": "half"
+    },
+    "createdAt": "2026-04-20T04:34:51.767Z",
+    "isSample": true
+  },
+  {
+    "id": "demo-1776659691767-nocdh",
+    "userId": "1",
+    "config": {
+      "type": "pie",
+      "data": [],
+      "series": [
+        {
+          "key": "value",
+          "name": "불량수"
+        }
+      ],
+      "title": "공정별 불량 발생 비중 분석",
+      "showLabels": true,
+      "sourceDescription": "작업 과정에서 발생한 불량 데이터를 집계하여 품질 관리 우선순위를 제안합니다.",
+      "refreshMetadata": {
+        "tool": "get_aggregated_report_data",
+        "args": {
+          "tableId": "tpl_mfg_work_log",
+          "groupByKey": "worker_name",
+          "sumKey": "defect_count"
+        },
+        "mapping": {
+          "label": "label",
+          "value": "value"
+        }
+      }
+    },
+    "layout": {
+      "span": "half"
+    },
+    "createdAt": "2026-04-20T04:34:51.767Z",
+    "isSample": true
+  },
+  {
+    "id": "demo-1776659691767-yvk63",
+    "userId": "1",
+    "config": {
+      "type": "bar",
+      "data": [],
+      "xAxis": "label",
+      "series": [
+        {
+          "key": "value",
+          "name": "현재고량",
+          "color": "#10b981"
+        }
+      ],
+      "title": "창고별 재고 자산 가치 현황",
+      "showLabels": true,
+      "sourceDescription": "전사 창고에 분산된 주요 품목들의 재고 레벨을 시각화합니다.",
+      "refreshMetadata": {
+        "tool": "get_aggregated_report_data",
+        "args": {
+          "tableId": "tpl_dist_inventory_stock",
+          "groupByKey": "warehouse_id",
+          "sumKey": "current_qty"
+        },
+        "mapping": {
+          "label": "label",
+          "value": "value"
+        }
+      }
+    },
+    "layout": {
+      "span": "half"
+    },
+    "createdAt": "2026-04-20T04:34:51.767Z",
+    "isSample": true
+  },
+  {
+    "id": "demo-1776659691767-62ylr",
+    "userId": "1",
+    "config": {
+      "type": "bar",
+      "data": [],
+      "xAxis": "label",
+      "series": [
+        {
+          "key": "target",
+          "name": "목표액",
+          "color": "#94a3b8"
+        },
+        {
+          "key": "actual",
+          "name": "실적액",
+          "color": "#f59e0b"
+        }
+      ],
+      "title": "월간 매출 목표 대비 달성 현황",
+      "showLabels": true,
+      "sourceDescription": "이번 달 세일즈 목표와 현재까지의 실제 매출액을 비교 분석합니다.",
+      "refreshMetadata": {
+        "tool": "get_aggregated_report_data",
+        "args": {
+          "tableId": "tpl_sales_revenue_target",
+          "groupByKey": "month",
+          "sumKey": "actual"
+        },
+        "mapping": {
+          "label": "month",
+          "target": "target",
+          "actual": "actual"
+        }
+      }
+    },
+    "layout": {
+      "span": "half"
+    },
+    "createdAt": "2026-04-20T04:34:51.767Z",
+    "isSample": true
+  },
+  {
+    "id": "demo-1776659691767-k861g",
+    "userId": "1",
+    "config": {
+      "type": "pie",
+      "data": [],
+      "series": [
+        {
+          "key": "value",
+          "name": "인원수"
+        }
+      ],
+      "title": "부서별 인원 구성 현황",
+      "showLabels": true,
+      "sourceDescription": "조직 내 부서별 인력 배치 현황을 시각화한 지표입니다.",
+      "refreshMetadata": {
+        "tool": "get_aggregated_report_data",
+        "args": {
+          "tableId": "tpl_hr_employee_master",
+          "groupByKey": "dept",
+          "sumKey": "emp_id"
+        },
+        "mapping": {
+          "label": "label",
+          "value": "value"
+        }
+      }
+    },
+    "layout": {
+      "span": "half"
+    },
+    "createdAt": "2026-04-20T04:34:51.767Z",
+    "isSample": true
+  },
+  {
+    "id": "demo-1776659691767-q83gf",
+    "userId": "1",
+    "config": {
+      "type": "table",
+      "data": [],
+      "series": [
+        {
+          "key": "date",
+          "name": "결제일"
+        },
+        {
+          "key": "merchant",
+          "name": "가맹점"
+        },
+        {
+          "key": "amount",
+          "name": "금액"
+        },
+        {
+          "key": "user",
+          "name": "사용자"
+        }
+      ],
+      "title": "주요 법인카드 지출 상세 (Top 5)",
+      "showLabels": true,
+      "sourceDescription": "가장 최근에 발생한 법인카드 지출 내역 중 주요 항목을 대시보드에 요약 표시합니다.",
+      "refreshMetadata": {
+        "tool": "query_workspace_table",
+        "args": {
+          "tableId": "tpl_fin_card_expenses",
+          "limit": 5
+        },
+        "mapping": {
+          "date": "date",
+          "merchant": "merchant",
+          "amount": "amount",
+          "user": "user"
+        }
+      }
+    },
+    "layout": {
+      "span": "full"
+    },
+    "createdAt": "2026-04-20T04:34:51.767Z",
+    "isSample": true
   }
 ]

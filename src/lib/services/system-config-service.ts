@@ -1,4 +1,5 @@
 import { queryTable, updateRows, listTables, createTable, insertRows } from '@/egdesk-helpers';
+import { SYSTEM_TABLES } from '@/app/actions/shared';
 
 export interface SystemSettings {
     id: string;
@@ -55,44 +56,56 @@ export class SystemConfigService {
     }
 
     /**
+     * Ensures all core system tables exist.
+     */
+    static async ensureSystemTables(): Promise<void> {
+        let result;
+        try {
+            result = await listTables();
+        } catch (e: any) {
+            throw new Error(`listTables failed: ${e.message}`);
+        }
+
+        const currentTables = Array.isArray(result) ? result : (result?.tables || []);
+        const tableNames = new Set(currentTables.map((t: any) => 
+            (typeof t === 'string' ? t : (t.tableName || t.name))?.toLowerCase()
+        ));
+
+        // 1. Ensure system_settings table exists
+        if (!tableNames.has('system_settings')) {
+            console.log('[SystemConfigService] system_settings table missing, creating...');
+            await createTable('System Settings', [
+                { name: 'id', type: 'TEXT', notNull: true },
+                { name: 'companyName', type: 'TEXT' },
+                { name: 'logoUrl', type: 'TEXT' },
+                { name: 'themeColor', type: 'TEXT' },
+                { name: 'businessContext', type: 'TEXT' },
+                { name: 'isInitialized', type: 'INTEGER', defaultValue: 0 },
+                { name: 'updatedAt', type: 'TEXT' }
+            ], { tableName: 'system_settings' });
+        }
+
+        // 2. Ensure all other SYSTEM_TABLES exist
+        for (const table of SYSTEM_TABLES) {
+            if (!tableNames.has(table.tableName.toLowerCase())) {
+                try {
+                    await createTable(table.displayName, table.schema, { tableName: table.tableName });
+                    console.log(`[SystemConfigService] Created table: ${table.tableName}`);
+                } catch (e: any) {
+                    console.warn(`[SystemConfigService] Failed to create table ${table.tableName}:`, e.message);
+                }
+            }
+        }
+    }
+
+    /**
      * Update the global system settings.
      * Ensures the table and initial row exist before updating.
      */
     static async updateSettings(updates: Partial<SystemSettings>): Promise<boolean> {
         try {
             // 1. Ensure the table exists
-            let result;
-            try {
-                result = await listTables();
-            } catch (e: any) {
-                throw new Error(`listTables failed: ${e.message}`);
-            }
-
-            const tables = Array.isArray(result) ? result : (result?.tables || []);
-            const tableExists = tables.some((t: any) => 
-                (typeof t === 'string' && t === 'system_settings') || 
-                (t.tableName === 'system_settings') ||
-                (t.name === 'system_settings')
-            );
-
-            if (!tableExists) {
-                console.log('[SystemConfigService] system_settings table missing, creating...');
-                try {
-                // Create the table if it's missing
-                await createTable('System Settings', [
-                    { name: 'id', type: 'TEXT', notNull: true },
-                    { name: 'companyName', type: 'TEXT' },
-                    { name: 'logoUrl', type: 'TEXT' },
-                    { name: 'themeColor', type: 'TEXT' },
-                    { name: 'businessContext', type: 'TEXT' },
-                    { name: 'isInitialized', type: 'INTEGER', defaultValue: 0 },
-                    { name: 'updatedAt', type: 'TEXT' }
-                ], { tableName: 'system_settings' });
-                } catch (e: any) {
-                    throw new Error(`createTable(system_settings) failed: ${e.message}`);
-                }
-                console.log('[SystemConfigService] Created missing system_settings table');
-            }
+            await this.ensureSystemTables();
 
             // 2. Prepare data for update
             const dataToUpdate: any = { ...updates };
