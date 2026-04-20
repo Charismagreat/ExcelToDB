@@ -252,6 +252,18 @@ export const SYSTEM_TABLES = [
             { name: 'metadata', type: 'TEXT' }, // 샘플 데이터 태깅 용도
             { name: 'createdAt', type: 'TEXT', notNull: true }
         ] as any[]
+    },
+    {
+        tableName: 'input_guardrail', displayName: 'Input Data Guardrails', schema: [
+            { name: 'id', type: 'TEXT', notNull: true },
+            { name: 'reportId', type: 'TEXT' }, // NULL이면 전역 규칙
+            { name: 'columnName', type: 'TEXT' },
+            { name: 'ruleType', type: 'TEXT', notNull: true }, // regex, range, options, type_check 등
+            { name: 'ruleValue', type: 'TEXT' },
+            { name: 'errorMessage', type: 'TEXT' },
+            { name: 'isActive', type: 'INTEGER', defaultValue: 1 },
+            { name: 'createdAt', type: 'TEXT', notNull: true }
+        ] as any[]
     }
 
 ];
