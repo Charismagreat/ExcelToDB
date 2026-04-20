@@ -1,4 +1,4 @@
-import { queryTable, updateRows } from '@/egdesk-helpers';
+import { queryTable, updateRows, listTables } from '@/egdesk-helpers';
 
 export interface SystemSettings {
     id: string;
@@ -21,6 +21,18 @@ export class SystemConfigService {
      */
     static async getSettings(): Promise<SystemSettings | null> {
         try {
+            // First, check if the table exists to avoid unnecessary 500 logs during setup
+            const tables: any[] = await listTables();
+            const tableExists = tables.some(t => 
+                (typeof t === 'string' && t === 'system_settings') || 
+                (t.name === 'system_settings')
+            );
+
+            if (!tableExists) {
+                // Table doesn't exist yet, which is expected during initial setup
+                return null;
+            }
+
             const rows: any = await queryTable('system_settings', { 
                 filters: { id: this.SETTINGS_ID } 
             });
@@ -32,7 +44,9 @@ export class SystemConfigService {
             }
             return settings;
         } catch (error) {
-            console.error('[SystemConfigService] Failed to fetch settings:', error);
+            // Only log if it's not a missing table issue (already handled above)
+            // But we keep this catch for other potential connection issues
+            console.warn('[SystemConfigService] Could not fetch settings. This is normal during initial setup.');
             return null;
         }
     }
