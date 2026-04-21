@@ -16,6 +16,7 @@ interface ReportHeaderProps {
   canEdit?: boolean;
   isReadOnly?: boolean;
   initialColumns: ColumnDefinition[];
+  rowCount?: number;
   onToggleAccessManager?: () => void;
 }
 
@@ -29,6 +30,7 @@ export function ReportHeader({
   canEdit,
   isReadOnly = false,
   initialColumns, 
+  rowCount,
   onToggleAccessManager
 }: ReportHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -87,7 +89,7 @@ export function ReportHeader({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-                    className="text-4xl font-black text-slate-900 border-b-4 border-blue-500 bg-transparent outline-none py-1 w-full max-w-xl"
+                    className="text-3xl font-bold text-slate-900 border-b-4 border-blue-500 bg-transparent outline-none py-1 w-full max-w-xl"
                     disabled={pending}
                   />
                   <div className="flex items-center gap-2 shrink-0">
@@ -111,9 +113,9 @@ export function ReportHeader({
             ) : (
               <div className="group relative">
                 <div className="flex items-center gap-4">
-                  <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter flex items-center gap-4 leading-tight uppercase font-[family-name:var(--font-geist-sans)]">
+                  <h1 className="text-xl md:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3 font-[family-name:var(--font-geist-sans)] leading-tight uppercase">
                     {name}
-                    <FileText className="text-blue-600 shrink-0" size={40} />
+                    <FileText className="text-blue-600 shrink-0" size={24} />
                     {isOwner && !isReadOnly && (
                       <button 
                         onClick={() => setIsEditing(true)}
@@ -138,7 +140,15 @@ export function ReportHeader({
                         <span className="text-slate-900 font-black text-xs">{sheetName}</span>
                     </div>
                     <span className="text-slate-300">|</span>
-                    <span className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Synchronized at {createdAt}</span>
+                    <div className="flex items-center gap-2 text-slate-400 font-black text-[10px] uppercase tracking-widest">
+                        <span>Synchronized at {createdAt}</span>
+                        {rowCount !== undefined && (
+                            <>
+                                <span className="text-slate-200">|</span>
+                                <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">{rowCount.toLocaleString()} Records Detected</span>
+                            </>
+                        )}
+                    </div>
                   </div>
                 </div>
               </div>

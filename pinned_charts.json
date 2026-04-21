@@ -54,7 +54,7 @@
     },
     "createdAt": "2026-04-02T00:49:02.461Z",
     "updatedAt": "2026-04-17T10:01:07.394Z",
-    "refreshedAt": "2026-04-20T04:13:58.583Z",
+    "refreshedAt": "2026-04-21T06:37:17.825Z",
     "layout": {
       "span": "half"
     }
@@ -94,54 +94,6 @@
           "카드번호": "B175905",
           "가맹점": "유장춘 닭개장",
           "금액": 44000
-        },
-        {
-          "승인일자": "2026-04-10",
-          "카드번호": "M038909",
-          "가맹점": "반석주차장",
-          "금액": 8000
-        },
-        {
-          "승인일자": "2026-04-10",
-          "카드번호": "M038909",
-          "가맹점": "48블럭솥뚜껑삼겹살",
-          "금액": 312000
-        },
-        {
-          "승인일자": "2026-04-10",
-          "카드번호": "M038909",
-          "가맹점": "또와유",
-          "금액": 62000
-        },
-        {
-          "승인일자": "2026-04-10",
-          "카드번호": "M038909",
-          "가맹점": "더베이징",
-          "금액": 11000
-        },
-        {
-          "승인일자": "2026-04-10",
-          "카드번호": "B342916",
-          "가맹점": "대흥종합공구",
-          "금액": 22000
-        },
-        {
-          "승인일자": "2026-04-10",
-          "카드번호": "B306975",
-          "가맹점": "고대한식뷔페",
-          "금액": 9000
-        },
-        {
-          "승인일자": "2026-04-10",
-          "카드번호": "M038909",
-          "가맹점": "티머니택시(법인)_4",
-          "금액": 31500
-        },
-        {
-          "승인일자": "2026-04-10",
-          "카드번호": "V120940",
-          "가맹점": "SK에너지주식회사시화산업주유소",
-          "금액": 59000
         }
       ],
       "xAxis": "승인일자",
@@ -165,7 +117,7 @@
       ],
       "title": "최근 10일간 카드 사용 상세 내역",
       "showLabels": true,
-      "sourceDescription": "2026-04-10부터 2026-04-20까지 승인된 카드 사용 내역입니다.",
+      "sourceDescription": "2026-04-11부터 2026-04-21까지 승인된 카드 사용 내역입니다.",
       "refreshMetadata": {
         "tool": "get_card_usage_by_approval_date",
         "args": {
@@ -182,7 +134,7 @@
     },
     "createdAt": "2026-04-02T05:25:15.246Z",
     "updatedAt": "2026-04-18T04:59:01.274Z",
-    "refreshedAt": "2026-04-20T04:13:58.593Z",
+    "refreshedAt": "2026-04-21T06:37:17.840Z",
     "layout": {
       "span": "half"
     }
@@ -231,7 +183,7 @@
     },
     "createdAt": "2026-04-18T10:04:39.944Z",
     "isSample": true,
-    "refreshedAt": "2026-04-20T04:13:58.602Z"
+    "refreshedAt": "2026-04-21T06:37:17.845Z"
   },
   {
     "id": "demo-1776506679944-wm4lx",
@@ -275,7 +227,7 @@
     },
     "createdAt": "2026-04-18T10:04:39.944Z",
     "isSample": true,
-    "refreshedAt": "2026-04-20T04:13:58.617Z"
+    "refreshedAt": "2026-04-21T06:37:17.852Z"
   },
   {
     "id": "demo-1776506679944-kibc7",
@@ -321,7 +273,7 @@
     },
     "createdAt": "2026-04-18T10:04:39.944Z",
     "isSample": true,
-    "refreshedAt": "2026-04-20T04:13:58.628Z"
+    "refreshedAt": "2026-04-21T06:37:17.857Z"
   },
   {
     "id": "demo-1776506679944-ylf3d",
@@ -378,7 +330,7 @@
     },
     "createdAt": "2026-04-18T10:04:39.944Z",
     "isSample": true,
-    "refreshedAt": "2026-04-20T04:13:58.659Z"
+    "refreshedAt": "2026-04-21T06:37:17.971Z"
   },
   {
     "id": "demo-1776506679944-plrp5",
@@ -419,7 +371,7 @@
     },
     "createdAt": "2026-04-18T10:04:39.944Z",
     "isSample": true,
-    "refreshedAt": "2026-04-20T04:13:58.640Z"
+    "refreshedAt": "2026-04-21T06:37:17.980Z"
   },
   {
     "id": "demo-1776506679944-1y0c7",
@@ -474,7 +426,7 @@
     },
     "createdAt": "2026-04-18T10:04:39.944Z",
     "isSample": true,
-    "refreshedAt": "2026-04-20T04:13:58.649Z",
+    "refreshedAt": "2026-04-21T06:37:17.862Z",
     "updatedAt": "2026-04-19T04:50:45.869Z"
   },
   {
@@ -482,7 +434,16 @@
     "userId": "1",
     "config": {
       "type": "bar",
-      "data": [],
+      "data": [
+        {
+          "label": "박철수",
+          "value": 120
+        },
+        {
+          "label": "이미영",
+          "value": 115
+        }
+      ],
       "xAxis": "label",
       "series": [
         {
@@ -511,14 +472,24 @@
       "span": "half"
     },
     "createdAt": "2026-04-20T04:20:23.961Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.878Z"
   },
   {
     "id": "demo-1776658823961-lvdqq",
     "userId": "1",
     "config": {
       "type": "pie",
-      "data": [],
+      "data": [
+        {
+          "label": "박철수",
+          "value": 2
+        },
+        {
+          "label": "이미영",
+          "value": 0
+        }
+      ],
       "series": [
         {
           "key": "value",
@@ -545,14 +516,24 @@
       "span": "half"
     },
     "createdAt": "2026-04-20T04:20:23.961Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.874Z"
   },
   {
     "id": "demo-1776658823961-ocn05",
     "userId": "1",
     "config": {
       "type": "bar",
-      "data": [],
+      "data": [
+        {
+          "label": "WH-A1",
+          "value": 450
+        },
+        {
+          "label": "WH-B1",
+          "value": 12
+        }
+      ],
       "xAxis": "label",
       "series": [
         {
@@ -581,14 +562,24 @@
       "span": "half"
     },
     "createdAt": "2026-04-20T04:20:23.961Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.893Z"
   },
   {
     "id": "demo-1776658823961-zyh3j",
     "userId": "1",
     "config": {
       "type": "bar",
-      "data": [],
+      "data": [
+        {
+          "label": "2026-04",
+          "actual": 520000000
+        },
+        {
+          "label": "2026-03",
+          "actual": 485000000
+        }
+      ],
       "xAxis": "label",
       "series": [
         {
@@ -623,14 +614,20 @@
       "span": "half"
     },
     "createdAt": "2026-04-20T04:20:23.961Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.884Z"
   },
   {
     "id": "demo-1776658823961-nfbxb",
     "userId": "1",
     "config": {
       "type": "pie",
-      "data": [],
+      "data": [
+        {
+          "label": "경영지원팀",
+          "value": 0
+        }
+      ],
       "series": [
         {
           "key": "value",
@@ -657,14 +654,22 @@
       "span": "half"
     },
     "createdAt": "2026-04-20T04:20:23.961Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.902Z"
   },
   {
     "id": "demo-1776658823961-384st",
     "userId": "1",
     "config": {
       "type": "table",
-      "data": [],
+      "data": [
+        {
+          "date": "2026-04-18",
+          "merchant": "스타벅스 강남점",
+          "amount": 12500,
+          "user": "이과장"
+        }
+      ],
       "series": [
         {
           "key": "date",
@@ -704,14 +709,24 @@
       "span": "full"
     },
     "createdAt": "2026-04-20T04:20:23.961Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.910Z"
   },
   {
     "id": "demo-1776659691767-b9su4",
     "userId": "1",
     "config": {
       "type": "bar",
-      "data": [],
+      "data": [
+        {
+          "label": "박철수",
+          "value": 120
+        },
+        {
+          "label": "이미영",
+          "value": 115
+        }
+      ],
       "xAxis": "label",
       "series": [
         {
@@ -740,14 +755,24 @@
       "span": "half"
     },
     "createdAt": "2026-04-20T04:34:51.767Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.920Z"
   },
   {
     "id": "demo-1776659691767-nocdh",
     "userId": "1",
     "config": {
       "type": "pie",
-      "data": [],
+      "data": [
+        {
+          "label": "박철수",
+          "value": 2
+        },
+        {
+          "label": "이미영",
+          "value": 0
+        }
+      ],
       "series": [
         {
           "key": "value",
@@ -774,14 +799,24 @@
       "span": "half"
     },
     "createdAt": "2026-04-20T04:34:51.767Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.928Z"
   },
   {
     "id": "demo-1776659691767-yvk63",
     "userId": "1",
     "config": {
       "type": "bar",
-      "data": [],
+      "data": [
+        {
+          "label": "WH-A1",
+          "value": 450
+        },
+        {
+          "label": "WH-B1",
+          "value": 12
+        }
+      ],
       "xAxis": "label",
       "series": [
         {
@@ -810,14 +845,24 @@
       "span": "half"
     },
     "createdAt": "2026-04-20T04:34:51.767Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.869Z"
   },
   {
     "id": "demo-1776659691767-62ylr",
     "userId": "1",
     "config": {
       "type": "bar",
-      "data": [],
+      "data": [
+        {
+          "label": "2026-04",
+          "actual": 520000000
+        },
+        {
+          "label": "2026-03",
+          "actual": 485000000
+        }
+      ],
       "xAxis": "label",
       "series": [
         {
@@ -852,14 +897,20 @@
       "span": "half"
     },
     "createdAt": "2026-04-20T04:34:51.767Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.940Z"
   },
   {
     "id": "demo-1776659691767-k861g",
     "userId": "1",
     "config": {
       "type": "pie",
-      "data": [],
+      "data": [
+        {
+          "label": "경영지원팀",
+          "value": 0
+        }
+      ],
       "series": [
         {
           "key": "value",
@@ -886,14 +937,22 @@
       "span": "half"
     },
     "createdAt": "2026-04-20T04:34:51.767Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.950Z"
   },
   {
     "id": "demo-1776659691767-q83gf",
     "userId": "1",
     "config": {
       "type": "table",
-      "data": [],
+      "data": [
+        {
+          "date": "2026-04-18",
+          "merchant": "스타벅스 강남점",
+          "amount": 12500,
+          "user": "이과장"
+        }
+      ],
       "series": [
         {
           "key": "date",
@@ -933,6 +992,7 @@
       "span": "full"
     },
     "createdAt": "2026-04-20T04:34:51.767Z",
-    "isSample": true
+    "isSample": true,
+    "refreshedAt": "2026-04-21T06:37:17.960Z"
   }
 ]

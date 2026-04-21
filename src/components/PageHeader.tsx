@@ -30,5 +30,3 @@ export default function PageHeader({ title, description, icon: Icon, rightElemen
         </div>
     );
 }
-
-

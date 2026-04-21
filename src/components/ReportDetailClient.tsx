@@ -36,6 +36,7 @@ export function ReportDetailClient({
     const [showAddRecordForm, setShowAddRecordForm] = useState(false);
     const [showBulkUpload, setShowBulkUpload] = useState(false);
     const [showAIModal, setShowAIModal] = useState(false);
+    const [showAccessManager, setShowAccessManager] = useState(false); // Added missing state for access manager
 
     // 공통 상태 모달 관리 (자식 컴포넌트들에게 공유)
     const [modalStatus, setModalStatus] = useState<{
@@ -66,12 +67,12 @@ export function ReportDetailClient({
                 canEdit={canEdit}
                 isReadOnly={isReadOnly || report.isReadOnly}
                 initialColumns={columns}
+                rowCount={rows.length}
                 onToggleAccessManager={() => setShowAccessManager(true)}
             />
 
             {/* Toggled Sections (Inline) */}
             <div className="space-y-10">
-
                 {showAddRecordForm && canEdit && (
                     <div className="animate-in fade-in slide-in-from-top-6 zoom-in-95 duration-700">
                         <ReportDataEditor 
@@ -85,12 +86,7 @@ export function ReportDetailClient({
 
             {/* Data List Section */}
             <section className="space-y-6">
-                <div className="flex items-center justify-between px-6">
-                    <div className="flex flex-col gap-1">
-                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">데이터 내역 전체보기</h2>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Total {rows.length} records detected</p>
-                    </div>
-                </div>
+                {/* Redundant section header removed as requested */}
                 <div className="bg-white p-4 rounded-[40px] border border-slate-100 shadow-2xl shadow-slate-900/5 overflow-hidden">
                     <DynamicTable 
                         reportId={id} 
@@ -170,6 +166,25 @@ export function ReportDetailClient({
                             >
                                 CANCEL & CLOSE
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Access Manager Modal placeholder if needed */}
+            {showAccessManager && (isAdmin || isOwner) && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-4xl rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in fade-in zoom-in-95 duration-500">
+                        <div className="bg-slate-900 p-8 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <h3 className="text-xl font-black tracking-tight uppercase tracking-widest">Report Access Management</h3>
+                            </div>
+                            <button onClick={() => setShowAccessManager(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all active:scale-90">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-10">
+                            <ReportAccessManager reportId={report.id} />
                         </div>
                     </div>
                 </div>
