@@ -82,6 +82,7 @@ export default async function ReportDetailPage({
     // 이지데스크 실데이터 연동 API 호출
     const { 
         queryTaxInvoices,
+        queryTaxExemptInvoices,
         queryCashReceipts,
         queryPromissoryNotes
     } = await import('@/egdesk-helpers');
@@ -98,13 +99,17 @@ export default async function ReportDetailPage({
             case 'finance-hub-hometax-sales-bill':
                 tableName = id === 'finance-hub-hometax-sales-tax' ? '매출세금계산서 (홈택스)' : '매출계산서 (홈택스)';
                 sheetName = id === 'finance-hub-hometax-sales-tax' ? 'Sales Tax Invoice' : 'Sales Invoice';
-                batchData = await queryTaxInvoices({ invoiceType: 'sales', limit, offset });
+                batchData = id.includes('-tax') 
+                    ? await queryTaxInvoices({ invoiceType: 'sales', limit, offset })
+                    : await queryTaxExemptInvoices({ invoiceType: 'sales', limit, offset });
                 break;
             case 'finance-hub-hometax-purchase-tax':
             case 'finance-hub-hometax-purchase-bill':
                 tableName = id === 'finance-hub-hometax-purchase-tax' ? '매입세금계산서 (홈택스)' : '매입계산서 (홈택스)';
                 sheetName = id === 'finance-hub-hometax-purchase-tax' ? 'Purchase Tax Invoice' : 'Purchase Invoice';
-                batchData = await queryTaxInvoices({ invoiceType: 'purchase', limit, offset });
+                batchData = id.includes('-tax')
+                    ? await queryTaxInvoices({ invoiceType: 'purchase', limit, offset })
+                    : await queryTaxExemptInvoices({ invoiceType: 'purchase', limit, offset });
                 break;
             case 'finance-hub-hometax-cash-receipt':
                 tableName = '현금영수증 내역 (홈택스)';
@@ -118,9 +123,9 @@ export default async function ReportDetailPage({
                 break;
         }
 
-        // EGDesk API의 응답 구조 처리 (MCP 도구별 리턴 키 매핑: invoices, receipts, notes)
+        // EGDesk API의 응답 구조 처리 (MCP 도구별 리턴 키 매핑: invoices, receipts, notes, rows)
         const rawBatch = Array.isArray(batchData) ? batchData : (
-            batchData?.invoices || batchData?.receipts || batchData?.notes || batchData?.data || []
+            batchData?.rows || batchData?.invoices || batchData?.receipts || batchData?.notes || batchData?.data || []
         );
 
         let batch = rawBatch;

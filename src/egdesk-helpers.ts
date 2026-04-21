@@ -62,6 +62,7 @@ export const {
   getSyncHistory,
   listHometaxConnections,
   queryTaxInvoices,
+  queryTaxExemptInvoices,
   queryCashReceipts,
   getHometaxSyncHistory,
   queryPromissoryNotes,

@@ -1,13 +1,13 @@
 /**
  * EGDesk User Data Configuration
- * Generated at: 2026-04-20T23:55:53.097Z
+ * Generated at: 2026-04-21T01:11:09.277Z
  *
  * This file contains type-safe definitions for your EGDesk tables.
  */
 
 export const EGDESK_CONFIG = {
   apiUrl: 'http://localhost:8080',
-  apiKey: 'a17ed53e-4f32-48af-a792-9c6c94947e7d',
+  apiKey: undefined,
 } as const;
 
 export interface TableDefinition {

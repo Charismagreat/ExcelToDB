@@ -430,6 +430,20 @@ export async function queryTaxInvoices(options: {
 }
 
 /**
+ * Query tax-exempt invoices synced from Hometax (tax_exempt_invoices table)
+ */
+export async function queryTaxExemptInvoices(options: {
+  businessNumber?: string;
+  invoiceType?: 'sales' | 'purchase';
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  offset?: number;
+} = {}) {
+  return callFinanceHubTool('financehub_query_tax_exempt_invoices', options);
+}
+
+/**
  * Query cash receipts synced from Hometax (cash_receipts table)
  */
 export async function queryCashReceipts(options: {
