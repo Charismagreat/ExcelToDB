@@ -1,4 +1,4 @@
-import { insertRows } from '../src/egdesk-helpers';
+import { listTables, deleteTable, createTable, queryTable, insertRows } from '../egdesk-helpers';
 import fs from 'fs';
 import path from 'path';
 

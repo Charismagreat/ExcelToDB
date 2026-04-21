@@ -1,4 +1,4 @@
-import { createTable, insertRows } from '../src/egdesk-helpers';
+import { listTables, deleteTable, createTable, insertRows } from '../egdesk-helpers';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';

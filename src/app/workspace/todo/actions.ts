@@ -1,7 +1,7 @@
 'use server';
 
 import { getSessionAction } from '@/app/actions/auth';
-import { queryTable, updateRows } from '@/egdesk-helpers';
+import { queryTable, updateRows, insertRows } from '@/egdesk-helpers';
 import { revalidatePath } from 'next/cache';
 
 import { generateNumericId } from '@/app/actions/shared';

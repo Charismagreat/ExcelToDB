@@ -1,5 +1,5 @@
 import { queryTable, executeSQL } from "@/egdesk-helpers";
-import { queryCardTransactions, getMonthlySummary, getStatistics } from "@/financehub-helpers";
+import { queryCardTransactions, getMonthlySummary, getTransactionStats as getStatistics } from "@/egdesk-helpers";
 
 /**
  * 도구 호출(Function Call) 실행기 - 공유 유틸리티

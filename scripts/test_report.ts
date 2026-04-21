@@ -1,4 +1,4 @@
-import { queryTable, listTables } from '../src/egdesk-helpers';
+import { listTables, queryTable, callUserDataTool } from '../egdesk-helpers';
 
 async function main() {
     try {

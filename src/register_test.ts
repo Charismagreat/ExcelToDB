@@ -1,4 +1,4 @@
-﻿import { insertRows } from "./egdesk-helpers";
+import { insertRows } from "@/egdesk-helpers";
 import { TABLES } from "./egdesk.config";
 
 async function main() {

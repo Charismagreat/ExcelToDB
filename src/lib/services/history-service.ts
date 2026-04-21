@@ -15,7 +15,7 @@ export class HistoryService {
         } catch (err: any) {
             const msg = String(err.message || err);
             if (msg.includes('no such table')) {
-                const { createTable, SYSTEM_TABLES } = await import('@/egdesk-helpers');
+                const { createTable } = await import('@/egdesk-helpers');
                 const tableDef = (await import('@/app/actions/shared')).SYSTEM_TABLES.find(t => t.tableName === this.tableName);
                 if (tableDef) {
                     await createTable(tableDef.displayName, tableDef.schema, { tableName: this.tableName });

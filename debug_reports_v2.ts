@@ -5,7 +5,7 @@ for (const [k, v] of envVars) {
   process.env[k.trim()] = v.trim();
 }
 
-import { queryTable } from './src/egdesk-helpers';
+import { queryTable } from './egdesk-helpers';
 
 async function run() {
   try {

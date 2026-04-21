@@ -1,6 +1,5 @@
 import { getSessionAction } from '@/app/actions/auth';
-import { queryTable, getTableSchema } from '@/egdesk-helpers';
-import { queryTransactions, queryCardTransactions } from '@/financehub-helpers';
+import { queryTable, getTableSchema, queryBankTransactions, queryCardTransactions } from '@/egdesk-helpers';
 
 /**
  * 컬럼명을 기반으로 적절한 필드 타입을 추론합니다.
@@ -61,22 +60,147 @@ export default async function ReportDetailPage({
     const rowsData = await queryTable(tableDef.name, { limit: 100 });
     rows = rowsData.map((r: any, idx: number) => ({ ...r, id: String(idx), updatedAt: new Date().toISOString() }));
     columns = JSON.parse(report.columns);
+  } else if (id.startsWith('finance-hub-hometax-') || id === 'finance-hub-promissory-table') {
+    let mockData: any[] = [];
+    let tableName = '';
+    let sheetName = '';
+
+    const taxInvoiceSchema = [
+      { id: '1', '승인번호': '20260418-41000213', '작성일자': '2026-04-18', '발급일자': '2026-04-18', '전송일자': '2026-04-19', '공급자사업자등록번호': '123-45-67890', '공급자종사업장번호': '0000', '공급자상호': '글로벌 유통', '공급자성명': '김대표', '공급자사업장주소': '서울시 강남구 테헤란로 123', '공급자업태': '도매 및 소매업', '공급자종목': '유통', '공급자이메일': 'admin@global.com', '받는자사업자등록번호': '987-65-43210', '받는자종사업장번호': '0000', '받는자상호': '우리회사', '받는자성명': '이대표', '받는자사업장주소': '서울시 서초구 서초대로 456', '받는자업태': '제조업', '받는자종목': '소프트웨어', '받는자이메일1': 'contact@woori.com', '받는자이메일2': '', '합계금액': 5500000, '공급가액': 5000000, '세액': 500000, '영수청구구분': '영수', '비고': '4월 정기청구분', '일자1': '0418', '품목1': '서버 유지보수', '규격1': '', '수량1': 1, '단가1': 5000000, '공급가액1': 5000000, '세액1': 500000, '비고1': '' },
+      { id: '2', '승인번호': '20260415-41000992', '작성일자': '2026-04-15', '발급일자': '2026-04-15', '전송일자': '2026-04-16', '공급자사업자등록번호': '111-22-33333', '공급자종사업장번호': '0000', '공급자상호': 'IT 솔루션즈', '공급자성명': '박솔루', '공급자사업장주소': '경기도 성남시 판교역로 77', '공급자업태': '서비스업', '공급자종목': '시스템구축', '공급자이메일': 'bill@itsol.com', '받는자사업자등록번호': '987-65-43210', '받는자종사업장번호': '0000', '받는자상호': '우리회사', '받는자성명': '이대표', '받는자사업장주소': '서울시 서초구 서초대로 456', '받는자업태': '제조업', '받는자종목': '소프트웨어', '받는자이메일1': 'contact@woori.com', '받는자이메일2': '', '합계금액': 1320000, '공급가액': 1200000, '세액': 120000, '영수청구구분': '청구', '비고': '라이선스 갱신', '일자1': '0415', '품목1': '클라우드 라이선스 1년', '규격1': 'Enterprise', '수량1': 10, '단가1': 120000, '공급가액1': 1200000, '세액1': 120000, '비고1': '' }
+    ];
+
+    const invoiceSchema = [
+      { id: '1', '승인번호': '20260410-22000111', '작성일자': '2026-04-10', '발급일자': '2026-04-10', '전송일자': '2026-04-11', '공급자사업자등록번호': '555-66-77777', '공급자종사업장번호': '0000', '공급자상호': '청정농산', '공급자성명': '최농장', '공급자사업장주소': '제주특별자치도 제주시 청정로 1', '공급자업태': '농업', '공급자종목': '농산물', '공급자이메일': '', '받는자사업자등록번호': '987-65-43210', '받는자종사업장번호': '0000', '받는자상호': '우리회사', '받는자성명': '이대표', '받는자사업장주소': '서울시 서초구 서초대로 456', '받는자업태': '제조업', '받는자종목': '소프트웨어', '받는자이메일1': 'contact@woori.com', '받는자이메일2': '', '합계금액': 300000, '공급가액': 300000, '세액': 0, '영수청구구분': '청구', '비고': '명절 선물세트', '일자1': '0410', '품목1': '사과세트', '규격1': '특대', '수량1': 10, '단가1': 30000, '공급가액1': 300000, '세액1': 0, '비고1': '' }
+    ];
+
+    const cashReceiptSchema = [
+      { id: '1', '거래일시': '2026-04-15 12:30:15', '승인번호': '88237123', '신분확인번호': '010-****-1234', '거래구분': '소득공제', '총거래금액': 15000, '공급가액': 13636, '부가세': 1364, '봉사료': 0, '승인취소구분': '승인', '가맹점사업자번호': '222-33-44444', '가맹점상호명': '스타벅스 강남점', '가맹점업태': '음식점업', '가맹점종목': '커피전문점', '가맹점주소': '서울시 강남구 강남대로 123', '발급수단': '휴대전화' },
+      { id: '2', '거래일시': '2026-04-12 18:45:22', '승인번호': '88721234', '신분확인번호': '9876543210', '거래구분': '지출증빙', '총거래금액': 85000, '공급가액': 77273, '부가세': 7727, '봉사료': 0, '승인취소구분': '승인', '가맹점사업자번호': '333-44-55555', '가맹점상호명': '강남한우', '가맹점업태': '음식점업', '가맹점종목': '한식', '가맹점주소': '서울시 강남구 역삼로 45', '발급수단': '사업자용카드' }
+    ];
+
+    // 이지데스크 실데이터 연동 API 호출
+    const { 
+        queryTaxInvoices,
+        queryCashReceipts,
+        queryPromissoryNotes
+    } = await import('@/egdesk-helpers');
+
+    let allFetched: any[] = [];
+    let offset = 0;
+    const limit = 1000;
+    
+    while (true) {
+        let batchData: any = null;
+        
+        switch (id) {
+            case 'finance-hub-hometax-sales-tax':
+            case 'finance-hub-hometax-sales-bill':
+                tableName = id === 'finance-hub-hometax-sales-tax' ? '매출세금계산서 (홈택스)' : '매출계산서 (홈택스)';
+                sheetName = id === 'finance-hub-hometax-sales-tax' ? 'Sales Tax Invoice' : 'Sales Invoice';
+                batchData = await queryTaxInvoices({ invoiceType: 'sales', limit, offset });
+                break;
+            case 'finance-hub-hometax-purchase-tax':
+            case 'finance-hub-hometax-purchase-bill':
+                tableName = id === 'finance-hub-hometax-purchase-tax' ? '매입세금계산서 (홈택스)' : '매입계산서 (홈택스)';
+                sheetName = id === 'finance-hub-hometax-purchase-tax' ? 'Purchase Tax Invoice' : 'Purchase Invoice';
+                batchData = await queryTaxInvoices({ invoiceType: 'purchase', limit, offset });
+                break;
+            case 'finance-hub-hometax-cash-receipt':
+                tableName = '현금영수증 내역 (홈택스)';
+                sheetName = 'Cash Receipt';
+                batchData = await queryCashReceipts({ limit, offset });
+                break;
+            case 'finance-hub-promissory-table':
+                tableName = '전자어음 내역 (FinanceHub)';
+                sheetName = 'Promissory External';
+                batchData = await queryPromissoryNotes({ limit, offset });
+                break;
+        }
+
+        // EGDesk API의 응답 구조 처리 (MCP 도구별 리턴 키 매핑: invoices, receipts, notes)
+        const rawBatch = Array.isArray(batchData) ? batchData : (
+            batchData?.invoices || batchData?.receipts || batchData?.notes || batchData?.data || []
+        );
+
+        let batch = rawBatch;
+
+        // [필터링] 세금계산서와 계산서 종류 필터링 (MCP가 통합으로 내려주므로 여기서 분리)
+        if (id.includes('-tax') && id.includes('hometax-')) {
+            // '세금계산서', '수정세금계산서' 포함
+            batch = rawBatch.filter((b: any) => b['전자세금계산서분류'] && b['전자세금계산서분류'].includes('세금계산서'));
+        } else if (id.includes('-bill') && id.includes('hometax-')) {
+            // '계산서', '면세계산서', '수정계산서' 포괄 (세금계산서 제외)
+            batch = rawBatch.filter((b: any) => {
+                const cls = b['전자세금계산서분류'] || '';
+                return (cls.includes('계산서') && !cls.includes('세금계산서')) || !cls;
+            });
+        }
+
+        if (batch.length > 0) {
+            allFetched.push(...batch);
+        }
+        
+        // 데이터가 limit 미만이면 마지막 페이지 (반드시 필터링 전 원본 rawBatch 기준으로 판별)
+        if (rawBatch.length < limit) {
+            break;
+        }
+        offset += limit;
+    }
+
+    const mockDataForSchema = allFetched.length > 0 ? allFetched : [{}]; // 빈 배열 방어 
+    
+    const pKeys = Object.keys(mockDataForSchema[0] || {}).filter(k => k !== 'id');
+    const fCols = pKeys.map(k => ({
+         name: k,
+         type: (k.includes('금액') || k.includes('가액') || k.includes('세액') || k === '부가세' || k === '봉사료') ? 'currency' : inferColumnType(k)
+    }));
+
+    report = {
+        id,
+        name: tableName,
+        sheetName: sheetName,
+        columns: JSON.stringify(fCols),
+        ownerId: 'system',
+        isReadOnly: true,
+    };
+
+    rows = allFetched.map((d: any) => ({ ...d, updatedAt: new Date().toISOString() }));
+    columns = fCols;
   } else if (id === 'finance-hub-card-table' || id === 'finance-hub-bank-table') {
-    const isCard = id === 'finance-hub-card-table';
+
+      const isCard = id === 'finance-hub-card-table';
     
     // 1. 필요한 API 함수 임포트 및 호출
     const { 
         queryCardTransactions, 
-        queryTransactions, 
+        queryBankTransactions, 
         listAccounts,
         listBanks
-    } = await import('@/financehub-helpers');
+    } = await import('@/egdesk-helpers');
 
-    const txData = isCard 
-        ? await queryCardTransactions({ limit: 1000, orderBy: 'date', orderDir: 'desc' })
-        : await queryTransactions({ limit: 1000, orderBy: 'date', orderDir: 'desc' });
+    let allTransactions: any[] = [];
+    let offset = 0;
+    const limit = 1000;
     
-    const transactions = Array.isArray(txData) ? txData : (txData?.transactions || []);
+    while (true) {
+        const txData = isCard 
+            ? await queryCardTransactions({ limit, offset, orderBy: 'date', orderDir: 'desc' })
+            : await queryBankTransactions({ limit, offset, orderBy: 'date', orderDir: 'desc' });
+        
+        const batch = Array.isArray(txData) ? txData : (txData?.transactions || []);
+        if (batch.length > 0) {
+            allTransactions.push(...batch);
+        }
+        
+        // 데이터가 limit보다 적게 오면 마지막 페이지이므로 루프 종료
+        if (batch.length < limit) {
+            break;
+        }
+        offset += limit;
+    }
+    
+    const transactions = allTransactions;
 
     // 2. 은행/계좌 정보 조인 및 데이터 정규화
     let joinedTransactions = transactions;

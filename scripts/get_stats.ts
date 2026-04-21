@@ -1,4 +1,4 @@
-import { getOverallStats } from '../src/financehub-helpers';
+import { getOverallStats } from '../egdesk-helpers';
 
 async function main() {
   try {

@@ -1,4 +1,4 @@
-import { callUserDataTool } from "./src/egdesk-helpers";
+import { callUserDataTool } from "@/egdesk-helpers";
 
 async function checkSchema() {
   try {

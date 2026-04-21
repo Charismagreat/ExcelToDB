@@ -164,14 +164,14 @@ export default function NavigationSidebar({ user, isCollapsed = false, onToggle 
       </div>
 
       {/* Navigation Links */}
-      <nav className={`flex-1 px-4 space-y-2 overflow-y-auto pt-4 custom-scrollbar ${isCollapsed ? 'px-2' : ''}`}>
-        {!isCollapsed && <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Main Navigation</p>}
+      <nav className={`flex-1 px-4 space-y-1 overflow-y-auto pt-4 custom-scrollbar ${isCollapsed ? 'px-2' : ''}`}>
+        {!isCollapsed && <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Main Navigation</p>}
         {menuItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
             title={isCollapsed ? item.name : ""}
-            className={`flex items-center gap-4 py-4 rounded-2xl transition-all duration-300 group relative ${
+            className={`flex items-center gap-4 py-2 rounded-2xl transition-all duration-300 group relative ${
               isCollapsed ? 'px-0 justify-center' : 'px-4'
             } ${
               item.active 

@@ -1,4 +1,4 @@
-import { queryTable } from './src/egdesk-helpers';
+import { listTables, queryTable } from '../egdesk-helpers';
 
 async function run() {
     const reportId = 'rep-something'; // We need the actual reportId, or we can just list reports.

@@ -1,4 +1,4 @@
-import { insertRows, queryTable } from './egdesk-helpers';
+import { insertRows, queryTable } from '../egdesk-helpers';
 
 async function initOrgData() {
     try {

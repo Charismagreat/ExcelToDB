@@ -1,4 +1,4 @@
-import { queryCardTransactions } from '../src/financehub-helpers';
+import { listBanks, listAccounts } from '../egdesk-helpers';
 
 async function test() {
   try {

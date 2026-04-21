@@ -111,6 +111,66 @@ export default async function DashboardPage() {
       isReadOnly: true,
       category: 'Finance'
     });
+    reports.push({
+      id: 'finance-hub-hometax-sales-tax',
+      name: '매출세금계산서 (홈택스)',
+      sheetName: 'Sales Tax Invoice',
+      _count: { rows: '연동 중' },
+      isFinanceTable: true,
+      isSystemTable: true,
+      isReadOnly: true,
+      category: 'Finance'
+    });
+    reports.push({
+      id: 'finance-hub-hometax-sales-bill',
+      name: '매출계산서 (홈택스)',
+      sheetName: 'Sales Invoice',
+      _count: { rows: '연동 중' },
+      isFinanceTable: true,
+      isSystemTable: true,
+      isReadOnly: true,
+      category: 'Finance'
+    });
+    reports.push({
+      id: 'finance-hub-hometax-purchase-tax',
+      name: '매입세금계산서 (홈택스)',
+      sheetName: 'Purchase Tax Invoice',
+      _count: { rows: '연동 중' },
+      isFinanceTable: true,
+      isSystemTable: true,
+      isReadOnly: true,
+      category: 'Finance'
+    });
+    reports.push({
+      id: 'finance-hub-hometax-purchase-bill',
+      name: '매입계산서 (홈택스)',
+      sheetName: 'Purchase Invoice',
+      _count: { rows: '연동 중' },
+      isFinanceTable: true,
+      isSystemTable: true,
+      isReadOnly: true,
+      category: 'Finance'
+    });
+    reports.push({
+      id: 'finance-hub-hometax-cash-receipt',
+      name: '현금영수증 내역 (홈택스)',
+      sheetName: 'Cash Receipt',
+      _count: { rows: '연동 중' },
+      isFinanceTable: true,
+      isSystemTable: true,
+      isReadOnly: true,
+      category: 'Finance'
+    });
+    reports.push({
+      id: 'finance-hub-promissory-table',
+      name: '전자어음 내역 (FinanceHub)',
+      sheetName: 'Promissory External',
+      _count: { rows: '연동 중' },
+      isFinanceTable: true,
+      isSystemTable: true,
+      isReadOnly: true,
+      category: 'Finance'
+    });
   }
 
   // 1. 물리적 시스템 테이블 목록 가져오기 및 2. 가상 리포트 필터링 로직이 위쪽에 있습니다.

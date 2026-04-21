@@ -512,6 +512,17 @@ export function DynamicTable({
           {isReadOnly && <span className="px-4 py-1.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-sm animate-pulse">Read-Only Mode</span>}
         </div>
         <div className="flex items-center gap-3">
+            <select 
+              value={itemsPerPage} 
+              onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+              className="px-4 py-3 bg-slate-50 border border-slate-100/50 text-slate-500 rounded-2xl text-xs font-black outline-none hover:bg-slate-100 hover:text-slate-700 transition-all cursor-pointer shadow-sm appearance-none pr-8 relative"
+              style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2394a3b8\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px' }}
+            >
+              <option value={10}>10 records / page</option>
+              <option value={20}>20 records / page</option>
+              <option value={50}>50 records / page</option>
+              <option value={100}>100 records / page</option>
+            </select>
             <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 transition-all active:scale-90 border border-slate-100/50"><SafeIcon icon={ChevronsLeft} isMounted={isMounted} size={18} /></button>
             <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 transition-all active:scale-90 border border-slate-100/50"><SafeIcon icon={ChevronLeft} isMounted={isMounted} size={18} /></button>
             

@@ -1,4 +1,4 @@
-import { getOverallStats, getMonthlySummary, getSyncHistory, getStatistics } from '../src/financehub-helpers';
+import { listBanks, listAccounts, queryBankTransactions, getOverallStats, getSyncHistory, getMonthlySummary, getTransactionStats as getStatistics } from '../egdesk-helpers';
 
 async function main() {
   try {

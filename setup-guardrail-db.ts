@@ -1,5 +1,5 @@
 
-import { createTable } from './src/egdesk-helpers';
+import { createTable } from './egdesk-helpers';
 
 async function setup() {
     console.log('--- Setting up Guardrail Table ---');

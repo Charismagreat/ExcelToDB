@@ -19,6 +19,7 @@
       }
     ],
     "paths": {
+      "@/egdesk-helpers": ["./src/egdesk-helpers"],
       "@/*": ["./src/*"]
     }
   },

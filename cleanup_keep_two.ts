@@ -1,4 +1,4 @@
-import { queryTable, deleteRows } from './src/egdesk-helpers';
+import { queryTable, deleteRows } from './egdesk-helpers';
 
 async function cleanupButTwo() {
     try {

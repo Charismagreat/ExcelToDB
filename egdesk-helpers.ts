@@ -553,6 +553,34 @@ export async function getKnowledgeByCategory(
   return callInternalKnowledgeTool('knowledge_get_by_category', { snapshotId, category });
 }
 
+/** Create a new knowledge document */
+export async function createKnowledgeDocument(
+  snapshotId: string,
+  title: string,
+  category: 'hierarchy' | 'process' | 'policy' | 'note',
+  content?: string
+) {
+  return callInternalKnowledgeTool('knowledge_create_document', {
+    snapshotId,
+    title,
+    category,
+    ...(content != null ? { content } : {})
+  });
+}
+
+/** Update an existing knowledge document */
+export async function updateKnowledgeDocument(
+  documentId: string,
+  updates: { title?: string; category?: 'hierarchy' | 'process' | 'policy' | 'note'; content?: string }
+) {
+  return callInternalKnowledgeTool('knowledge_update_document', { documentId, ...updates });
+}
+
+/** Delete a knowledge document */
+export async function deleteKnowledgeDocument(documentId: string) {
+  return callInternalKnowledgeTool('knowledge_delete_document', { documentId });
+}
+
 /** List business identity snapshots (optional brand filter) */
 export async function listBusinessIdentitySnapshots(brandKey?: string) {
   return callInternalKnowledgeTool('businessidentity_list_snapshots', {

@@ -4,7 +4,7 @@
  * Now expanded to aggregate events from various industry-standard template tables.
  */
 
-import { queryTable } from '@/egdesk-helpers';
+import { queryTable, listTables } from '@/egdesk-helpers';
 
 export type CalendarEventType = 'TASK' | 'NOTICE' | 'EVENT' | 'VACATION';
 

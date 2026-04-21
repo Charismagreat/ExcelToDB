@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { queryTable, listTables } from '../egdesk-helpers';
+import { queryTable, listTables } from '@/egdesk-helpers';
 
 describe('Login Debug Test', () => {
   it('should list tables and check user table', async () => {
