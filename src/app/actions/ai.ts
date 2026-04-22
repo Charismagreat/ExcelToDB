@@ -13,7 +13,7 @@ import {
     generateNumericId 
 } from './shared';
 import { getSessionAction } from './auth';
-import { analyzeExcelImage, extractDataFromImage } from '@/lib/ai-vision';
+import { analyzeExcelImage, extractDataFromImage, analyzeComplexDocument } from '@/lib/ai-vision';
 import { getVisualizationRecommendation } from '@/lib/dashboard-ai';
 import { runAITool } from '@/lib/ai-tools';
 import { 
@@ -59,6 +59,30 @@ export async function analyzeExcelScreenshotAction(formData: FormData) {
   const base64 = buffer.toString('base64');
   const mimeType = image.type;
   return await analyzeExcelImage(base64, mimeType);
+}
+
+/**
+ * 이미지 또는 PDF 문서를 정밀 분석하여 스키마와 데이터를 추출합니다.
+ */
+export async function analyzeDocumentAction(formData: FormData) {
+    try {
+        const file = formData.get('file') as File;
+        if (!file) throw new Error('파일이 없습니다.');
+        
+        // 용량 제한 체크 (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            throw new Error('파일 용량이 너무 큽니다. (최대 10MB)');
+        }
+
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const base64 = buffer.toString('base64');
+        const mimeType = file.type;
+        
+        return await analyzeComplexDocument(base64, mimeType);
+    } catch (error: any) {
+        throw new Error(error.message || '문서 분석 도중 오류가 발생했습니다.');
+    }
 }
 
 /**

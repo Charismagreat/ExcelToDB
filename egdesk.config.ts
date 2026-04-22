@@ -1,13 +1,13 @@
 /**
  * EGDesk User Data Configuration
- * Generated at: 2026-04-21T23:56:49.287Z
+ * Generated at: 2026-04-22T00:06:15.370Z
  *
  * This file contains type-safe definitions for your EGDesk tables.
  */
 
 export const EGDESK_CONFIG = {
   apiUrl: 'http://localhost:8080',
-  apiKey: undefined,
+  apiKey: 'dccf10a2-2887-4488-95c1-02b789ff1d08',
 } as const;
 
 export interface TableDefinition {
@@ -671,8 +671,8 @@ export const TABLES = {
     name: 'workspace_item',
     displayName: 'Workspace Image Items',
     rowCount: 1,
-    columnCount: 16,
-    columns: ['id', 'creatorId', 'imageUrl', 'originalText', 'suggestedTitle', 'suggestedSummary', 'status', 'reportId', 'rowId', 'aiData', 'metadata', 'createdAt', 'updatedAt', 'location_lat', 'location_lng', 'location_name']
+    columnCount: 15,
+    columns: ['id', 'creatorId', 'imageUrl', 'originalText', 'suggestedTitle', 'suggestedSummary', 'status', 'reportId', 'rowId', 'aiData', 'createdAt', 'updatedAt', 'location_lat', 'location_lng', 'location_name']
   } as TableDefinition,
   table106: {
     name: 'hometax_cash_receipts',
@@ -709,119 +709,113 @@ export const TABLES = {
     name: 'input_guardrail',
     displayName: 'Input Guardrails',
     description: '관리자가 설정한 데이터 입력 제한 규칙 테이블',
-    columnCount: 10,
-    columns: ['id', 'reportId', 'columnName', 'ruleType', 'ruleValue', 'severity', 'errorMessage', 'adminAdvice', 'isActive', 'createdAt']
+    columnCount: 9,
+    columns: ['id', 'reportId', 'columnName', 'ruleType', 'ruleValue', 'severity', 'errorMessage', 'adminAdvice', 'createdAt']
   } as TableDefinition,
   table111: {
     name: 'department',
     displayName: 'Organization Departments',
     rowCount: 9,
-    columnCount: 6,
-    columns: ['id', 'name', 'description', 'icon', 'metadata', 'createdAt']
+    columnCount: 5,
+    columns: ['id', 'name', 'description', 'icon', 'createdAt']
   } as TableDefinition,
   table112: {
     name: 'action_task',
     displayName: 'Action Tasks',
-    columnCount: 13,
-    columns: ['id', 'instanceId', 'reportId', 'title', 'description', 'type', 'status', 'assigneeId', 'assigneeRole', 'dueAt', 'metadata', 'completedAt', 'createdAt']
+    columnCount: 12,
+    columns: ['id', 'instanceId', 'reportId', 'title', 'description', 'type', 'status', 'assigneeId', 'assigneeRole', 'dueAt', 'completedAt', 'createdAt']
   } as TableDefinition,
   table113: {
-    name: 'action_task_history',
-    displayName: 'Action Task History',
-    columnCount: 6,
-    columns: ['id', 'taskId', 'oldStatus', 'newStatus', 'changedById', 'changedAt']
-  } as TableDefinition,
-  table114: {
     name: 'workflow_instance',
     displayName: 'Workflow Instances',
     columnCount: 6,
     columns: ['id', 'templateId', 'triggerRowId', 'status', 'startedAt', 'completedAt']
   } as TableDefinition,
-  table115: {
+  table114: {
     name: 'workflow_template',
     displayName: 'Workflow Templates',
     columnCount: 6,
     columns: ['id', 'name', 'triggerReportId', 'triggerCondition', 'tasks', 'createdAt']
   } as TableDefinition,
-  table116: {
+  table115: {
     name: 'notification',
     displayName: 'User Notifications',
     rowCount: 4,
-    columnCount: 9,
-    columns: ['id', 'userId', 'title', 'message', 'link', 'type', 'isRead', 'metadata', 'createdAt']
+    columnCount: 8,
+    columns: ['id', 'userId', 'title', 'message', 'link', 'type', 'isRead', 'createdAt']
   } as TableDefinition,
-  table117: {
+  table116: {
     name: 'report_row_history',
     displayName: 'Report Row History',
     columnCount: 7,
     columns: ['id', 'rowId', 'oldData', 'newData', 'changeType', 'changedById', 'changedAt']
   } as TableDefinition,
-  table118: {
+  table117: {
     name: 'report_access',
     displayName: 'Report Access Controls',
-    columnCount: 7,
-    columns: ['id', 'reportId', 'userId', 'departmentId', 'role', 'grantedAt', 'grantedBy']
+    columnCount: 6,
+    columns: ['id', 'reportId', 'userId', 'role', 'grantedAt', 'grantedBy']
   } as TableDefinition,
-  table119: {
+  table118: {
     name: 'report_row',
     displayName: 'Virtual Report Rows',
-    columnCount: 10,
-    columns: ['id', 'reportId', 'data', 'contentHash', 'isDeleted', 'deletedAt', 'creatorId', 'updaterId', 'createdAt', 'updatedAt']
+    columnCount: 9,
+    columns: ['id', 'reportId', 'data', 'isDeleted', 'deletedAt', 'creatorId', 'updaterId', 'createdAt', 'updatedAt']
   } as TableDefinition,
-  table120: {
+  table119: {
     name: 'workflow_steering',
     displayName: 'AI Workflow Steering',
     columnCount: 10,
     columns: ['id', 'reportId', 'rowId', 'eventType', 'recommendation', 'reasoning', 'status', 'decidedById', 'decidedAt', 'createdAt']
   } as TableDefinition,
-  table121: {
+  table120: {
     name: 'report',
     displayName: 'System Reports',
     rowCount: 100,
     columnCount: 14,
     columns: ['id', 'name', 'sheetName', 'description', 'tableName', 'columns', 'uiConfig', 'aiConfig', 'isDeleted', 'deletedAt', 'ownerId', 'lastSerial', 'createdAt', 'updatedAt']
   } as TableDefinition,
-  table122: {
+  table121: {
     name: 'user',
     displayName: 'System Users',
     rowCount: 10,
-    columnCount: 12,
-    columns: ['id', 'username', 'email', 'password', 'role', 'fullName', 'employeeId', 'departmentId', 'position', 'isActive', 'metadata', 'createdAt']
+    columnCount: 11,
+    columns: ['id', 'username', 'email', 'password', 'role', 'fullName', 'employeeId', 'departmentId', 'position', 'isActive', 'createdAt']
   } as TableDefinition,
-  table123: {
+  table122: {
     name: 'sync_activity_log',
     displayName: 'sync_activity_log',
     description: 'Imported from user_database_export_2026-04-11.sql',
     columnCount: 12,
     columns: ['id', 'config_id', 'file_name', 'file_path', 'status', 'rows_imported', 'rows_skipped', 'duplicates_skipped', 'error_message', 'started_at', 'completed_at', 'duration_ms']
   } as TableDefinition,
-  table124: {
+  table123: {
     name: 'sync_configurations',
     displayName: 'sync_configurations',
     description: 'Imported from user_database_export_2026-04-11.sql',
     columnCount: 24,
     columns: ['id', 'script_folder_path', 'script_name', 'folder_name', 'target_table_id', 'header_row', 'skip_bottom_rows', 'sheet_index', 'column_mappings', 'applied_splits', 'file_action', 'enabled', 'auto_sync_enabled', 'unique_key_columns', 'duplicate_action', 'last_sync_at', 'last_sync_status', 'last_sync_rows_imported', 'last_sync_rows_skipped', 'last_sync_duplicates', 'last_sync_error', 'created_at', 'updated_at', 'source']
   } as TableDefinition,
-  table125: {
+  table124: {
     name: 'ai_studio_session_persistence',
     displayName: 'AI Studio Session',
     columnCount: 5,
     columns: ['id', 'userId', 'data', 'updatedAt', 'isDeleted']
   } as TableDefinition,
-  table126: {
+  table125: {
     name: 'ai_persistence_test',
     displayName: 'AI Persistence Test',
     columnCount: 5,
     columns: ['id', 'userId', 'data', 'updatedAt', 'isDeleted']
   } as TableDefinition,
-  table127: {
+  table126: {
     name: 'ai_studio_session',
     displayName: 'AI Studio Session',
     rowCount: 1,
     columnCount: 4,
     columns: ['id', 'userId', 'data', 'updatedAt']
   } as TableDefinition,
-  table128: {
+  table127: {
     name: 'user_data_files',
     displayName: 'user_data_files',
     description: 'Imported from user_database_export_2026-04-06.sql',
@@ -954,20 +948,19 @@ export const TABLE_NAMES = {
   table110: 'input_guardrail',
   table111: 'department',
   table112: 'action_task',
-  table113: 'action_task_history',
-  table114: 'workflow_instance',
-  table115: 'workflow_template',
-  table116: 'notification',
-  table117: 'report_row_history',
-  table118: 'report_access',
-  table119: 'report_row',
-  table120: 'workflow_steering',
-  table121: 'report',
-  table122: 'user',
-  table123: 'sync_activity_log',
-  table124: 'sync_configurations',
-  table125: 'ai_studio_session_persistence',
-  table126: 'ai_persistence_test',
-  table127: 'ai_studio_session',
-  table128: 'user_data_files'
+  table113: 'workflow_instance',
+  table114: 'workflow_template',
+  table115: 'notification',
+  table116: 'report_row_history',
+  table117: 'report_access',
+  table118: 'report_row',
+  table119: 'workflow_steering',
+  table120: 'report',
+  table121: 'user',
+  table122: 'sync_activity_log',
+  table123: 'sync_configurations',
+  table124: 'ai_studio_session_persistence',
+  table125: 'ai_persistence_test',
+  table126: 'ai_studio_session',
+  table127: 'user_data_files'
 } as const;

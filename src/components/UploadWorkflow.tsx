@@ -6,9 +6,13 @@ import { toPng } from 'html-to-image';
 import { ColumnDefinition, TableData } from '@/lib/excel-parser';
 import { RecommendationTable } from '@/lib/ai-vision';
 import { uploadExcelAction } from '@/app/actions/file';
-import { analyzeExcelScreenshotAction } from '@/app/actions/ai';
+import { analyzeExcelScreenshotAction, analyzeDocumentAction } from '@/app/actions/ai';
 import { isSubtotalRow } from '@/lib/data-utils';
-import { Upload, Check, AlertCircle, FileText, ChevronRight, Save, Camera, Sparkles, Image as ImageIcon, Loader2, RotateCcw, Info, GripVertical, Trash2, Edit3 } from 'lucide-react';
+import { 
+    Upload, Check, AlertCircle, FileText, ChevronRight, Save, Camera, 
+    Sparkles, Image as ImageIcon, Loader2, RotateCcw, Info, GripVertical, 
+    Trash2, Edit3, Database as DatabaseIcon, FileDigit
+} from 'lucide-react';
 
 interface SelectedField {
     id: string;      // 원본 엑셀 컬럼명
@@ -33,6 +37,8 @@ export function UploadWorkflow({ userId }: { userId: string }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [recommendations, setRecommendations] = useState<RecommendationTable[]>([]);
   const [excelHtml, setExcelHtml] = useState<string>('');
+  const [aiExtractedRows, setAiExtractedRows] = useState<any[]>([]); // AI가 추출한 실제 데이터들
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   
   // Drag and Drop state
   const [dragInfo, setDragInfo] = useState<{ tableName: string; index: number } | null>(null);
@@ -43,10 +49,73 @@ export function UploadWorkflow({ userId }: { userId: string }) {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
+    // 용량 제한 체크 (10MB)
+    if (selectedFile.size > 10 * 1024 * 1024) {
+        alert('파일 용량이 너무 큽니다. 10MB 이하의 파일을 업로드해 주세요.');
+        return;
+    }
+
     setStep('analyzing');
     setIsAnalyzing(true);
     setFile(selectedFile);
 
+    const isExcel = selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls') || selectedFile.name.endsWith('.csv');
+    const isImageOrPdf = selectedFile.type.startsWith('image/') || selectedFile.type === 'application/pdf';
+
+    if (isImageOrPdf) {
+        // 프리뷰 생성
+        if (selectedFile.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => setFilePreviewUrl(e.target?.result as string);
+            reader.readAsDataURL(selectedFile);
+        } else {
+            setFilePreviewUrl(null); // PDF는 일단 아이콘으로 대체
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            const result = await analyzeDocumentAction(formData);
+
+            // AI 분석 결과를 테이블 스탠다드 포맷으로 변환
+            const table: ExtendedTableData = {
+                name: result.tableName,
+                originalSheetName: result.tableName,
+                columns: result.columns.map(c => ({ name: c.name, type: c.type })),
+                rows: result.extractedRows, // 여기에 실제 추철 데이터 저장
+                rawRows: [],
+                headerRowIndex: 0
+            };
+
+            setPreviewTables([table]);
+            setAiExtractedRows(result.extractedRows);
+            
+            // SelectedField 구성
+            const fields: SelectedField[] = [
+                { id: '__data_id__', name: '데이터ID', isActive: true, isRequired: true, type: 'string' },
+                ...result.columns.map(c => ({
+                    id: c.name,
+                    name: c.name,
+                    isActive: true,
+                    isRequired: c.isRequired,
+                    type: c.type
+                }))
+            ];
+            setSelectedFields({ [result.tableName]: fields });
+            setRecommendations([{ tableName: result.tableName, columns: result.columns }]);
+            
+            setStep('select');
+        } catch (err: any) {
+            console.error('AI Analysis Error:', err);
+            alert(err.message || '문서 분석에 실패했습니다. 파일을 다시 확인해 주세요.');
+            setStep('upload');
+        } finally {
+            setIsAnalyzing(false);
+        }
+        return;
+    }
+
+    // 기존 엑셀 처리 로직
     try {
         const buffer = await selectedFile.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: 'array' });
@@ -86,9 +155,7 @@ export function UploadWorkflow({ userId }: { userId: string }) {
                 let maxCols = 0;
                 let headerRowIndex = 0;
                 for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
-                    // 집계 행은 헤더로 간주하지 않음
                     if (isSubtotalRow(rawRows[i])) continue;
-                    
                     const cols = rawRows[i].filter(c => c !== null && c !== undefined && c !== '').length;
                     if (cols > maxCols) {
                         maxCols = cols;
@@ -109,7 +176,6 @@ export function UploadWorkflow({ userId }: { userId: string }) {
         });
 
         combinedHtml += '</div>';
-
         setPreviewTables(tables);
         setExcelHtml(combinedHtml);
 
@@ -167,14 +233,11 @@ export function UploadWorkflow({ userId }: { userId: string }) {
         const rec = recs.find(r => r.tableName === table.name || r.tableName.includes(table.name)) || 
                     recs.find(r => table.name.includes(r.tableName));
 
-        // 1. 실제 헤더 찾기 (이전과 동일)
         let bestRowIndex = table.headerRowIndex;
         if (rec) {
             let maxMatches = 0;
             for (let i = 0; i < Math.min(table.rawRows.length, 25); i++) {
-                // 집계 행은 헤더로 간주하지 않음
                 if (isSubtotalRow(table.rawRows[i])) continue;
-
                 const row = table.rawRows[i].map(c => c?.toString().trim().toLowerCase() || '');
                 const matches = rec.columns.filter((aiCol: any) => {
                     const aiLower = aiCol.name.toLowerCase();
@@ -197,52 +260,40 @@ export function UploadWorkflow({ userId }: { userId: string }) {
             columns: newHeaderNames.map(h => ({ name: h, type: 'string' }))
         };
 
-        // 2. 기본 데이터ID 필드 추가
         const fields: SelectedField[] = [
             { id: '__data_id__', name: '데이터ID', isActive: true, isRequired: true, type: 'string' }
         ];
 
-        // 3. 엑셀 컬럼들을 필드 객체로 변환
         newHeaderNames.forEach(h => {
-            // AI 추천 목록에서 해당 컬럼과 유사한 필드 찾기
             const colRec = rec?.columns.find((c: any) => 
               h.toLowerCase().includes(c.name.toLowerCase()) || 
               c.name.toLowerCase().includes(h.toLowerCase())
             );
 
-            // 데이터 기반 타입 추론: 실제 데이터 행들(최대 10개)을 검사
             const originalColIdx = newHeaderRow.findIndex(cell => cell?.toString().trim() === h);
-            
             let numberCount = 0;
             let dateCount = 0;
             let totalCount = 0;
-            const dateRegex = /^\d{2,4}[-./ ]\d{1,2}[-./ ]\d{1,2}/; // yyyy-mm-dd, yy.mm.dd etc
+            const dateRegex = /^\d{2,4}[-./ ]\d{1,2}[-./ ]\d{1,2}/;
             const dateKeywordRegex = /(일|날짜|Date|Time|Period|시각|일자|만기)/i;
             const currencyKeywordRegex = /(단가|금액|비용|가격|Price|Amount|원|달러|Fee|Cost|수입|지출)/i;
 
             for (let i = 1; i <= 20; i++) {
                 const dataRow = table.rawRows[bestRowIndex + i];
                 if (!dataRow) break;
-                
-                // 집계 행은 타입 추론에서 제외
                 if (isSubtotalRow(dataRow)) continue;
-                
                 const val = dataRow[originalColIdx];
                 if (val !== undefined && val !== null && val !== '') {
                     totalCount++;
                     const stringVal = val.toString().trim();
-                    
-                    // 1. 명시적 날짜 형식 체크
                     if (val instanceof Date || dateRegex.test(stringVal)) {
                         dateCount++;
                     } else if (typeof val === 'number') {
-                        // 2. 엑셀 숫자 날짜 체크 (보통 40000~60000 사이 값임 - 2010년~2060년 사이)
                         if (val > 30000 && val < 60000 && dateKeywordRegex.test(h)) {
-                            dateCount += 0.8; // 높은 확률로 날짜
+                            dateCount += 0.8;
                         }
                         numberCount++;
                     } else {
-                        // 3. 텍스트 내 숫자 또는 통화 기호 체크
                         const numericVal = stringVal.replace(/[,₩$¥€]/g, '').trim();
                         if (!isNaN(Number(numericVal)) && numericVal !== '') {
                             numberCount++;
@@ -251,7 +302,6 @@ export function UploadWorkflow({ userId }: { userId: string }) {
                 }
             }
 
-            // 키워드가 통화/날짜 관련인지 여부
             const isDateKeywordFound = dateKeywordRegex.test(h);
             const isCurrencyKeywordFound = currencyKeywordRegex.test(h);
             const isNumericRatio = totalCount > 0 && (numberCount / totalCount) > 0.8;
@@ -284,27 +334,19 @@ export function UploadWorkflow({ userId }: { userId: string }) {
   };
 
   const toggleField = (tableName: string, fieldId: string) => {
-    // 데이터ID 필드는 해제할 수 없음
     if (fieldId === '__data_id__') return;
-
     setSelectedFields(prev => {
         const currentFields = [...(prev[tableName] || [])];
-        const updated = currentFields.map(f => 
-            f.id === fieldId ? { ...f, isActive: !f.isActive } : f
-        );
+        const updated = currentFields.map(f => f.id === fieldId ? { ...f, isActive: !f.isActive } : f);
         return { ...prev, [tableName]: updated };
     });
   };
 
   const toggleRequired = (tableName: string, fieldId: string) => {
-    // 데이터ID는 항상 필수
     if (fieldId === '__data_id__') return;
-
     setSelectedFields(prev => {
         const currentFields = [...(prev[tableName] || [])];
-        const updated = currentFields.map(f => 
-            f.id === fieldId ? { ...f, isRequired: !f.isRequired } : f
-        );
+        const updated = currentFields.map(f => f.id === fieldId ? { ...f, isRequired: !f.isRequired } : f);
         return { ...prev, [tableName]: updated };
     });
   };
@@ -312,9 +354,7 @@ export function UploadWorkflow({ userId }: { userId: string }) {
   const updateFieldType = (tableName: string, fieldId: string, type: string) => {
     setSelectedFields(prev => {
         const currentFields = [...(prev[tableName] || [])];
-        const updated = currentFields.map(f => 
-            f.id === fieldId ? { ...f, type } : f
-        );
+        const updated = currentFields.map(f => f.id === fieldId ? { ...f, type } : f);
         return { ...prev, [tableName]: updated };
     });
   };
@@ -323,9 +363,7 @@ export function UploadWorkflow({ userId }: { userId: string }) {
     const options = optionsStr.split(/[;\n]/).map(s => s.trim()).filter(s => !!s);
     setSelectedFields(prev => {
         const currentFields = [...(prev[tableName] || [])];
-        const updated = currentFields.map(f => 
-            f.id === fieldId ? { ...f, options } : f
-        );
+        const updated = currentFields.map(f => f.id === fieldId ? { ...f, options } : f);
         return { ...prev, [tableName]: updated };
     });
   };
@@ -335,8 +373,6 @@ export function UploadWorkflow({ userId }: { userId: string }) {
         const oldName = prev[idx].name;
         const next = [...prev];
         next[idx] = { ...next[idx], name: newName };
-
-        // selectedFields의 키도 함께 업데이트하여 필드 목록 유실 방지
         setSelectedFields(fieldsPrev => {
             if (!fieldsPrev[oldName]) return fieldsPrev;
             const updated = { ...fieldsPrev };
@@ -344,7 +380,6 @@ export function UploadWorkflow({ userId }: { userId: string }) {
             delete updated[oldName];
             return updated;
         });
-
         return next;
     });
   };
@@ -352,14 +387,11 @@ export function UploadWorkflow({ userId }: { userId: string }) {
   const updateFieldName = (tableName: string, fieldId: string, newName: string) => {
     setSelectedFields(prev => {
         const currentFields = [...(prev[tableName] || [])];
-        const updated = currentFields.map(f => 
-            f.id === fieldId ? { ...f, name: newName } : f
-        );
+        const updated = currentFields.map(f => f.id === fieldId ? { ...f, name: newName } : f);
         return { ...prev, [tableName]: updated };
     });
   };
 
-  // Drag and Drop handlers
   const onDragStart = (tableName: string, index: number) => {
     setDragInfo({ tableName, index });
   };
@@ -367,26 +399,23 @@ export function UploadWorkflow({ userId }: { userId: string }) {
   const onDragOver = (e: React.DragEvent, tableName: string, index: number) => {
     e.preventDefault();
     if (!dragInfo || dragInfo.tableName !== tableName || dragInfo.index === index) return;
-
     setSelectedFields(prev => {
         const fields = [...(prev[tableName] || [])];
         const draggedItem = fields[dragInfo.index];
         fields.splice(dragInfo.index, 1);
         fields.splice(index, 0, draggedItem);
-        
-        setDragInfo({ tableName, index }); // Update current index to prevent flickering
+        setDragInfo({ tableName, index });
         return { ...prev, [tableName]: fields };
     });
   };
 
-  const onDragEnd = () => {
-    setDragInfo(null);
-  };
+  const onDragEnd = () => setDragInfo(null);
 
   const handleConfirm = async () => {
     if (!file) return;
     setStep('processing');
     
+    // AI 추출 Rows가 있다면 그것을 포함하여 전송
     const finalConfigs = previewTables.map(t => {
         const fields = selectedFields[t.name] || [];
         return {
@@ -399,7 +428,9 @@ export function UploadWorkflow({ userId }: { userId: string }) {
                 name: f.name,
                 isRequired: f.isRequired,
                 type: f.type
-            }))
+            })),
+            isAiGenerated: aiExtractedRows.length > 0,
+            initialRows: aiExtractedRows // 이미지/PDF 분석 시 추출된 데이터
         };
     });
     
@@ -409,13 +440,11 @@ export function UploadWorkflow({ userId }: { userId: string }) {
     
     try {
         const result = await uploadExcelAction(formData, userId);
-        
         if (result && result.totalRejected > 0) {
             alert(`⚠️ 업로드 완료 경고\n\n${result.totalRejected}개의 데이터가 필수값이 누락되어 추가되지 않고 생략되었습니다.\n\n[누락 예시]\n${result.rejectedReasons.join('\n')}`);
         } else {
             alert('업로드가 완료되었습니다.');
         }
-        
         window.location.reload();
     } catch (error: any) {
         alert('업로드 중 오류가 발생했습니다: ' + error.message);
@@ -433,47 +462,50 @@ export function UploadWorkflow({ userId }: { userId: string }) {
       />
 
       {step === 'upload' && (
-        <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 rounded-2xl bg-white hover:bg-blue-50 hover:border-blue-400 transition-all cursor-pointer group">
+        <label className="flex flex-col items-center justify-center w-full h-56 border-2 border-dashed border-gray-300 rounded-[32px] bg-white hover:bg-blue-50/50 hover:border-blue-400 transition-all cursor-pointer group">
           <div className="flex flex-col items-center justify-center pt-5 pb-6">
-            <div className="p-3 bg-blue-100 text-blue-600 rounded-full mb-4 group-hover:scale-110 transition-transform">
-                <Upload size={28} />
+            <div className="p-4 bg-blue-100 text-blue-600 rounded-2xl mb-4 group-hover:scale-110 transition-transform shadow-sm">
+                <Upload size={32} />
             </div>
-            <p className="mb-2 text-sm text-gray-700 font-bold">엑셀 파일을 선택하거나 여기로 끌어오세요</p>
-            <p className="text-xs text-gray-500">AI가 자동으로 구조를 분석하여 최적의 필드를 추천합니다.</p>
+            <p className="mb-2 text-base text-gray-700 font-black tracking-tight">엑셀, 이미지 또는 PDF 파일을 업로드하세요</p>
+            <div className="flex items-center gap-2 text-xs text-gray-500 font-bold bg-gray-100 px-3 py-1.5 rounded-full">
+                <Sparkles size={14} className="text-blue-500" />
+                <span>AI가 구조를 전수 분석하여 테이블을 구축해드립니다 (최대 10MB)</span>
+            </div>
           </div>
-          <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleFileChange} />
+          <input type="file" className="hidden" accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg" onChange={handleFileChange} />
         </label>
       )}
 
       {step === 'analyzing' && (
-        <div className="bg-white p-20 border rounded-3xl shadow-xl animate-in fade-in zoom-in duration-500 max-w-2xl mx-auto text-center">
+        <div className="bg-white p-20 border border-slate-100 rounded-[40px] shadow-2xl animate-in fade-in zoom-in duration-500 max-w-2xl mx-auto text-center">
             <div className="flex flex-col items-center mb-10">
-                <div className="p-4 bg-indigo-100 text-indigo-600 rounded-2xl mb-6 shadow-sm">
-                    <Sparkles size={40} className="animate-pulse" />
+                <div className="p-5 bg-indigo-100 text-indigo-600 rounded-3xl mb-8 shadow-inner">
+                    <Sparkles size={48} className="animate-pulse" />
                 </div>
-                <h3 className="text-2xl font-black text-gray-900 mb-3">AI가 엑셀 구조를 분석 중입니다</h3>
-                <p className="text-gray-600 leading-relaxed mb-8">
-                    Gemini AI가 엑셀의 시각적 형태를 파악하여 서비스 구성에 가장 적합한 데이터 필드를 찾고 있습니다.<br/>
-                    잠시만 기다려 주세요.
+                <h3 className="text-3xl font-black text-gray-900 mb-4 tracking-tighter">AI가 문서 전체를 정밀 분석 중입니다</h3>
+                <p className="text-slate-500 leading-relaxed mb-10 font-bold">
+                    Gemini AI가 문서의 모든 페이지를 훑어보며 데이터 구조를 설계하고 있습니다.<br/>
+                    표 데이터와 모든 텍스트 정보를 DB 구조로 변환 중입니다. (다국어 지원)
                 </p>
-                <div className="w-full max-w-xs bg-gray-100 h-2 rounded-full overflow-hidden relative">
-                    <div className="bg-indigo-600 h-full absolute top-0 animate-[loading_2s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
+                <div className="w-full max-w-xs bg-slate-100 h-2.5 rounded-full overflow-hidden relative shadow-inner">
+                    <div className="bg-indigo-600 h-full absolute top-0 animate-[loading_2s_ease-in-out_infinite] rounded-full" style={{ width: '40%' }}></div>
                 </div>
             </div>
         </div>
       )}
 
       {step === 'select' && (
-        <div className="bg-white p-8 border rounded-3xl shadow-2xl animate-in fade-in slide-in-from-bottom-8 duration-700">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 pb-8 border-b">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-2xl shadow-lg ring-4 ring-blue-50">
-                <Sparkles size={24} />
+        <div className="bg-white p-10 border border-slate-100 rounded-[48px] shadow-2xl animate-in fade-in slide-in-from-bottom-8 duration-700">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12 pb-10 border-b border-slate-100">
+            <div className="flex items-start gap-5">
+              <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-[24px] shadow-xl ring-8 ring-blue-50">
+                <Sparkles size={28} />
               </div>
               <div>
-                <h3 className="text-2xl font-black text-gray-900 tracking-tight">필드 구성 및 순서 편집</h3>
-                <p className="text-gray-500 mt-1">
-                    AI가 추천한 필드입니다. 필드명을 수정하거나 드래그하여 순서를 바꿀 수 있습니다.
+                <h3 className="text-3xl font-black text-slate-900 tracking-tighter">데이터베이스 구성 승인</h3>
+                <p className="text-slate-500 mt-1.5 font-bold">
+                    AI가 분석한 문서 구조입니다. 필드명과 타입을 확인하고 DB 구축을 승인해 주세요.
                 </p>
               </div>
             </div>
@@ -481,203 +513,227 @@ export function UploadWorkflow({ userId }: { userId: string }) {
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => applyRecommendation(previewTables, recommendations)}
-                className="flex items-center gap-2 px-5 py-3 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors border-2 border-gray-100"
+                className="flex items-center gap-2 px-6 py-4 text-slate-600 font-black rounded-2xl hover:bg-slate-50 transition-colors border-2 border-slate-100 uppercase tracking-widest text-xs"
               >
                 <RotateCcw size={18} />
-                추천대로 초기화
+                RESET TO AI RECOMMENDATION
               </button>
               <button 
                 onClick={handleConfirm}
-                className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all active:scale-95 group"
+                className="flex items-center gap-3 px-10 py-4 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 shadow-2xl shadow-blue-200 transition-all active:scale-95 group uppercase tracking-widest text-xs"
               >
                 <Save size={18} />
-                DB 생성 및 데이터 연동
+                Build DB & Import Data
                 <ChevronRight size={18} />
               </button>
             </div>
           </div>
 
-          <div className="space-y-16">
-            {previewTables.map((table, tIdx) => {
-              const tableFields = selectedFields[table.name] || [];
-              const activeCount = tableFields.filter(f => f.isActive).length;
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+            {/* LEFT: Schema Configuration */}
+            <div className="lg:col-span-7 space-y-12">
+                {previewTables.map((table, tIdx) => {
+                const tableFields = selectedFields[table.name] || [];
+                const activeCount = tableFields.filter(f => f.isActive).length;
 
-              return (
-                <div key={tIdx} className="animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${tIdx * 100}ms` }}>
-                  <div className="flex items-center justify-between mb-6 px-2">
-                      <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-600 text-white rounded-lg shadow-md">
-                              <FileText size={20} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 group">
-                                <input 
-                                  type="text" 
-                                  value={table.name} 
-                                  onChange={(e) => updateTableName(tIdx, e.target.value)}
-                                  className="font-black text-xl text-gray-900 bg-transparent border-b-2 border-transparent focus:border-blue-500 outline-none w-full md:w-80 transition-all"
-                                  placeholder="테이블명 입력"
-                                />
-                                <Edit3 size={14} className="text-gray-300 opacity-0 group-hover:opacity-100" />
+                return (
+                    <div key={tIdx} className="space-y-8">
+                    <div className="flex items-center justify-between px-2">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-lg">
+                                <FileText size={24} />
                             </div>
-                            <p className="text-xs font-bold text-gray-400 mt-0.5">총 {tableFields.length}개 필드 중 {activeCount}개 활성화</p>
-                          </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">
-                          <Info size={14} />
-                          드래그하여 순서를 변경하세요
-                      </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    {tableFields.map((field, fIdx) => (
-                        <div
-                          key={field.id}
-                          draggable
-                          onDragStart={() => onDragStart(table.name, fIdx)}
-                          onDragOver={(e) => onDragOver(e, table.name, fIdx)}
-                          onDragEnd={onDragEnd}
-                          className={`
-                            flex items-center gap-4 p-4 rounded-2xl border-2 transition-all group
-                            ${field.isActive ? 'bg-white border-blue-100 shadow-sm' : 'bg-gray-50 border-transparent opacity-60'}
-                            ${dragInfo?.tableName === table.name && dragInfo?.index === fIdx ? 'opacity-30 border-dashed border-blue-400' : ''}
-                          `}
-                        >
-                          {/* Drag Handle */}
-                          <div className="cursor-grab active:cursor-grabbing text-gray-300 group-hover:text-gray-400 transition-colors">
-                            <GripVertical size={20} />
-                          </div>
-
-                          {/* Checkbox */}
-                          <button 
-                            onClick={() => toggleField(table.name, field.id)}
-                            className={`
-                                w-6 h-6 rounded-lg flex items-center justify-center transition-all
-                                ${field.isActive ? 'bg-blue-600 text-white' : 'border-2 border-gray-300 hover:border-blue-400'}
-                                ${field.id === '__data_id__' ? 'cursor-not-allowed' : ''}
-                            `}
-                          >
-                            {field.isActive && <Check size={14} strokeWidth={4} />}
-                          </button>
-
-                          {/* Field Name Input */}
-                          <div className="flex flex-col flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                  <input 
+                            <div>
+                                <input 
                                     type="text" 
-                                    value={field.name}
-                                    onChange={(e) => updateFieldName(table.name, field.id, e.target.value)}
-                                    onDragStart={(e) => e.stopPropagation()} // 입력 중 드래그 방지
-                                    placeholder="필드명 입력"
-                                    className={`
-                                        bg-transparent font-black text-sm outline-none border-b-2 border-transparent focus:border-blue-400 focus:bg-white focus:px-2 py-1 transition-all w-full md:w-64
-                                        ${field.isActive ? 'text-gray-900' : 'text-gray-400'}
-                                    `}
-                                  />
-                                  <Edit3 size={12} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate">
-                                  {field.id === '__data_id__' ? 'Auto Generated' : `Source: ${field.id}`}
-                              </span>
-                          </div>
+                                    value={table.name} 
+                                    onChange={(e) => updateTableName(tIdx, e.target.value)}
+                                    className="font-black text-2xl text-slate-900 bg-transparent border-b-2 border-transparent focus:border-blue-500 outline-none w-full md:w-96 transition-all tracking-tight"
+                                    placeholder="테이블명 입력"
+                                />
+                                <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-[0.2em]">Active Fields {activeCount} / Total {tableFields.length}</p>
+                            </div>
+                        </div>
+                    </div>
 
-                          {/* Tags & Controls */}
-                          <div className="hidden sm:flex items-center gap-3">
-                              {/* Type Select */}
-                              <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-col gap-3">
+                        {tableFields.map((field, fIdx) => (
+                            <div
+                                key={field.id}
+                                draggable
+                                onDragStart={() => onDragStart(table.name, fIdx)}
+                                onDragOver={(e) => onDragOver(e, table.name, fIdx)}
+                                onDragEnd={onDragEnd}
+                                className={`
+                                    flex items-center gap-5 p-5 rounded-3xl border-2 transition-all group
+                                    ${field.isActive ? 'bg-white border-slate-100 shadow-md' : 'bg-slate-50 border-transparent opacity-40'}
+                                    ${dragInfo?.tableName === table.name && dragInfo?.index === fIdx ? 'opacity-30 border-dashed border-blue-400' : ''}
+                                `}
+                            >
+                            <div className="cursor-grab active:cursor-grabbing text-slate-300 group-hover:text-slate-400 transition-colors">
+                                <GripVertical size={20} />
+                            </div>
+
+                            <button 
+                                onClick={() => toggleField(table.name, field.id)}
+                                className={`
+                                    w-7 h-7 rounded-xl flex items-center justify-center transition-all
+                                    ${field.isActive ? 'bg-blue-600 text-white shadow-lg' : 'border-2 border-slate-200 hover:border-blue-400'}
+                                    ${field.id === '__data_id__' ? 'cursor-not-allowed' : ''}
+                                `}
+                            >
+                                {field.isActive && <Check size={16} strokeWidth={4} />}
+                            </button>
+
+                            <div className="flex flex-col flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="text" 
+                                        value={field.name}
+                                        onChange={(e) => updateFieldName(table.name, field.id, e.target.value)}
+                                        onDragStart={(e) => e.stopPropagation()}
+                                        placeholder="필드명 입력"
+                                        className={`
+                                            bg-transparent font-black text-base outline-none border-b-2 border-transparent focus:border-blue-400 focus:bg-slate-50 focus:px-3 py-1.5 transition-all w-full md:w-72 tracking-tight
+                                            ${field.isActive ? 'text-slate-900' : 'text-slate-400'}
+                                        `}
+                                    />
+                                </div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 truncate">
+                                    {field.id === '__data_id__' ? 'System Field' : `Source ID: ${field.id}`}
+                                </span>
+                            </div>
+
+                            <div className="hidden sm:flex items-center gap-4">
                                 <select 
-                                  value={field.type} 
-                                  onChange={(e) => updateFieldType(table.name, field.id, e.target.value)}
-                                  className={`
-                                      text-[10px] font-black bg-gray-100 border-none rounded-md px-2 py-1.5 outline-none text-gray-500 transition-all
-                                      ${field.isActive ? 'hover:bg-blue-50 hover:text-blue-600' : ''}
-                                  `}
+                                    value={field.type} 
+                                    onChange={(e) => updateFieldType(table.name, field.id, e.target.value)}
+                                    className={`
+                                        text-[10px] font-black bg-slate-100 border-none rounded-xl px-3 py-2 outline-none text-slate-500 transition-all uppercase tracking-widest
+                                        ${field.isActive ? 'hover:bg-blue-600 hover:text-white shadow-sm' : ''}
+                                    `}
                                 >
                                     <option value="string">STRING</option>
                                     <option value="number">NUMBER</option>
                                     <option value="date">DATE</option>
                                     <option value="currency">CURRENCY</option>
                                     <option value="boolean">BOOLEAN</option>
-                                    <option value="select">SELECT (목록)</option>
-                                    <option value="textarea">TEXTAREA (장문)</option>
+                                    <option value="select">SELECT</option>
+                                    <option value="textarea">TEXTAREA</option>
                                     <option value="phone">PHONE</option>
                                     <option value="email">EMAIL</option>
-                                    <option value="file">FILE/IMAGE</option>
+                                    <option value="file">FILE</option>
                                 </select>
 
-                                {field.type === 'select' && (
-                                    <textarea 
-                                      rows={2}
-                                      placeholder="엔터 또는 세미콜론(;)으로 항목 구분 (예: 완료; 미결)"
-                                      value={field.options?.join(';\n') || ''}
-                                      onChange={(e) => updateFieldOptions(table.name, field.id, e.target.value)}
-                                      className="text-[10px] font-bold border border-blue-100 rounded-lg outline-none focus:border-blue-500 bg-white/50 px-2 py-1.5 w-64 h-12 text-blue-600 placeholder:text-gray-300 resize-none custom-scrollbar"
-                                    />
-                                )}
-                              </div>
+                                <button 
+                                    onClick={() => toggleRequired(table.name, field.id)}
+                                    className={`
+                                        flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest
+                                        ${field.isRequired ? 'bg-red-50 text-red-600 border border-red-100 shadow-sm' : 'bg-slate-100 text-slate-400 border border-transparent'}
+                                        ${field.id === '__data_id__' ? 'cursor-not-allowed opacity-50' : 'hover:scale-105'}
+                                    `}
+                                >
+                                    <AlertCircle size={14} />
+                                    {field.isRequired ? 'Required' : 'Optional'}
+                                </button>
+                            </div>
+                            </div>
+                        ))}
+                    </div>
+                    </div>
+                );
+                })}
+            </div>
 
-                              {/* Required Toggle */}
-                              <button 
-                                onClick={() => toggleRequired(table.name, field.id)}
-                                className={`
-                                    flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black transition-all
-                                    ${field.isRequired ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-gray-100 text-gray-400 border border-transparent'}
-                                    ${field.id === '__data_id__' ? 'cursor-not-allowed opacity-50' : 'hover:scale-105 active:scale-95'}
-                                `}
-                              >
-                                  <AlertCircle size={12} />
-                                  {field.isRequired ? '필수' : '선택'}
-                              </button>
-
-                              {field.id === '__data_id__' && (
-                                  <span className="text-[10px] font-black text-white bg-indigo-500 px-3 py-1.5 rounded-full shadow-sm">DEFAULT_ID</span>
-                              )}
-                              {recommendations.some(r => r.columns.some((c: any) => c.name === field.id)) && (
-                                  <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full flex items-center gap-1">
-                                      <Sparkles size={10} /> AI_REC
-                                  </span>
-                              )}
-                          </div>
-                      </div>
-                    ))}
-                  </div>
+            {/* RIGHT: Data Preview & File Preview */}
+            <div className="lg:col-span-5 space-y-10">
+                {/* 1. File Preview */}
+                <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 shadow-inner group">
+                    <div className="flex items-center gap-3 mb-6">
+                        <Camera size={20} className="text-slate-400" />
+                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">Document Source Preview</h4>
+                    </div>
+                    <div className="aspect-[4/3] bg-white rounded-3xl border border-slate-200 overflow-hidden flex items-center justify-center relative shadow-sm">
+                        {filePreviewUrl ? (
+                            <img src={filePreviewUrl} alt="Preview" className="w-full h-full object-contain" />
+                        ) : (
+                            <div className="flex flex-col items-center gap-4 text-slate-300">
+                                <FileDigit size={64} strokeWidth={1} />
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em]">{file?.name}</span>
+                            </div>
+                        )}
+                        <div className="absolute top-4 right-4 bg-slate-900/80 backdrop-blur-md text-white text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-lg">
+                            Source Document
+                        </div>
+                    </div>
                 </div>
-              );
-            })}
+
+                {/* 2. Extracted Data Preview (AI Rows) */}
+                {aiExtractedRows.length > 0 && (
+                    <div className="bg-blue-50/50 p-8 rounded-[40px] border border-blue-100 shadow-sm">
+                        <div className="flex items-center gap-3 mb-6">
+                            <Sparkles size={20} className="text-blue-500" />
+                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">AI Extracted Data Sample</h4>
+                        </div>
+                        <div className="space-y-4">
+                            {aiExtractedRows.slice(0, 5).map((row, rIdx) => (
+                                <div key={rIdx} className="bg-white p-5 rounded-2xl border border-blue-50 shadow-sm animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: `${rIdx * 100}ms` }}>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {Object.entries(row).slice(0, 4).map(([key, value]: [string, any]) => (
+                                            <div key={key} className="min-w-0">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">{key}</p>
+                                                <p className="text-xs font-bold text-slate-800 truncate">{value?.toString() || '-'}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                            {aiExtractedRows.length > 5 && (
+                                <div className="text-center pt-2">
+                                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">And {aiExtractedRows.length - 5} more records identified...</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
           </div>
           
-          <div className="mt-16 bg-blue-50 p-10 rounded-[32px] flex flex-col items-center text-center">
-              <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-xl mb-6">
-                <DatabaseIcon size={32} />
+          <div className="mt-16 bg-slate-900 p-12 rounded-[48px] flex flex-col items-center text-center shadow-2xl relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent opacity-50"></div>
+              <div className="relative z-10">
+                <div className="w-20 h-20 bg-blue-600 text-white rounded-[32px] flex items-center justify-center shadow-2xl mb-8 mx-auto ring-8 ring-blue-500/20">
+                    <DatabaseIcon size={40} />
+                </div>
+                <h4 className="text-3xl font-black text-white mb-3 tracking-tighter">데이터베이스 구축 준비 완료</h4>
+                <p className="text-slate-400 mb-10 max-w-lg font-bold">
+                    AI가 분석한 문서의 미세한 맥락까지 반영하여 비즈니스에 최적화된 고성능 데이터베이스를 생성합니다.<br/>
+                    구축 시작 클릭 시 모든 데이터 연동이 즉시 완료됩니다.
+                </p>
+                <button 
+                    onClick={handleConfirm}
+                    className="flex items-center gap-4 px-20 py-6 bg-white text-slate-900 text-2xl font-black rounded-[28px] hover:bg-blue-50 shadow-2xl transition-all hover:-translate-y-2 active:scale-95 group tracking-tighter"
+                >
+                    지능형 DB 구축 시작하기
+                    <ChevronRight size={28} className="group-hover:translate-x-1 transition-transform text-blue-600" />
+                </button>
               </div>
-              <h4 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">설정이 완료되었나요?</h4>
-              <p className="text-gray-600 mb-8 max-w-lg">
-                  최종 구성을 바탕으로 귀사의 비즈니스에 최적화된 데이터베이스를 구축합니다.<br/>
-                  저장 후 즉시 데이터 조회 및 관리가 가능합니다.
-              </p>
-              <button 
-                onClick={handleConfirm}
-                className="flex items-center gap-3 px-16 py-5 bg-blue-600 text-white text-xl font-black rounded-2xl hover:bg-blue-700 shadow-2xl shadow-blue-300 transition-all hover:-translate-y-1 active:scale-95 group"
-              >
-                데이터베이스 구축 시작하기
-                <ChevronRight size={24} className="group-hover:translate-x-1 transition-transform" />
-              </button>
           </div>
         </div>
       )}
 
       {step === 'processing' && (
-        <div className="flex flex-col items-center justify-center p-20 bg-white border rounded-3xl shadow-2xl text-center animate-in fade-in zoom-in duration-500">
-          <div className="relative w-24 h-24 mb-8">
-              <div className="absolute inset-0 border-8 border-blue-100 rounded-full"></div>
-              <div className="absolute inset-0 border-8 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex flex-col items-center justify-center p-24 bg-white border border-slate-100 rounded-[56px] shadow-2xl text-center animate-in fade-in zoom-in duration-500">
+          <div className="relative w-32 h-32 mb-10">
+              <div className="absolute inset-0 border-[10px] border-slate-50 rounded-full"></div>
+              <div className="absolute inset-0 border-[10px] border-blue-600 border-t-transparent rounded-full animate-spin"></div>
               <div className="absolute inset-0 flex items-center justify-center text-blue-600">
-                  <DatabaseIcon size={32} />
+                  <DatabaseIcon size={48} />
               </div>
           </div>
-          <h3 className="text-3xl font-black text-gray-900 mb-3 tracking-tighter">데이터베이스 최적화 중...</h3>
-          <p className="text-gray-500 max-w-sm mx-auto leading-relaxed">
-              선택하신 필드 정보를 기반으로 서비스 운영을 위한 고성능 데이터 스키마를 구성하고 있습니다.
+          <h3 className="text-4xl font-black text-slate-900 mb-4 tracking-tighter">엔터프라이즈 DB 최적화 중...</h3>
+          <p className="text-slate-400 max-w-sm mx-auto leading-relaxed font-bold">
+              선택하신 필드와 AI 추출 데이터를 결합하여 서비스 운영을 위한 지능형 데이터 스키마를 구성하고 있습니다.
           </p>
         </div>
       )}
@@ -690,14 +746,4 @@ export function UploadWorkflow({ userId }: { userId: string }) {
       `}</style>
     </div>
   );
-}
-
-function DatabaseIcon({ size }: { size: number }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-        </svg>
-    )
 }

@@ -27,6 +27,13 @@ export interface RecommendationResponse {
   recommendedTables?: RecommendationTable[];
 }
 
+export interface ComplexDocumentResponse {
+  tableName: string;
+  columns: ColumnRecommendation[];
+  extractedRows: any[];
+  reason: string;
+}
+
 /**
  * 추천을 위한 샘플 데이터를 기반으로 최적의 스키마를 제안합니다.
  */
@@ -235,6 +242,84 @@ export async function extractDataFromImage(imageBase64: string, mimeType: string
     if (error instanceof SyntaxError) {
         throw new Error("AI가 생성한 데이터 형식이 올바르지 않습니다. (JSON 파싱 에러)");
     }
+    throw error;
+  }
+}
+
+/**
+ * 이미지 또는 PDF 문서 전체를 분석하여 테이블 스키마와 실제 데이터를 모두 추출합니다.
+ */
+export async function analyzeComplexDocument(base64: string, mimeType: string): Promise<ComplexDocumentResponse> {
+  if (!apiKey) {
+    throw new Error("GOOGLE_GENERATIVE_AI_API_KEY가 설정되지 않았습니다.");
+  }
+
+  const prompt = `
+    당신은 고급 데이터 엔지니어이자 문서 분석 전문가입니다.
+    제공된 문서(이미지 또는 PDF)를 정밀 분석하여 이를 데이터베이스 '테이블'로 변환하기 위한 최적의 구조와 실제 데이터를 추출하세요.
+    
+    분석 및 추출 가이드라인:
+    1. 문서 성격 파악: 영수증, 발주서, 명단 리스트, 명함, 계약서 등 문서의 종류를 파악하여 적절한 테이블 이름을 정하세요.
+    2. 전수 분석 (Full Analysis): PDF의 경우 모든 페이지를 훑어보고, 표 형태의 데이터나 반복되는 정보 패턴을 유실 없이 모두 추출하세요.
+    3. 스키마 설계: 
+       - 추출된 데이터를 담기에 가장 적절한 컬럼명과 타입을 정의하세요.
+       - 타입 종류: string, number, date, currency, select, boolean, textarea, email, phone.
+    4. 다국어 지원: 한국어뿐만 아니라 영어, 일본어, 중국어 등 문서에 포함된 모든 텍스트를 언어에 상관없이 정확히 인식하여 추출하세요.
+    5. 실제 데이터 추출: 문서 내의 모든 유효한 행(Row) 데이터를 추출하여 배열 형태로 만드세요.
+    
+    응답 및 규칙:
+    - 반드시 아래 JSON 형식을 엄격히 지켜야 하며, 다른 설명 텍스트는 절대 포함하지 마세요.
+    - 날짜(date)는 'YYYY-MM-DD' 형식을 따르세요. 연도가 없으면 2026년을 기본값으로 사용하세요.
+    - 숫자/통화는 기호나 쉼표 없이 숫자만 반환하세요.
+    - 정보를 찾을 수 없는 필드는 null 처리하세요.
+    
+    응답 JSON 구조:
+    {
+      "tableName": "추천 테이블 이름 (예: 지출_결의서, 고객_명단)",
+      "columns": [
+        { "name": "컬럼명", "type": "데이터타입", "isRequired": true/false, "reason": "추천 사유" }
+      ],
+      "extractedRows": [
+        { "컬럼명1": "값1", "컬럼명2": "값2", ... },
+        ...
+      ],
+      "reason": "문서 분석 결과 요약 (한국어)"
+    }
+  `;
+
+  try {
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: base64,
+          mimeType: mimeType
+        }
+      }
+    ]);
+
+    const response = await result.response;
+    const text = response.text();
+    
+    const cleanedText = text.replace(/```json|```/gi, "").trim();
+    const firstBrace = cleanedText.indexOf("{");
+    const lastBrace = cleanedText.lastIndexOf("}");
+    
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error("AI 응답에서 유효한 데이터를 추출할 수 없습니다.");
+    }
+    
+    const jsonStr = cleanedText.substring(firstBrace, lastBrace + 1);
+    const parsed = JSON.parse(jsonStr);
+
+    // 필드 검증 (최소 구성 요소 확인)
+    if (!parsed.tableName || !parsed.columns || !parsed.extractedRows) {
+        throw new Error("AI 분석 결과의 구조가 불완전합니다.");
+    }
+
+    return parsed as ComplexDocumentResponse;
+  } catch (error) {
+    console.error("Gemini Complex Document Analysis Error:", error);
     throw error;
   }
 }
