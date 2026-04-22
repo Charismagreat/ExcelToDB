@@ -104,6 +104,7 @@ export async function initializeDemoSetupAction() {
                     description: tpl.description,
                     tableName: tpl.id,
                     columns: JSON.stringify(reportColumns),
+                    uiConfig: JSON.stringify({ category: tpl.category }),
                     ownerId: 'admin',
                     isDeleted: 0,
                     createdAt: new Date().toISOString(),
