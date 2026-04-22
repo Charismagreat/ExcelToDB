@@ -47,3 +47,4 @@ next-env.d.ts
 /.worktrees/
 /scratch/
 pinned_charts.json
+/backups/
