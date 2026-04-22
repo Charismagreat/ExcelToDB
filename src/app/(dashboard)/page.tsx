@@ -199,6 +199,11 @@ export default async function DashboardPage() {
   // 가상 리포트 병합
   reports = [...reports, ...virtualReports];
 
+  // 중복 ID 제거 (하드코딩된 보고서와 DB 보고서 간의 충돌 방지)
+  const uniqueReports = Array.from(
+    new Map(reports.map(r => [r.id, r])).values()
+  ) as any[];
+
   const isStaff = user.role === 'VIEWER';
 
   // 3. 캘린더 일정 데이터 가져오기
@@ -210,8 +215,9 @@ export default async function DashboardPage() {
     <DashboardHubClient 
       user={user} 
       isStaff={isStaff} 
-      reports={reports} 
+      reports={uniqueReports} 
       events={events}
     />
   );
 }
+
