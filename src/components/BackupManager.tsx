@@ -173,53 +173,43 @@ export default function BackupManager() {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* Scheduling Config Section */}
-            <div className="bg-slate-900 rounded-[40px] p-8 border border-slate-800 shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl -mr-32 -mt-32" />
-                
-                <div className="flex flex-col md:flex-row justify-between items-center gap-8 relative z-10">
-                    <div className="flex items-center gap-6">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 ${settings?.backupScheduleEnabled ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/40' : 'bg-slate-800 text-slate-50'}`}>
-                            <Clock size={28} />
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-black text-white uppercase tracking-tight">Automated Snapshot Schedule</h3>
-                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Unified Compact Action Bar */}
+            <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-xl shadow-slate-200/40 flex flex-col lg:flex-row justify-between items-center gap-6">
+                <div className="flex items-center gap-5">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-lg ${settings?.backupScheduleEnabled ? 'bg-blue-600 text-white shadow-blue-500/20' : 'bg-slate-100 text-slate-400'}`}>
+                        <Database size={24} strokeWidth={2.5} />
+                    </div>
+                    <div className="flex flex-col">
+                        <h2 className="text-lg font-black text-slate-900 tracking-tight uppercase leading-tight">Backup Snapshot Center</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                            <div className={`w-2 h-2 rounded-full ${settings?.backupScheduleEnabled ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                 {settings?.backupScheduleEnabled 
-                                    ? `활성화됨: 매주 월-토 새벽 3시 (최대 10개 보관)` 
-                                    : '자동 백업이 비활성화되어 있습니다'}
+                                    ? `Auto: Mon-Sat 03:00 (Max 10)` 
+                                    : 'Auto-Backup Disabled'}
                             </p>
                         </div>
                     </div>
-
+                </div>
+                
+                <div className="flex items-center gap-3 w-full lg:w-auto">
+                    {/* Toggle Schedule Button */}
                     <button 
                         onClick={handleToggleSchedule}
                         disabled={isActionLoading || !settings}
-                        className={`px-8 py-4 rounded-[20px] font-black text-xs uppercase tracking-widest transition-all flex items-center gap-3 ${
+                        className={`flex-1 lg:flex-none px-5 py-3 rounded-[16px] font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 border-2 ${
                             settings?.backupScheduleEnabled 
-                            ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20' 
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                            ? 'bg-blue-50 border-blue-100 text-blue-600 hover:bg-blue-100' 
+                            : 'bg-slate-50 border-slate-100 text-slate-400 hover:bg-slate-100'
                         }`}
                     >
-                        {settings?.backupScheduleEnabled ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                        {settings?.backupScheduleEnabled ? 'Schedule Active' : 'Enable Auto-Backup'}
+                        <Clock size={14} />
+                        {settings?.backupScheduleEnabled ? 'Schedule On' : 'Enable Schedule'}
                     </button>
-                </div>
-            </div>
-            {/* Header / Stats */}
-            <div className="bg-white rounded-[40px] p-10 border border-slate-100 shadow-2xl shadow-slate-200/50 flex flex-col md:flex-row justify-between items-center gap-8">
-                <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 bg-blue-600 rounded-[24px] flex items-center justify-center text-white shadow-xl shadow-blue-500/30">
-                        <History size={32} strokeWidth={2.5} />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Database Snapshot Center</h2>
-                        <p className="text-sm font-bold text-slate-400 mt-1 uppercase tracking-widest">마지막 백업으로부터 시스템을 안전하게 보호하세요</p>
-                    </div>
-                </div>
-                
-                <div className="flex items-center gap-4">
+
+                    <div className="h-8 w-[1px] bg-slate-100 hidden lg:block" />
+
                     <input 
                         type="file" 
                         id="backup-upload" 
@@ -229,21 +219,19 @@ export default function BackupManager() {
                     />
                     <label 
                         htmlFor="backup-upload"
-                        className="px-6 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-[20px] font-black text-xs uppercase tracking-widest transition-all cursor-pointer flex items-center gap-2"
+                        className="flex-1 lg:flex-none px-5 py-3 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-[16px] font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 border-2 border-transparent"
                     >
-                        <Upload size={16} />
-                        Upload Snapshot
+                        <Upload size={14} />
+                        Upload
                     </label>
 
                     <button 
                         onClick={handleCreateBackup}
                         disabled={isActionLoading}
-                        className="group relative px-8 py-5 bg-slate-900 hover:bg-black text-white rounded-[24px] font-black text-sm uppercase tracking-widest transition-all shadow-xl hover:shadow-2xl active:scale-95 disabled:opacity-50 overflow-hidden"
+                        className="flex-1 lg:flex-none px-6 py-3 bg-slate-900 hover:bg-black text-white rounded-[16px] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg hover:shadow-black/20 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                        <div className="flex items-center gap-3">
-                            {isActionLoading ? <RefreshCw className="animate-spin" size={18} /> : <Plus size={18} strokeWidth={3} />}
-                            <span>Create New Snapshot</span>
-                        </div>
+                        {isActionLoading ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} strokeWidth={3} />}
+                        <span>New Snapshot</span>
                     </button>
                 </div>
             </div>
