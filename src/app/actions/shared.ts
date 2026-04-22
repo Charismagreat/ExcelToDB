@@ -264,6 +264,16 @@ export const SYSTEM_TABLES = [
             { name: 'isActive', type: 'INTEGER', defaultValue: 1 },
             { name: 'createdAt', type: 'TEXT', notNull: true }
         ] as any[]
+    },
+    {
+        tableName: 'dashboard_chart', displayName: 'Dashboard Chart Widgets', schema: [
+            { name: 'id', type: 'TEXT', notNull: true },
+            { name: 'userId', type: 'TEXT' },
+            { name: 'config', type: 'TEXT', notNull: true }, // JSON content
+            { name: 'layout', type: 'TEXT' }, // JSON content
+            { name: 'isSample', type: 'INTEGER', defaultValue: 0 },
+            { name: 'createdAt', type: 'TEXT', notNull: true },
+            { name: 'updatedAt', type: 'TEXT' }
+        ] as any[]
     }
-
 ];

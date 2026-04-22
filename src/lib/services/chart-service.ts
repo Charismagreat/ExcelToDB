@@ -2,6 +2,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { runAITool } from '@/lib/ai-tools';
+import { queryTable, insertRows, deleteRows, updateRows } from '@/egdesk-helpers';
 
 const PINNED_CHARTS_PATH = path.join(process.cwd(), 'pinned_charts.json');
 
@@ -111,39 +112,115 @@ export async function mapRefreshedDataAction(rawData: any, mapping: any): Promis
 
 /**
  * 모든 핀 고정 차트 목록을 로드합니다.
+ * 파일 기반에서 DB 기반으로 자동 마이그레이션 로직을 포함합니다.
  */
 export async function loadAllPinnedChartsAction(): Promise<ChartConfig[]> {
-    let retries = 3;
-    while (retries > 0) {
-        try {
-            const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
-            if (!fileContent || fileContent.trim() === '') return [];
-            return JSON.parse(fileContent);
-        } catch (e) {
-            retries--;
-            if (retries === 0) {
-                console.error('[ChartService] Failed to load pinned charts after retries:', e);
-                return [];
+    try {
+        // 1. DB에서 조회 시도
+        const rows = await queryTable('dashboard_chart', { orderBy: 'createdAt', orderDirection: 'DESC' });
+        
+        // 2. DB가 비어있다면 마이그레이션 시도
+        if (rows.length === 0) {
+            try {
+                const fileExists = await fs.access(PINNED_CHARTS_PATH).then(() => true).catch(() => false);
+                if (fileExists) {
+                    const fileContent = await fs.readFile(PINNED_CHARTS_PATH, 'utf-8');
+                    const jsonCharts = JSON.parse(fileContent);
+                    
+                    if (jsonCharts.length > 0) {
+                        console.log(`[ChartService] Migrating ${jsonCharts.length} charts to database...`);
+                        const rowsToInsert = jsonCharts.map((c: any) => ({
+                            id: c.id,
+                            userId: String(c.userId || 'admin'),
+                            config: JSON.stringify(c.config),
+                            layout: JSON.stringify(c.layout || {}),
+                            isSample: c.isSample ? 1 : 0,
+                            createdAt: c.createdAt || new Date().toISOString(),
+                            updatedAt: c.updatedAt || new Date().toISOString()
+                        }));
+                        
+                        await insertRows('dashboard_chart', rowsToInsert);
+                        console.log('[ChartService] Migration successful.');
+                        
+                        // 다시 DB에서 읽어오기
+                        const migratedRows = await queryTable('dashboard_chart', { orderBy: 'createdAt', orderDirection: 'DESC' });
+                        
+                        // 파일 삭제 (안전하게 마이그레이션 확인 후)
+                        await fs.unlink(PINNED_CHARTS_PATH).catch(() => {});
+                        
+                        return migratedRows.map(mapRowToChartConfig);
+                    }
+                }
+            } catch (e) {
+                console.error('[ChartService] Migration failed:', e);
             }
-            // 잠시 대기 후 재시도 (경쟁 상태 완화)
-            await new Promise(resolve => setTimeout(resolve, 50 * (3 - retries)));
         }
+        
+        return rows.map(mapRowToChartConfig);
+    } catch (e) {
+        console.error('[ChartService] Failed to load pinned charts:', e);
+        return [];
     }
-    return [];
 }
 
 /**
- * 차트 목록을 파일에 저장합니다. (원자적 쓰기 방식 도입)
+ * DB Row를 ChartConfig 형식으로 변환합니다.
+ */
+function mapRowToChartConfig(row: any): ChartConfig {
+    return {
+        id: row.id,
+        userId: row.userId,
+        config: typeof row.config === 'string' ? JSON.parse(row.config) : row.config,
+        layout: typeof row.layout === 'string' ? JSON.parse(row.layout) : row.layout,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        // refreshedAt은 config 내부에 있을 수도 있음
+        refreshedAt: row.updatedAt 
+    };
+}
+
+/**
+ * 차트 목록을 DB에 저장합니다.
  */
 export async function saveAllPinnedChartsAction(charts: ChartConfig[]): Promise<void> {
-    const tempPath = `${PINNED_CHARTS_PATH}.${Math.random().toString(36).slice(2)}.tmp`;
     try {
-        await fs.writeFile(tempPath, JSON.stringify(charts, null, 2), 'utf-8');
-        await fs.rename(tempPath, PINNED_CHARTS_PATH);
+        // 기존 챠트 조회 (차이점 파악을 위함)
+        const existing = await queryTable('dashboard_chart');
+        const existingIds = new Set(existing.map((e: any) => e.id));
+        const newIds = new Set(charts.map(c => c.id));
+        
+        // 1. 삭제된 항목 처리
+        const toDelete = existing.filter((e: any) => !newIds.has(e.id));
+        if (toDelete.length > 0) {
+            await deleteRows('dashboard_chart', { 
+                filters: { id: toDelete.map((e: any) => e.id).join(',') } 
+            });
+        }
+        
+        // 2. 신규 및 업데이트 처리
+        for (const c of charts) {
+            const chartData = {
+                id: c.id,
+                userId: String(c.userId),
+                config: JSON.stringify(c.config),
+                layout: JSON.stringify(c.layout || {}),
+                isSample: (c as any).isSample ? 1 : 0,
+                updatedAt: new Date().toISOString()
+            };
+            
+            if (existingIds.has(c.id)) {
+                // 업데이트
+                await updateRows('dashboard_chart', chartData, { filters: { id: c.id } });
+            } else {
+                // 삽입
+                await insertRows('dashboard_chart', [{
+                    ...chartData,
+                    createdAt: c.createdAt || new Date().toISOString()
+                }]);
+            }
+        }
     } catch (e) {
-        console.error('[ChartService] Failed to save pinned charts atomically:', e);
-        // 에러 발생 시 임시 파일 삭제 시도
-        try { await fs.unlink(tempPath); } catch {}
+        console.error('[ChartService] Failed to save pinned charts to DB:', e);
         throw e;
     }
 }
