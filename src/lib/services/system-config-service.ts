@@ -45,6 +45,7 @@ export class SystemConfigService {
             if (settings) {
                 // SQLite uses 0/1 for booleans; convert to native boolean
                 settings.isInitialized = Number(settings.isInitialized) === 1;
+                settings.backupScheduleEnabled = Number(settings.backupScheduleEnabled) === 1;
             }
             return settings;
         } catch (error) {
@@ -81,6 +82,10 @@ export class SystemConfigService {
                 { name: 'themeColor', type: 'TEXT' },
                 { name: 'businessContext', type: 'TEXT' },
                 { name: 'isInitialized', type: 'INTEGER', defaultValue: 0 },
+                { name: 'backupScheduleEnabled', type: 'INTEGER', defaultValue: 0 },
+                { name: 'backupScheduleDays', type: 'TEXT', defaultValue: '1,2,3,4,5,6' },
+                { name: 'backupScheduleTime', type: 'TEXT', defaultValue: '03:00' },
+                { name: 'backupRetentionCount', type: 'INTEGER', defaultValue: 10 },
                 { name: 'updatedAt', type: 'TEXT' }
             ], { tableName: 'system_settings' });
         }
@@ -111,6 +116,9 @@ export class SystemConfigService {
             const dataToUpdate: any = { ...updates };
             if (updates.isInitialized !== undefined) {
                 dataToUpdate.isInitialized = updates.isInitialized ? 1 : 0;
+            }
+            if (updates.backupScheduleEnabled !== undefined) {
+                dataToUpdate.backupScheduleEnabled = updates.backupScheduleEnabled ? 1 : 0;
             }
             dataToUpdate.updatedAt = new Date().toISOString();
 
@@ -152,6 +160,10 @@ export class SystemConfigService {
                     throw new Error(`insertRows(system_settings) failed: ${e.message}`);
                 }
             }
+
+            // 스케줄러 업데이트 트리거
+            const { BackupScheduler } = await import('./backup-scheduler');
+            await BackupScheduler.update();
 
             return true;
         } catch (error: any) {

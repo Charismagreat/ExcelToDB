@@ -24,10 +24,14 @@ import {
     downloadBackupAction, // 추가
     uploadBackupAction // 추가
 } from '@/app/actions/backup';
+import { getSystemSettingsAction, updateSystemSettingsAction } from '@/app/actions/system';
+import { SystemSettings } from '@/lib/services/system-config-service';
 import PageHeader from '@/components/PageHeader';
+import { Calendar, Clock } from 'lucide-react';
 
 export default function BackupManager() {
     const [backups, setBackups] = useState<any[]>([]);
+    const [settings, setSettings] = useState<SystemSettings | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [showConfirmRestore, setShowConfirmRestore] = useState<string | null>(null);
@@ -44,8 +48,18 @@ export default function BackupManager() {
         }
     };
 
+    const fetchSettings = async () => {
+        try {
+            const data = await getSystemSettingsAction();
+            setSettings(data);
+        } catch (error) {
+            console.error('설정 로드 실패:', error);
+        }
+    };
+
     useEffect(() => {
         fetchBackups();
+        fetchSettings();
     }, []);
 
     const handleCreateBackup = async () => {
@@ -55,6 +69,38 @@ export default function BackupManager() {
             await fetchBackups();
         } catch (error) {
             alert('백업 생성 실패: ' + (error as any).message);
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
+    const handleRestore = async (filename: string) => {
+        setIsActionLoading(true);
+        try {
+            const res = await restoreBackupAction(filename);
+            if (res.success) {
+                alert('시스템이 성공적으로 복구되었습니다. 페이지가 새로고침됩니다.');
+                window.location.reload();
+            }
+        } catch (error) {
+            alert('복구 실패: ' + (error as any).message);
+        } finally {
+            setIsActionLoading(false);
+            setShowConfirmRestore(null);
+        }
+    };
+
+    const handleToggleSchedule = async () => {
+        if (!settings) return;
+        const newEnabled = !settings.backupScheduleEnabled;
+        setIsActionLoading(true);
+        try {
+            const res = await updateSystemSettingsAction({ backupScheduleEnabled: newEnabled });
+            if (res.success) {
+                setSettings({ ...settings, backupScheduleEnabled: newEnabled });
+            }
+        } catch (error) {
+            alert('설정 저장 실패');
         } finally {
             setIsActionLoading(false);
         }
@@ -128,6 +174,39 @@ export default function BackupManager() {
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Scheduling Config Section */}
+            <div className="bg-slate-900 rounded-[40px] p-8 border border-slate-800 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl -mr-32 -mt-32" />
+                
+                <div className="flex flex-col md:flex-row justify-between items-center gap-8 relative z-10">
+                    <div className="flex items-center gap-6">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 ${settings?.backupScheduleEnabled ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/40' : 'bg-slate-800 text-slate-50'}`}>
+                            <Clock size={28} />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-white uppercase tracking-tight">Automated Snapshot Schedule</h3>
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
+                                {settings?.backupScheduleEnabled 
+                                    ? `활성화됨: 매주 월-토 새벽 3시 (최대 10개 보관)` 
+                                    : '자동 백업이 비활성화되어 있습니다'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={handleToggleSchedule}
+                        disabled={isActionLoading || !settings}
+                        className={`px-8 py-4 rounded-[20px] font-black text-xs uppercase tracking-widest transition-all flex items-center gap-3 ${
+                            settings?.backupScheduleEnabled 
+                            ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20' 
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                        }`}
+                    >
+                        {settings?.backupScheduleEnabled ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                        {settings?.backupScheduleEnabled ? 'Schedule Active' : 'Enable Auto-Backup'}
+                    </button>
+                </div>
+            </div>
             {/* Header / Stats */}
             <div className="bg-white rounded-[40px] p-10 border border-slate-100 shadow-2xl shadow-slate-200/50 flex flex-col md:flex-row justify-between items-center gap-8">
                 <div className="flex items-center gap-6">

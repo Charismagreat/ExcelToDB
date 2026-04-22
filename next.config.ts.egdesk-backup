@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   
+  eslint: {
+    // Ignore lint errors during build
+    ignoreDuringBuilds: true,
+  },
+  
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb'

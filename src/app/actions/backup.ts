@@ -13,15 +13,15 @@ import {
 } from '@/egdesk-helpers';
 import { getSessionAction } from './auth';
 
+import { BackupService } from '@/lib/services/backup-service';
+
 const BACKUP_DIR = path.join(process.cwd(), 'backups');
 
 /**
  * 📁 백업 디렉토리 확보
  */
 function ensureBackupDir() {
-    if (!fs.existsSync(BACKUP_DIR)) {
-        fs.mkdirSync(BACKUP_DIR, { recursive: true });
-    }
+    BackupService.ensureBackupDir();
 }
 
 /**
@@ -54,36 +54,10 @@ export async function createBackupAction() {
     const session = await getSessionAction();
     if (!session || session.role !== 'ADMIN') throw new Error('권한 부족');
 
-    ensureBackupDir();
-    const res = await listTables();
-    const tables = res?.tables || [];
-    
-    const backupData: any = {
-        version: "1.0",
-        timestamp: new Date().toISOString(),
-        tables: []
-    };
+    const result = await BackupService.createBackup();
 
-    console.log(`[Backup] Starting snapshot for ${tables.length} tables...`);
-
-    for (const table of tables) {
-        const tableName = table.tableName;
-        const schema = await getTableSchema(tableName);
-        const rows = await queryTable(tableName);
-
-        backupData.tables.push({
-            name: tableName,
-            displayName: table.displayName,
-            schema,
-            rows: rows || []
-        });
-    }
-
-    const filename = `snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-    fs.writeFileSync(path.join(BACKUP_DIR, filename), JSON.stringify(backupData, null, 2));
-
-    revalidatePath('/dashboard'); // 또는 백업 페이지 경로
-    return { success: true, filename };
+    revalidatePath('/dashboard');
+    return result;
 }
 
 /**
