@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { queryTable } from '@/egdesk-helpers';
+import { fetchPublishingDataAction } from '@/app/actions/publishing';
 import { CashReport } from './templates/CashReport';
 
 interface TemplateRendererProps {
@@ -26,9 +27,10 @@ export function TemplateRenderer({
   useEffect(() => {
     async function fetchData() {
       try {
+        if (!sourceTableId || sourceTableId === 'undefined') return;
         setLoading(true);
-        // Fetch raw data from the source table
-        const results = await queryTable(sourceTableId, { limit: 100 });
+
+        const results = await fetchPublishingDataAction(sourceTableId, { limit: 100 });
         setData(results);
       } catch (err: any) {
         console.error('Failed to fetch data for micro-app:', err);

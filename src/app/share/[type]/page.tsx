@@ -3,10 +3,12 @@ import { SmartChart } from '@/components/SmartChart';
 import { getPinnedChartsAction } from '@/app/actions/ai';
 import { notFound } from 'next/navigation';
 
-export default async function SharedChartPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = await params;
+export default async function SharedChartPage({ params }: { params: Promise<{ type: string }> }) {
+  const { type } = await params;
   const allCharts = await getPinnedChartsAction();
-  const chartData = allCharts.find((c: any) => c.id === resolvedParams.id);
+  
+  // 기존 [id] 슬러그가 [type]으로 변경됨
+  const chartData = allCharts.find((c: any) => c.id === type);
 
   if (!chartData) {
     notFound();
@@ -21,7 +23,6 @@ export default async function SharedChartPage({ params }: { params: Promise<{ id
           <p className="text-slate-500 font-medium text-sm mt-1">이 차트는 FinanceHub 플랫폼에서 공유되었습니다.</p>
         </div>
         
-        {/* SmartChart에 공유화면용(비로그인 대응) 제약을 주려면 onRefresh 등을 제외하고 전달 */}
         <div className="shadow-2xl shadow-blue-900/10 rounded-[40px]">
           <SmartChart 
             config={chartData.config} 

@@ -3,12 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { 
   getProactivePublishingSuggestionsAction, 
-  publishMicroAppAction 
+  publishMicroAppAction,
+  profileAllTablesAction,
+  getPublishingAIAdjustmentAction
 } from '@/app/actions/publishing';
 import { TemplateRenderer } from './TemplateRenderer';
 import { 
   Sparkles, MessageSquare, Send, CheckCircle2, ArrowRight,
-  Layout, Database, Info, ExternalLink
+  Layout, Database, Info, ExternalLink, ChevronRight, Loader2
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -18,8 +20,9 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export function PublishingWizard() {
-  const [step, setStep] = useState<'discovery' | 'adjustment' | 'success'>('discovery');
+  const [step, setStep] = useState<'discovery' | 'adjustment' | 'success' | 'manual'>('discovery');
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [allTables, setAllTables] = useState<any[]>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
   const [mappingConfig, setMappingConfig] = useState<any>(null);
   const [uiSettings, setUiSettings] = useState<any>({ showChart: true });
@@ -30,28 +33,59 @@ export function PublishingWizard() {
   const [publishedId, setPublishedId] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadSuggestions() {
-      const data = await getProactivePublishingSuggestionsAction();
-      setSuggestions(data);
+    async function loadData() {
+      const sugData = await getProactivePublishingSuggestionsAction();
+      setSuggestions(sugData);
+      
+      const { listTables, listBanks, listHometaxConnections } = await import('@/egdesk-helpers');
+      const { tables } = await listTables();
+      
+      // 상태와 관계없이 기본적으로 제공해야 할 금융 소스들
+      const virtualTables = [
+        {
+          name: 'finance_bank_transactions',
+          displayName: '은행 계좌 거래 내역 (FinanceHub)',
+          isVirtual: true
+        },
+        {
+          name: 'hometax_sales_invoices',
+          displayName: '매출세금계산서 (홈택스)',
+          isVirtual: true
+        }
+      ];
+
+      setAllTables([...virtualTables, ...tables]);
     }
-    loadSuggestions();
+    loadData();
   }, []);
+
+  const handleRefreshKnowledge = async () => {
+    setIsAIProcessing(true);
+    await profileAllTablesAction();
+    const sugData = await getProactivePublishingSuggestionsAction();
+    setSuggestions(sugData);
+    setIsAIProcessing(false);
+  };
 
   const handleSelectSuggestion = (s: any) => {
     setSelectedSuggestion(s);
     setAppName(`${s.tableName} 리포트`);
-    // Initial default mapping (will be refined by AI later)
-    setMappingConfig({
-      date: '날짜',
-      inflow: '입금액',
-      outflow: '출금액',
-      description: '적요',
-      category: '구분'
-    });
+    // Use knowledge-based mapping if available, otherwise fallback to defaults
+    if (s.mapping) {
+      setMappingConfig(s.mapping);
+    } else {
+      setMappingConfig({
+        date: '날짜',
+        inflow: '입금액',
+        outflow: '출금액',
+        description: '적요',
+        category: '구분'
+      });
+    }
     setStep('adjustment');
     
     setChatMessages([
-      { role: 'assistant', content: `안녕하세요! '${s.tableName}' 테이블을 기반으로 ${s.templateId === 'cash-report' ? '자금일보' : '분석'} 앱을 구성했습니다. 오른쪽 미리보기를 확인해 보세요. 수정하고 싶은 부분이 있다면 말씀해 주세요!` }
+      { role: 'assistant', content: `안녕하세요! '${s.tableName}' 테이블에 대한 지식 분석 결과에 따라 최적의 매핑 설정을 완료했습니다. 오른쪽 미리보기를 확인해 보세요. 수정하고 싶은 부분이 있다면 말씀해 주세요!` }
     ]);
   };
 
@@ -64,13 +98,30 @@ export function PublishingWizard() {
     setIsAIProcessing(true);
 
     try {
-      // Mocking AI response for now - in real implementation, call getPublishingAIAdjustment
-      setTimeout(() => {
-        setChatMessages([...newMessages, { role: 'assistant', content: "알겠습니다. 매핑 설정을 최적화했습니다. 변경된 내용이 미리보기에 반영되었습니다." }]);
-        setIsAIProcessing(false);
-      }, 1000);
+      const adjustment = await getPublishingAIAdjustmentAction(
+        inputMessage,
+        selectedSuggestion.tableId,
+        mappingConfig
+      );
+
+      if (adjustment.newTableId && adjustment.newTableId !== selectedSuggestion.tableId) {
+        setSelectedSuggestion({
+          ...selectedSuggestion,
+          tableId: adjustment.newTableId,
+          tableName: adjustment.newTableName || adjustment.newTableId
+        });
+        setAppName(`${adjustment.newTableName || adjustment.newTableId} 리포트`);
+      }
+
+      if (adjustment.newMapping) {
+        setMappingConfig(adjustment.newMapping);
+      }
+
+      setChatMessages([...newMessages, { role: 'assistant', content: adjustment.explanation }]);
+      setIsAIProcessing(false);
     } catch (error) {
       console.error('AI Processing error:', error);
+      setChatMessages([...newMessages, { role: 'assistant', content: "죄송합니다. 설정을 조정하는 중 문제가 발생했습니다." }]);
       setIsAIProcessing(false);
     }
   };
@@ -101,6 +152,17 @@ export function PublishingWizard() {
           </div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight">마이크로 앱 발행하기</h2>
           <p className="text-slate-500 font-medium max-w-lg mx-auto">이지데스크 AI가 워크스페이스를 스캔하여 가장 적합한 비즈니스 템플릿을 찾아냈습니다.</p>
+          
+          <div className="pt-4">
+            <button 
+              onClick={handleRefreshKnowledge}
+              disabled={isAIProcessing}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50"
+            >
+              {isAIProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-blue-500" />}
+              AI 지식 아카이브 갱신
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -131,15 +193,57 @@ export function PublishingWizard() {
             </button>
           ))}
           
-          <div className="p-8 rounded-[32px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center space-y-4 hover:bg-slate-50 transition-colors cursor-pointer">
-            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+          <button 
+            onClick={() => setStep('manual')}
+            className="p-8 rounded-[32px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center space-y-4 hover:bg-slate-50 transition-colors cursor-pointer w-full group"
+          >
+            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center group-hover:scale-110 transition-transform">
               <ArrowRight className="w-6 h-6 text-slate-400" />
             </div>
             <div>
               <p className="font-bold text-slate-800">다른 테이블 직접 선택</p>
               <p className="text-sm text-slate-400">모든 테이블 목록에서 직접 고르기</p>
             </div>
-          </div>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'manual') {
+    return (
+      <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-700">
+        <div className="flex items-center gap-4">
+          <button onClick={() => setStep('discovery')} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+            <ArrowRight className="w-6 h-6 rotate-180" />
+          </button>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">테이블 선택</h2>
+        </div>
+        
+        <div className="bg-white rounded-[32px] border border-slate-100 shadow-xl overflow-hidden divide-y divide-slate-50">
+          {allTables.map((table, idx) => (
+            <button 
+              key={idx}
+              onClick={() => handleSelectSuggestion({
+                tableId: table.name || table.tableName, // Ensure we have a valid ID
+                tableName: table.displayName || table.name || table.tableName,
+                templateId: 'cash-report',
+                reason: '사용자 수동 선택'
+              })}
+              className="w-full text-left px-8 py-6 hover:bg-blue-50 transition-colors flex items-center justify-between group"
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{table.displayName || table.name || table.tableName}</p>
+                  {table.isVirtual && (
+                    <span className="px-2 py-0.5 rounded-md bg-blue-100 text-[10px] font-black text-blue-600 uppercase tracking-tighter">Finance</span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 font-medium uppercase tracking-wider mt-1">ID: {table.name || table.tableName}</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
+            </button>
+          ))}
         </div>
       </div>
     );
