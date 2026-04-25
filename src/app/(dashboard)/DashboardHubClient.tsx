@@ -28,9 +28,11 @@ interface DashboardHubClientProps {
   isStaff: boolean;
   reports: any[];
   events: CalendarEvent[];
+  financeStats?: any;
+  hometaxStats?: any;
 }
 
-export function DashboardHubClient({ user, isStaff, reports, events }: DashboardHubClientProps) {
+export function DashboardHubClient({ user, isStaff, reports, events, financeStats, hometaxStats }: DashboardHubClientProps) {
   const pathname = usePathname();
   const [showManualModal, setShowManualModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'reports' | 'backups'>('reports');

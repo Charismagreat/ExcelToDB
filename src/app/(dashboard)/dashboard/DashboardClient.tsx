@@ -291,10 +291,10 @@ export function DashboardClient({ allTables, user }: DashboardClientProps) {
                 </div>
                 <div className="flex-1 text-left overflow-hidden">
                   <p className="text-xs font-black truncate">{table.displayName || table.name}</p>
-                  <p className={`text-[9px] uppercase tracking-tighter opacity-60 ${
+                  <p className={`text-[9px] tracking-tighter opacity-60 ${
                     selectedIds.includes(table.id) ? 'text-blue-100' : 'text-slate-400'
                   }`}>
-                    {table.sheetName || 'Workspace Table'}
+                    <span className="uppercase">ID:</span> {table.tableName || table.id}
                   </p>
                 </div>
                 {selectedIds.includes(table.id) && <ChevronRight size={14} />}

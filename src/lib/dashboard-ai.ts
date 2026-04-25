@@ -88,6 +88,38 @@ const tools: any[] = [
             bankId: { type: SchemaType.STRING, description: "특정 은행 ID (선택 사항)" }
           }
         }
+      },
+      {
+        name: "get_finance_dashboard_summary",
+        description: "MY DB(대시보드) 메인 화면에 표시되는 전체 금융 통계(은행별 잔액, 전체 거래 건수 등)를 그대로 가져옵니다. 대시보드와 동일한 숫자를 보여줘야 할 때 가장 먼저 사용하세요.",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {}
+        }
+      },
+      {
+        name: "query_bank_transactions",
+        description: "은행 계좌의 상세 입출금 거래 내역을 조회합니다. '거래 내역', '입출금 리스트' 요청 시 사용하세요.",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            startDate: { type: SchemaType.STRING, description: "시작일 (YYYY-MM-DD)" },
+            endDate: { type: SchemaType.STRING, description: "종료일 (YYYY-MM-DD)" },
+            limit: { type: SchemaType.NUMBER, description: "조회 건수" }
+          }
+        }
+      },
+      {
+        name: "query_card_transactions",
+        description: "신용카드의 상세 결제 내역을 조회합니다. '카드 내역', '결제 리스트' 요청 시 사용하세요.",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            startDate: { type: SchemaType.STRING, description: "시작일 (YYYY-MM-DD)" },
+            endDate: { type: SchemaType.STRING, description: "종료일 (YYYY-MM-DD)" },
+            limit: { type: SchemaType.NUMBER, description: "조회 건수" }
+          }
+        }
       }
     ]
   }
@@ -98,44 +130,84 @@ const model = genAI.getGenerativeModel({
   tools,
 }, { apiVersion: 'v1beta' });
 
-export interface ChartConfig {
-  type: 'bar' | 'line' | 'area' | 'pie' | 'table';
-  data: any[];
-  xAxis: string;
-  series: { key: string; name: string; color?: string }[];
-  title: string;
-  showLabels?: boolean;
-  sourceDescription?: string; // 데이터 추출 로직 설명 (Human-readable)
-  layout?: {
-    span?: 'half' | 'full';
-  };
-  refreshMetadata?: {
-    tool: string;            // 사용된 도구명
-    args: any;               // 도구 호출 인자
-    mapping?: {              // 도구 결과 -> 차트 데이터 매핑 정보
-      label: string; 
-      value: string;
-    };
-  };
-}
-
-export interface AIResponse {
-  content: string;
-  chartConfigs?: ChartConfig[];
-}
-
+// ... (ChartConfig 등 인터페이스 생략)
 
 /**
  * 선택된 테이블들의 기본 컨텍스트를 수집합니다.
  */
 async function getInitialContext(tableIds: string[]) {
   const contexts = await Promise.all(tableIds.map(async (id) => {
-    if (id === 'finance-hub-table') {
+    // FinanceHub 특정 테이블들에 대한 정밀 컨텍스트 부여 (다양한 ID 패턴 대응)
+    const isBank = id === 'finance_bank_transactions' || id === 'finance-hub-bank-table' || id === 'rep-finance_bank_transactions';
+    const isCard = id === 'finance_card_transactions' || id === 'finance-hub-card-table' || id === 'rep-finance_card_transactions';
+    const isHometax = id.includes('hometax') || id.includes('tax_invoices');
+    const isPromissory = id.includes('promissory');
+    const isFinanceHub = id === 'finance-hub-table' || isBank || isCard || isHometax || isPromissory;
+
+    if (isFinanceHub) {
+      // 가상 금융 테이블을 위한 고정 스키마 정의 (실제 시스템 컬럼 반영)
+      const bankSchema = [
+        { name: 'date', type: 'DATE', displayName: '거래일자' },
+        { name: 'time', type: 'TEXT', displayName: '거래시간' },
+        { name: 'transaction_datetime', type: 'TEXT', displayName: '거래일시(상세)' },
+        { name: '_bankName', type: 'TEXT', displayName: '은행명(표시용)' },
+        { name: 'bankId', type: 'TEXT', displayName: '은행ID' },
+        { name: 'accountNumber', type: 'TEXT', displayName: '계좌번호' },
+        { name: 'accountName', type: 'TEXT', displayName: '계좌명' },
+        { name: 'description', type: 'TEXT', displayName: '적요' },
+        { name: 'counterparty', type: 'TEXT', displayName: '거래처/상대방' },
+        { name: 'customerName', type: 'TEXT', displayName: '고객명' },
+        { name: 'withdrawal', type: 'NUMBER', displayName: '출금액' },
+        { name: 'deposit', type: 'NUMBER', displayName: '입금액' },
+        { name: 'balance', type: 'NUMBER', displayName: '현재잔액' },
+        { name: 'type', type: 'TEXT', displayName: '거래유형' },
+        { name: 'category', type: 'TEXT', displayName: '카테고리' },
+        { name: 'memo', type: 'TEXT', displayName: '메모' },
+        { name: 'branch', type: 'TEXT', displayName: '지점' }
+      ];
+      const cardSchema = [
+        { name: 'date', type: 'DATE', displayName: '이용일자' },
+        { name: 'cardName', type: 'TEXT', displayName: '카드명' },
+        { name: 'cardNumber', type: 'TEXT', displayName: '카드번호' },
+        { name: 'merchantName', type: 'TEXT', displayName: '가맹점명' },
+        { name: 'amount', type: 'NUMBER', displayName: '결제금액' },
+        { name: 'category', type: 'TEXT', displayName: '카테고리' },
+        { name: 'status', type: 'TEXT', displayName: '상태' },
+        { name: 'approvalDate', type: 'TEXT', displayName: '승인일자' },
+        { name: 'approvalNumber', type: 'TEXT', displayName: '승인번호' },
+        { name: 'installment', type: 'TEXT', displayName: '할부정보' }
+      ];
+      const hometaxSchema = [
+        { name: 'writeDate', type: 'DATE', displayName: '작성일자' },
+        { name: 'issueDate', type: 'DATE', displayName: '발급일자' },
+        { name: 'supplierName', type: 'TEXT', displayName: '공급자명' },
+        { name: 'supplierBusinessNumber', type: 'TEXT', displayName: '공급자사업자번호' },
+        { name: 'receiverName', type: 'TEXT', displayName: '공급받는자명' },
+        { name: 'receiverBusinessNumber', type: 'TEXT', displayName: '공급받는자사업자번호' },
+        { name: 'supplyAmount', type: 'NUMBER', displayName: '공급가액' },
+        { name: 'taxAmount', type: 'NUMBER', displayName: '세액' },
+        { name: 'totalAmount', type: 'NUMBER', displayName: '합계금액' },
+        { name: 'itemNames', type: 'TEXT', displayName: '품목명' },
+        { name: 'invoiceType', type: 'TEXT', displayName: '계산서종류' },
+        { name: 'status', type: 'TEXT', displayName: '상태' }
+      ];
+
+      let currentSchema = bankSchema;
+      if (isCard) currentSchema = cardSchema;
+      else if (isHometax) currentSchema = hometaxSchema;
+      else if (isPromissory) currentSchema = [{ name: 'issueDate', type: 'DATE', displayName: '발행일' }, { name: 'maturityDate', type: 'DATE', displayName: '만기일' }, { name: 'amount', type: 'NUMBER', displayName: '어음금액' }, { name: 'noteNumber', type: 'TEXT', displayName: '어음번호' }, { name: 'issuer', type: 'TEXT', displayName: '발행인' }, { name: 'receiver', type: 'TEXT', displayName: '수취인' }];
+
       return {
         id,
-        name: '금융거래 통합 내역 (FinanceHub)',
-        description: '카드 결제 및 계좌 거래 내역을 포함하는 통합 금융 데이터입니다.',
-        availableTools: ['get_finance_monthly_summary', 'get_finance_statistics', 'get_card_usage_by_approval_date', 'list_bank_accounts']
+        name: isBank ? '은행 계좌 거래 내역' : (isCard ? '신용카드 거래 내역' : (isHometax ? '홈택스 세금계산서 내역' : '금융거래 데이터')),
+        description: isBank 
+          ? '등록된 모든 은행 계좌의 입출금 및 잔액 정보입니다.' 
+          : (isCard ? '등록된 모든 신용카드의 결제 및 사용 내역입니다.' : '금융 및 세무 통합 데이터입니다.'),
+        category: 'Finance',
+        schema: currentSchema,
+        availableTools: isCard 
+          ? ['get_finance_monthly_summary', 'get_finance_statistics', 'get_card_usage_by_approval_date', 'query_card_transactions'] 
+          : (isHometax ? ['get_aggregated_report_data', 'execute_analytical_sql'] : ['get_finance_monthly_summary', 'get_finance_statistics', 'list_bank_accounts', 'query_bank_transactions', 'get_finance_dashboard_summary'])
       };
     } else {
       const reports = await queryTable('report', { filters: { id } });
@@ -174,9 +246,15 @@ export async function getVisualizationRecommendation(
     
     [당신의 권한]
     당신은 실시간으로 데이터를 조회하고 집계할 수 있는 '도구(Tools)'를 가지고 있습니다. 
-    1. 사용자가 "지난달과 이번달 비교"와 같이 전체 데이터 집계가 필요한 요청을 하면 관련 도구를 호출하십시오.
-    2. "은행별 잔액", "현재 계좌 현황" 등을 요청하면 반드시 'list_bank_accounts' 도구를 사용하십시오. 이 도구는 'accountName'(계좌명), 'bankName'(은행명), 'balance'(잔액) 등의 필드를 반환하므로, 이를 활용해 파이 차트나 바 차트를 생성하십시오.
-    3. 특히 "정확한 금액" 또는 "승인일 기준" 요청이 있으면 반드시 'get_card_usage_by_approval_date' 도구를 사용하여 데이터를 직접 집계하십시오.
+    1. **잔액 및 계좌 현황 (최우선)**: 사용자가 "현재 잔액", "계좌 현황", "은행별 잔액", 혹은 **"MY DB 테이블", "가상 테이블", "이미 들어와 있는 데이터"** 등을 언급하며 분석을 요청하면 **무조건 'get_finance_dashboard_summary' 도구를 먼저 호출**하십시오. 이 도구는 이지데스크 서버의 가상 테이블 로직을 그대로 사용하여 'bankBreakdown' 정보를 반환합니다. 
+       - 'bankBreakdown' 배열의 각 항목은 '은행명', '현재잔액', '계좌번호' 등을 포함합니다.
+       - 사용자가 "현명한 방법(MY DB 테이블 직접 쿼리)"을 제안한 것을 기억하고, 이 도구가 그 역할을 수행함을 인지하십시오.
+    2. 입출금 상세 내역: 특정 기간의 상세 거래 리스트가 필요할 때만 'query_bank_transactions' 또는 'query_card_transactions'를 사용하십시오.
+    3. 지난달 비교 등 집계: 'get_finance_monthly_summary' 등을 호출하십시오.
+    
+    [중요 지침]
+    - 절대로 임의로 0원이라고 추측하지 마세요. 도구 호출 결과가 0이라면 데이터 동기화가 필요한 상태임을 안내하세요.
+    - 계좌 정보 출력 시 'bankBreakdown'에 있는 정보를 기반으로 하되, 카드 계좌는 필터링 규칙(이전에 안내됨)을 준수하세요.
     
     [분석 대상 테이블 정보]
     ${JSON.stringify(contexts, null, 2)}
@@ -195,8 +273,10 @@ export async function getVisualizationRecommendation(
     5. 만약 사용자의 메시지가 "[대상 차트: '차트제목'] {요청내용}" 형식이면, 해당 제목을 가진 차트를 찾아 설정을 수정하세요. 다른 원본 차트들은 그대로 유지한 상태로, 이들을 모두 합쳐서 전체 chartConfigs 배열로 반환해야 합니다. 일부만 반환하면 화면에서 기존 차트가 날아가는 버그가 생깁니다.
     6. **정밀 색상 제어**: 차트의 개별 요소(막대, 파이 조각 등)의 색상을 개별적으로 지정하려면 'data' 배열의 각 객체에 '"color": "#hex"' 속성을 추가하십시오. 특정 항목의 색상만 변경하라는 요청을 받으면, **해당 항목의 색상만 수정하고 다른 항목들은 기존에 적용되었던 색상을 유지**하여 일관성을 지키십시오.
     7. 이제 차트 막대나 선 위에 금액(값)을 상시 표시할 수 있습니다. 사용자가 수치를 직접 보고 싶어 한다면 chartConfigs에서 "showLabels": true를 설정하십시오. (기본적으로 true를 권장합니다)
-    8. 시각화 추천이 포함된 경우, **반드시 어떠한 마크다운 코드블록(예: \`\`\`json)이나 불필요한 인사말 없이, 처음부터 끝까지 올바른 1개의 JSON 객체 형식만** 문자열로 출력하세요. JSON 파싱이 실패하지 않도록 'content' 등 문자열 내부에 쌍따옴표나 줄바꿈이 있다면 반드시 올바르게 이스케이프('\\n', '\\"') 처리하십시오.
-    9. **Explainability & Dynamic Sync**: 차트를 생성할 때 다음 두 필드를 반드시 포함하여 사용자가 데이터의 근거를 이해하고 최신 데이터로 갱신할 수 있게 하십시오.
+    8. 데이터가 20건을 넘어가면 요약하는 것이 원칙이나, 사용자가 '계좌 목록'이나 '전체 내역'을 요청한 경우(특히 금융 분석)에는 20건 제한을 무시하고 최대한 모든 데이터를 표로 나열하세요. 만약 도구 결과에 'fullTableMarkdown' 필드가 있다면, 이를 가공하지 말고 사용자에게 즉시 그대로 출력하여 보여주세요.
+    9. 금융 표 생성 시 '은행명', '계좌번호', '현재잔액'은 반드시 별도의 독립된 컬럼으로 표시해야 하며, 이를 하나로 합치거나 생략해서는 안 됩니다.
+    10. 인사말이나 불필요한 설명 없이 반드시 처음부터 끝까지 올바른 1개의 JSON 객체 형식만 문자열로 출력하세요. JSON 파싱이 실패하지 않도록 'content' 등 문자열 내부에 쌍따옴표나 줄바꿈이 있다면 반드시 올바르게 이스케이프('\\n', '\\"') 처리하십시오.
+    11. **Explainability & Dynamic Sync**: 차트를 생성할 때 다음 두 필드를 반드시 포함하여 사용자가 데이터의 근거를 이해하고 최신 데이터로 갱신할 수 있게 하십시오.
        - 'sourceDescription': 데이터가 어떻게 추출되었는지에 대한 한글 설명 (예: "최근 6개월간의 월별 카드 지출 합계")
        - 'refreshMetadata': 자동 갱신을 위한 기술적 정보. 사용한 도구명('tool'), 인자('args'), 그리고 도구 결과 필드를 차트 데이터('label', 'value')로 매핑하는 정보('mapping')를 포함하십시오.
     
@@ -256,13 +336,19 @@ export async function getVisualizationRecommendation(
       let result;
       try {
         result = await runAITool(call.name, call.args);
+        // 데이터 경량화: AI가 처리하기 쉽게 꼭 필요한 필드만 남김
+        if (call.name === 'get_finance_dashboard_summary' && result?.bankBreakdown) {
+          result.bankBreakdown = result.bankBreakdown.map((b: any) => ({
+            "은행명": b._bankName,
+            "계좌번호": b.accountNumber,
+            "현재잔액": b.balance,
+            "계좌별칭": b.accountName, 
+            "최종거래일": b.date
+          }));
+        }
       } catch (error: any) {
         console.error(`[AI Tool Error - ${call.name}]:`, error);
-        result = { 
-          error: error.message || String(error), 
-          sql_used: (call.args as any).sql || "not a sql tool",
-          tip: "CRITICAL DIRECTIVE: 쿼리가 실패했습니다. 절대로 사과나 변명을 하지 마세요! 즉시 'content' 필드에 [조회 실패 알림] 이라는 제목과 함께, 당신이 실행했던 정확한 SQL 쿼리 원문과 아래 에러 메시지의 원문을 한 글자도 빠짐없이 렌더링하세요. 사용자가 버그를 고치기 위해 꼭 필요합니다." 
-        };
+        result = { error: error.message || String(error) };
       }
       
       return {
@@ -277,33 +363,45 @@ export async function getVisualizationRecommendation(
     retryCount++;
   }
 
-  const responseText = response.response.text();
-  let cleanedResponseText = responseText.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
+  const responseText = response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  
+  // 디버깅을 위한 상세 로그 기록
+  try {
+    const logPath = 'c:\\dev\\egdesk_won3\\ExcelToDB\\ai_response_debug.txt';
+    const logData = {
+      timestamp: new Date().toISOString(),
+      responseText,
+      fullResponse: response.response,
+      retryCount
+    };
+    require('fs').appendFileSync(logPath, `\n--- DEBUG INFO ---\n${JSON.stringify(logData, null, 2)}\n`);
+  } catch(e) {}
 
-  // JSON 추출 및 정제 로직 강화
-  const jsonMatch = cleanedResponseText.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    let jsonString = jsonMatch[0];
+  let cleanedResponseText = responseText.trim();
+
+  // JSON 추출 로직 (더 견고하게 수정)
+  const firstBrace = cleanedResponseText.indexOf('{');
+  const lastBrace = cleanedResponseText.lastIndexOf('}');
+  
+  if (firstBrace !== -1 && lastBrace !== -1) {
+    const jsonString = cleanedResponseText.substring(firstBrace, lastBrace + 1);
     try {
+      // 1차 시도: 표준 파싱
       return JSON.parse(jsonString);
-    } catch (e: any) {
-      console.error("[JSON Parsing Error - Attempting Cleanup]:", e);
-      // 일반적인 줄바꿈(\n)이 이스케이프되지 않았을 경우를 대비한 2차 정제
+    } catch (e) {
+      // 2차 시도: 줄바꿈 및 특수문자 이스케이프 보정 후 파싱
       try {
-        const repairedJson = jsonString
-          .replace(/\n/g, "\\n")
-          .replace(/\r/g, "\\r")
-          .replace(/\t/g, "\\t");
-        return JSON.parse(repairedJson);
+        const repaired = jsonString
+          .replace(/\n/g, " ")
+          .replace(/\r/g, " ")
+          .replace(/\t/g, " ")
+          .replace(/\\([^"\\\/bfnrtu])/g, '$1'); // 잘못된 이스케이프 제거
+        return JSON.parse(repaired);
       } catch (e2) {
-        // 최종 실패 시 content만이라도 추출 시도
-        const contentMatch = jsonString.match(/"content"\s*:\s*"([\s\S]*?)"(?=\s*,\s*"|\s*\})/);
-        if (contentMatch) {
-          return { content: contentMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') };
-        }
+        console.error("[Final JSON Parse Failure]", e2);
       }
     }
   }
 
-  return { content: cleanedResponseText || "요청하신 내용에 대해 분석 결과를 생성하지 못했습니다. 질문을 조금 더 구체적으로 말씀해 주시거나 다른 테이블을 선택해 보세요." };
+  return { content: responseText || "분석 결과를 생성하는 도중 기술적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." };
 }

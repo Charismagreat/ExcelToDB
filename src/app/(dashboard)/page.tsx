@@ -248,6 +248,8 @@ export default async function DashboardPage() {
       isStaff={isStaff} 
       reports={uniqueReports} 
       events={events}
+      financeStats={financeStats}
+      hometaxStats={hometaxStats}
     />
   );
 }

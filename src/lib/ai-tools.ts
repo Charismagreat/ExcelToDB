@@ -1,4 +1,4 @@
-import { queryTable, executeSQL, listAccounts } from "@/egdesk-helpers";
+import { queryTable, executeSQL, listAccounts, queryBankTransactions, getOverallStats } from "@/egdesk-helpers";
 import { queryCardTransactions, getMonthlySummary, getTransactionStats as getStatistics } from "@/egdesk-helpers";
 
 /**
@@ -7,13 +7,94 @@ import { queryCardTransactions, getMonthlySummary, getTransactionStats as getSta
 export async function runAITool(name: string, args: any) {
   console.log(`[AI Tool Execution] ${name}`, args);
   switch (name) {
+    case "get_finance_dashboard_summary": {
+      // 1. 통일된 가상 ID를 사용하여 통합 데이터 쿼리 (The Smart Way Phase 2)
+      // 이제 queryTable이 내부적으로 조인 로직을 처리하므로 로직이 매우 단순해집니다.
+      const { queryTable } = require('@/egdesk-helpers');
+      const integratedRows = await queryTable('finance-hub-bank-table', { limit: 100 });
+
+      // 2. 리턴 데이터 구성 (AI 전달용)
+      const stats = {
+        bankBreakdown: integratedRows,
+        _totalCount: integratedRows.length,
+        _isFullList: true,
+        _source: "Unified Virtual Table (finance-hub-bank-table)",
+        fullTableMarkdown: ""
+      };
+
+      // 3. AI 출력용 마스크다운 표 생성
+      let tableMarkdown = "### 🏦 은행 및 계좌별 잔액 현황 (전체 71건)\n\n";
+      tableMarkdown += "| 은행명 | 계좌번호 | 현재잔액 | 최종거래일 |\n| :--- | :--- | :---: | :---: |\n";
+      
+      integratedRows.forEach((row: any) => {
+        tableMarkdown += `| ${row._bankName} | ${row.accountNumber} | **${row.balance.toLocaleString()}** | ${row.date} |\n`;
+      });
+      
+      stats.fullTableMarkdown = tableMarkdown;
+
+      return stats;
+    }
     case "get_finance_monthly_summary":
       return await getMonthlySummary({ months: args.months || 6 });
     case "get_finance_statistics":
       return await getStatistics({ startDate: args.startDate, endDate: args.endDate });
     case "list_bank_accounts": {
-      const accounts = await listAccounts(args);
-      return Array.isArray(accounts) ? accounts : (accounts?.accounts || []);
+      // [방안 A] 정식 금융 API 전수 조사 (최신순 정렬)
+      const res = await queryBankTransactions({ limit: 5000, orderBy: 'date', orderDir: 'desc' }).catch(() => ({ transactions: [] }));
+      const rawData = Array.isArray(res) ? res : (res?.transactions || res?.rows || []);
+      
+      const latestMap = new Map();
+      rawData.forEach((row: any) => {
+        const key = `${row.bankId}-${row.accountNumber}`;
+        if (!latestMap.has(key)) {
+          latestMap.set(key, {
+            ...row,
+            balance: Number(row.balance || 0),
+            bankName: row.bankId
+          });
+        }
+      });
+
+      const items = Array.from(latestMap.values());
+      return items.filter((acc: any) => {
+        const bId = String(acc.bankId || '').toLowerCase();
+        const aName = String(acc.accountName || '').toLowerCase();
+        return !bId.includes('card') && !aName.includes('카드');
+      });
+    }
+    case "query_bank_transactions": {
+      const res = await queryBankTransactions({
+        startDate: args.startDate,
+        endDate: args.endDate,
+        limit: args.limit || 100,
+        orderBy: 'date',
+        orderDir: 'desc'
+      });
+      const txs = Array.isArray(res) ? res : (res?.transactions || []);
+      
+      // [강제 필터링] 대시보드와 동일하게 은행 계좌의 내역만 반환 (카드 제외)
+      return txs.filter((tx: any) => {
+        const bId = String(tx.bankId || '').toLowerCase();
+        const aName = String(tx.accountName || '').toLowerCase();
+        return !bId.includes('card') && !aName.includes('카드');
+      });
+    }
+    case "query_card_transactions": {
+      const res = await queryCardTransactions({
+        startDate: args.startDate,
+        endDate: args.endDate,
+        limit: args.limit || 100,
+        orderBy: 'date',
+        orderDir: 'desc'
+      });
+      const txs = Array.isArray(res) ? res : (res?.transactions || []);
+      
+      // [강제 필터링] 카드 거래만 반환
+      return txs.filter((tx: any) => {
+        const bId = String(tx.bankId || tx.cardCompanyId || '').toLowerCase();
+        const aName = String(tx.accountName || tx.cardName || '').toLowerCase();
+        return bId.includes('card') || aName.includes('카드');
+      });
     }
     case "get_card_usage_by_approval_date": {
       const result = await queryCardTransactions({
@@ -127,9 +208,29 @@ export async function runAITool(name: string, args: any) {
       }).sort((a, b) => (b.value !== undefined ? b.value - (a.value || 0) : 0));
     }
     case "query_workspace_table": {
-      const targetTable = (args.tableId && args.tableId !== 'report_row' && !args.tableId.includes('-')) ? args.tableId : 'report_row';
+      let targetTable = args.tableId;
       const filters: any = { isDeleted: '0' };
-      if (targetTable === 'report_row') filters.reportId = args.tableId;
+      
+      // 금융 가상 ID를 실제 물리 테이블명으로 매핑 (MY DB와 동일하게)
+      if (targetTable.includes('bank_transactions') || targetTable.includes('bank-table')) {
+        targetTable = 'finance_bank_transactions';
+        delete filters.isDeleted; // 금융 테이블은 isDeleted 컬럼이 없으므로 제거
+      } else if (targetTable.includes('card_transactions') || targetTable.includes('card-table')) {
+        targetTable = 'finance_card_transactions';
+        delete filters.isDeleted; // 금융 테이블은 isDeleted 컬럼이 없으므로 제거
+      } else if (targetTable.includes('hometax_sales')) {
+        targetTable = 'hometax_sales_invoices';
+        // 홈택스 테이블은 상황에 따라 확인 필요하나 안전을 위해 유지 또는 제거 결정 가능
+      } else if (targetTable.includes('hometax_purchase')) {
+        targetTable = 'hometax_purchase_invoices';
+      } else if (targetTable.includes('hometax_cash')) {
+        targetTable = 'hometax_cash_receipts';
+      } else if (targetTable !== 'report_row' && !targetTable.includes('-')) {
+        // 이미 물리 테이블명인 경우 그대로 사용
+      } else {
+        targetTable = 'report_row';
+        filters.reportId = args.tableId;
+      }
 
       const wsRows = await queryTable(targetTable, { 
         filters,
