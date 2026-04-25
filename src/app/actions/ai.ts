@@ -207,6 +207,19 @@ export async function updateChartLayoutAction(chartId: string, layout: any) {
     return { success: true };
 }
 
+/**
+ * 핀 고정된 차트들의 전체 순서를 다시 저장합니다.
+ */
+export async function reorderPinnedChartsAction(reorderedCharts: any[]) {
+    const user = await getSessionAction();
+    if (!user) throw new Error('인증이 필요합니다.');
+    
+    await saveAllPinnedChartsAction(reorderedCharts);
+    revalidatePath('/dashboard');
+    return { success: true };
+}
+
+
 let isAIStudioSessionTableInitialized = false;
 
 /**

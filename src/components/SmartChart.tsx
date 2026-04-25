@@ -23,6 +23,8 @@ import {
   Trash2, 
   ChevronLeft, 
   ChevronRight, 
+  ChevronUp,
+  ChevronDown,
   Star, 
   Info, 
   RotateCcw,
@@ -77,6 +79,8 @@ interface SmartChartProps {
     span?: 'half' | 'full';
   };
   onLayoutChange?: (layout: { span: 'half' | 'full' }) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }
 
 const COLORS = ['#2563eb', '#6366f1', '#4f46e5', '#4338ca', '#3730a3', '#312e81'];
@@ -103,7 +107,9 @@ export function SmartChart({
   isRefreshing = false,
   chartId,
   layout = { span: 'half' },
-  onLayoutChange
+  onLayoutChange,
+  onMoveUp,
+  onMoveDown
 }: SmartChartProps) {
   const { type, data, xAxis, series = [], title, showLabels = true, sourceDescription } = config;
   const [showInfo, setShowInfo] = React.useState(false);
@@ -523,6 +529,30 @@ export function SmartChart({
                <Star size={14} fill={isPinned ? 'currentColor' : 'none'} />
              </button>
            )}
+            {onMoveUp && (
+               <button 
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   onMoveUp();
+                 }}
+                 className="p-1.5 bg-slate-50 text-slate-400 hover:bg-amber-50 hover:text-amber-600 rounded-xl transition-all"
+                 title="위로 이동"
+               >
+                 <ChevronUp size={14} />
+               </button>
+            )}
+            {onMoveDown && (
+               <button 
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   onMoveDown();
+                 }}
+                 className="p-1.5 bg-slate-50 text-slate-400 hover:bg-amber-50 hover:text-amber-600 rounded-xl transition-all"
+                 title="아래로 이동"
+               >
+                 <ChevronDown size={14} />
+               </button>
+            )}
             {onLayoutChange && (
               <button 
                 onClick={(e) => {
