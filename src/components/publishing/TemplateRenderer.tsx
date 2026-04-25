@@ -2,12 +2,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { queryTable } from '@/egdesk-helpers';
-import { fetchPublishingDataAction } from '@/app/actions/publishing';
+import { fetchPublishingDataAction, getAISuggestedProjectSetupAction } from '@/app/actions/publishing';
 import { CashReport } from './templates/CashReport';
+import { GenericReport } from './templates/GenericReport';
+import { CustomHtmlReport } from './templates/CustomHtmlReport';
 
 interface TemplateRendererProps {
   templateId: string;
-  sourceTableId: string;
+  sourceTableId: string | string[];
   mappingConfig: any;
   uiSettings: any;
   appName: string;
@@ -30,7 +32,12 @@ export function TemplateRenderer({
         if (!sourceTableId || sourceTableId === 'undefined') return;
         setLoading(true);
 
-        const results = await fetchPublishingDataAction(sourceTableId, { limit: 100 });
+        // 콤마로 구분된 소스 ID들을 배열로 변환
+        const ids = typeof sourceTableId === 'string' 
+          ? sourceTableId.split(',').map(id => id.trim()).filter(id => id)
+          : sourceTableId;
+
+        const results = await fetchPublishingDataAction(ids, { limit: 100 });
         setData(results);
       } catch (err: any) {
         console.error('Failed to fetch data for micro-app:', err);
@@ -70,6 +77,26 @@ export function TemplateRenderer({
           mapping={mappingConfig} 
           uiSettings={uiSettings} 
           appName={appName} 
+        />
+      );
+
+    case 'custom-app':
+      return (
+        <GenericReport
+          data={data}
+          mapping={mappingConfig}
+          uiSettings={uiSettings}
+          appName={appName}
+        />
+      );
+
+    case 'custom-html':
+      return (
+        <CustomHtmlReport
+          data={data}
+          mapping={mappingConfig}
+          uiSettings={uiSettings}
+          appName={appName}
         />
       );
     

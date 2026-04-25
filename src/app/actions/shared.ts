@@ -275,5 +275,31 @@ export const SYSTEM_TABLES = [
             { name: 'createdAt', type: 'TEXT', notNull: true },
             { name: 'updatedAt', type: 'TEXT' }
         ] as any[]
+    },
+    {
+        tableName: 'micro_app_config', displayName: 'Micro App Configurations', schema: [
+            { name: 'id', type: 'TEXT', notNull: true },
+            { name: 'name', type: 'TEXT', notNull: true },
+            { name: 'templateId', type: 'TEXT', notNull: true },
+            { name: 'sourceTableId', type: 'TEXT', notNull: true },
+            { name: 'mappingConfig', type: 'TEXT' }, // JSON
+            { name: 'uiSettings', type: 'TEXT' }, // JSON
+            { name: 'rbacRoles', type: 'TEXT' }, // JSON
+            { name: 'createdBy', type: 'TEXT' },
+            { name: 'createdAt', type: 'TEXT', notNull: true },
+            { name: 'updatedAt', type: 'TEXT' }
+        ] as any[]
+    },
+    {
+        tableName: 'table_knowledge', displayName: 'Table Intelligence Knowledge', schema: [
+            { name: 'table_name', type: 'TEXT', notNull: true },
+            { name: 'description', type: 'TEXT' },
+            { name: 'category', type: 'TEXT' },
+            { name: 'insight', type: 'TEXT' },
+            { name: 'schema_info', type: 'TEXT' }, // JSON
+            { name: 'sample_rows', type: 'TEXT' }, // JSON
+            { name: 'sample_analysis', type: 'TEXT' },
+            { name: 'updated_at', type: 'TEXT', notNull: true }
+        ] as any[]
     }
 ];

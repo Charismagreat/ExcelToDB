@@ -1,15 +1,6 @@
-import React from 'react';
-import { PublishingWizard } from '@/components/publishing/PublishingWizard';
-
-export const metadata = {
-  title: '새 마이크로 앱 발행 | CEO Dashboard',
-  description: 'AI를 활용하여 테이블 데이터를 전용 마이크로 앱으로 발행합니다.',
-};
+import { redirect } from 'next/navigation';
 
 export default function NewPublishingPage() {
-  return (
-    <div className="p-4 sm:p-8">
-      <PublishingWizard />
-    </div>
-  );
+  // 이제 프로젝트 생성은 Publishing Hub 메인에서 이루어지므로 리다이렉트합니다.
+  redirect('/publishing');
 }

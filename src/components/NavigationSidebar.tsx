@@ -19,7 +19,10 @@ import {
   Users,
   ShieldCheck,
   Loader2,
-  Calendar
+  Calendar,
+  Rocket,
+  Wallet,
+  Layout
 } from 'lucide-react';
 // 🚀 DEFAULT IMPORTS: New consistency standard
 import LogoutButton from './LogoutButton';
@@ -30,13 +33,14 @@ interface NavigationSidebarProps {
   user: any;
   isCollapsed?: boolean;
   onToggle?: () => void;
+  microApps?: any[];
 }
 
 /**
  * 🚀 NavigationSidebar
  * Standardized Default Export for Absolute Module Resolution
  */
-export default function NavigationSidebar({ user, isCollapsed = false, onToggle }: NavigationSidebarProps) {
+export default function NavigationSidebar({ user, isCollapsed = false, onToggle, microApps = [] }: NavigationSidebarProps) {
   const [isMounted, setIsMounted] = React.useState(false);
   const pathname = usePathname();
   const { companyName, themeColor } = useBranding();
@@ -70,6 +74,13 @@ export default function NavigationSidebar({ user, isCollapsed = false, onToggle 
       icon: Zap,
       active: pathname.startsWith('/workflow/steering'),
       desc: 'AI 지능형 조치 및 지휘'
+    },
+    {
+      name: 'APP STUDIO',
+      href: '/publishing',
+      icon: Rocket,
+      active: pathname.startsWith('/publishing'),
+      desc: 'AI 마이크로앱 조립 및 스튜디오'
     },
     {
       name: 'ANALYSIS STUDIO',
@@ -201,6 +212,42 @@ export default function NavigationSidebar({ user, isCollapsed = false, onToggle 
             )}
           </Link>
         ))}
+
+        {/* Dynamic Micro Apps Section */}
+        {microApps.length > 0 && (
+          <div className="pt-6 pb-2">
+            {!isCollapsed && <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">My Micro Apps</p>}
+            <div className="space-y-1">
+              {microApps.map((app) => (
+                <Link
+                  key={app.id}
+                  href={`/m/${app.id}`}
+                  target="_blank"
+                  title={isCollapsed ? app.name : ""}
+                  className={`flex items-center gap-4 py-2 rounded-2xl transition-all duration-300 group relative ${
+                    isCollapsed ? 'px-0 justify-center' : 'px-4'
+                  } ${
+                    pathname === `/m/${app.id}` 
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' 
+                    : 'hover:bg-slate-50 text-slate-600'
+                  }`}
+                >
+                  <div className={`p-2 rounded-xl transition-colors ${
+                    pathname === `/m/${app.id}` ? 'bg-white/20' : 'bg-slate-100 group-hover:bg-white'
+                  }`}>
+                    {app.templateId === 'cash-report' ? <Wallet size={18} /> : <Layout size={18} />}
+                  </div>
+                  {!isCollapsed && (
+                    <div className="flex-1 animate-in fade-in slide-in-from-left-2">
+                      <p className="text-xs font-black uppercase tracking-tight truncate">{app.name}</p>
+                      <p className="text-[9px] font-medium opacity-60">마이크로 앱 실행</p>
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
 
       </nav>

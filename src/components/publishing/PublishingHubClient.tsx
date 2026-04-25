@@ -1,0 +1,281 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { 
+  Rocket, 
+  Plus, 
+  ExternalLink, 
+  Search, 
+  Grid, 
+  List,
+  Sparkles,
+  Layout,
+  Wallet,
+  Calendar,
+  Layers,
+  Settings,
+  Database,
+  ArrowRight,
+  Briefcase,
+  Bell,
+  Clock,
+  AlertTriangle,
+  TrendingUp,
+  CheckCircle2
+} from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { 
+  createMicroAppProjectAction, 
+  deleteMicroAppProjectAction,
+  deleteMicroAppAction 
+} from '@/app/actions/micro-app';
+import { 
+  Trash2, 
+  Edit3,
+  MoreHorizontal
+} from 'lucide-react';
+
+interface PublishingHubClientProps {
+  initialApps: any[];
+  initialProjects: any[];
+  user: any;
+}
+
+export function PublishingHubClient({ initialApps, initialProjects, user }: PublishingHubClientProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isCreating, setIsCreating] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const filteredApps = initialApps.filter(app => 
+    (app.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredProjects = initialProjects.filter(p => 
+    p.status !== 'PUBLISHED' && (p.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleCreateProject = async () => {
+    const name = window.prompt('새 마이크로 앱의 이름을 입력하세요:', '새 마이크로 앱');
+    if (!name) return;
+
+    setIsCreating(true);
+    try {
+      const res = await createMicroAppProjectAction(name);
+      if (res.success) {
+        router.push(`/publishing/edit/${res.id}`);
+      }
+    } catch (e) {
+      alert('프로젝트 생성에 실패했습니다.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleDeleteProject = async (e: React.MouseEvent, id: string, name: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm(`'${name}' 프로젝트를 삭제하시겠습니까?`)) return;
+    
+    try {
+      await deleteMicroAppProjectAction(id);
+    } catch (e) {
+      alert('프로젝트 삭제에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteApp = async (e: React.MouseEvent, id: string, name: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm(`'${name}' 앱 발행을 취소하고 삭제하시겠습니까?\n(원본 프로젝트는 유지됩니다.)`)) return;
+    
+    try {
+      await deleteMicroAppAction(id);
+    } catch (e) {
+      alert('앱 삭제에 실패했습니다.');
+    }
+  };
+
+  if (!isMounted) return null;
+
+  return (
+    <div className="max-w-[1600px] mx-auto px-8 md:px-12 pt-10 pb-20 space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      
+      {/* 1. Stats Grid - Unified with Workflow Hub */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Live Apps', count: initialApps.length, icon: Layers, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Draft Projects', count: initialProjects.filter(p => p.status !== 'PUBLISHED').length, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'AI Designer', count: 'Pro', icon: Sparkles, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+          { label: 'Data Sources', count: 'Ready', icon: Database, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+        ].map((s, idx) => (
+          <div key={idx} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-lg transition-all">
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
+              <p className={`text-2xl font-black ${s.color}`}>{s.count}</p>
+            </div>
+            <div className={`${s.bg} ${s.color} p-3 rounded-2xl group-hover:scale-110 transition-transform`}>
+              <s.icon size={20} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 2. Page Title & Control Bar - Unified with Workflow Hub */}
+      <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8 border-l-8 border-l-blue-600">
+        <div className="flex items-center gap-6">
+          <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center border border-blue-100">
+            <Rocket size={28} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-none mb-1">APP STUDIO</h1>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">AI-Powered Micro App Orchestration</p>
+          </div>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-4 w-full md:w-fit">
+          <div className="relative flex-1 md:w-80 group">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+            <input 
+              type="text" 
+              placeholder="앱 또는 프로젝트 검색..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-6 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:bg-white transition-all outline-none"
+            />
+          </div>
+
+          <button 
+            onClick={handleCreateProject}
+            disabled={isCreating}
+            className="px-8 py-3.5 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
+          >
+            <Plus size={18} />
+            {isCreating ? '생성 중...' : '새 앱 프로젝트'}
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Projects Section (Drafts) */}
+      <section>
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
+          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">제작 중인 프로젝트</h2>
+          <span className="text-slate-300 font-bold ml-auto">{filteredProjects.length}</span>
+        </div>
+
+        {filteredProjects.length === 0 ? (
+          <div className="p-16 bg-white rounded-[40px] border border-dashed border-slate-100 text-center">
+            <p className="text-slate-400 font-bold text-sm">현재 제작 중인 프로젝트가 없습니다.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredProjects.map((project) => (
+              <div 
+                key={project.id}
+                className="group bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-amber-500/20 transition-all flex flex-col relative"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Settings size={24} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Draft</span>
+                    <button 
+                      onClick={(e) => handleDeleteProject(e, project.id, project.name)}
+                      className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                <h3 className="text-lg font-black text-slate-800 mb-2">{project.name}</h3>
+                <p className="text-xs text-slate-400 font-medium mb-8">
+                  {project.sources.length}개의 데이터 소스 연결됨
+                </p>
+                <div className="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <span className="flex items-center gap-1.5"><Calendar size={12} /> {new Date(project.updatedAt).toLocaleDateString()}</span>
+                  <Link href={`/publishing/edit/${project.id}`} className="text-amber-600 hover:underline flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    STUDIO 입장 <ArrowRight size={12} />
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 4. Published Apps Section */}
+      <section>
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-1.5 h-6 bg-blue-500 rounded-full" />
+          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">발행된 마이크로 앱</h2>
+          <span className="text-slate-300 font-bold ml-auto">{filteredApps.length}</span>
+        </div>
+
+        {filteredApps.length === 0 ? (
+          <div className="p-16 bg-white rounded-[40px] border border-dashed border-slate-100 text-center">
+            <p className="text-slate-400 font-bold text-sm">발행된 앱이 없습니다.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredApps.map((app) => (
+              <div 
+                key={app.id} 
+                className="group bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-blue-500/20 transition-all flex flex-col"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
+                    app.templateId === 'cash-report' ? 'bg-indigo-50 text-indigo-600' : 'bg-blue-50 text-blue-600'
+                  }`}>
+                    {app.templateId === 'cash-report' ? <Wallet size={24} /> : <Layout size={24} />}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest">Live</span>
+                    <button 
+                      onClick={(e) => handleDeleteApp(e, app.id, app.name)}
+                      className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                      title="앱 삭제"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                <h3 className="text-lg font-black text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">{app.name}</h3>
+                <p className="text-xs text-slate-400 font-medium mb-8 line-clamp-1">
+                  {app.templateId === 'cash-report' ? '금융 데이터 기반 리포트' : '커스텀 데이터 리포트'}
+                </p>
+                <div className="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <span className="flex items-center gap-1.5"><Calendar size={12} /> {new Date(app.createdAt).toLocaleDateString()}</span>
+                  <div className="flex items-center gap-4">
+                    <Link href={`/publishing/edit/${app.id}`} className="text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors">
+                      <Edit3 size={14} /> 수정
+                    </Link>
+                    <Link 
+                      href={`/m/${app.id}`} 
+                      target="_blank"
+                      className="text-blue-600 flex items-center gap-1 hover:underline font-black"
+                    >
+                      열기 <ExternalLink size={12} />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Footer Insight */}
+      <footer className="pt-12 border-t border-slate-100 text-center opacity-60">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Enterprise Intelligent Orchestration</p>
+      </footer>
+    </div>
+  );
+}

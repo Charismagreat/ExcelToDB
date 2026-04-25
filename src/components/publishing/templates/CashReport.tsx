@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { 
   Wallet, TrendingUp, TrendingDown, Clock, ArrowUpRight, ArrowDownRight,
@@ -52,15 +53,33 @@ export function CashReport({ data, mapping, uiSettings, appName }: CashReportPro
     // Utility to find any numeric value in an object based on likely keys
     const findNumeric = (obj: any, key: string, fallbackKeywords: string[]) => {
       if (!obj) return 0;
+
+      // 잔액 관련 키워드가 포함된 경우에만 balance/cur_bal 필드 우선 확인
+      const isBalanceSearch = fallbackKeywords.some(kw => ['bal', '잔액'].some(b => kw.toLowerCase().includes(b)));
+
+      if (isBalanceSearch) {
+        if (obj.balance !== undefined && obj.balance !== null) {
+          const val = obj.balance;
+          if (typeof val === 'number') return val;
+          const cleaned = String(val).replace(/[^0-9.-]/g, '');
+          if (cleaned) return Number(cleaned);
+        }
+        if (obj.cur_bal !== undefined && obj.cur_bal !== null) {
+          const val = obj.cur_bal;
+          if (typeof val === 'number') return val;
+          const cleaned = String(val).replace(/[^0-9.-]/g, '');
+          if (cleaned) return Number(cleaned);
+        }
+      }
       
-      // 1. Check the explicitly mapped key first
+      // 1. 명시적으로 매핑된 키 확인
       if (key && obj[key] !== undefined) {
         const val = obj[key];
         if (typeof val === 'number') return val;
         if (typeof val === 'string') return Number(val.replace(/[^0-9.-]/g, '')) || 0;
       }
 
-      // 2. Intelligent fallback if mapping is missing or value is empty
+      // 2. 키워드 기반 지능형 폴백
       for (const k of Object.keys(obj)) {
         if (fallbackKeywords.some(kw => k.toLowerCase().includes(kw.toLowerCase()))) {
           const val = obj[k];
@@ -85,16 +104,43 @@ export function CashReport({ data, mapping, uiSettings, appName }: CashReportPro
 
       // 2. Intelligent fallback with priority
       const priorities: Record<string, string[]> = {
-        bank: ['bankName', 'bank_name', 'bank', 'bank_nm', 'orgName', 'org_name'],
-        acc: ['accountNumber', 'account_number', 'accNo', 'account_no', 'acc_no'],
-        desc: ['description', 'content', 'remark', 'print_content']
+        bank: ['bankName', 'bank_name', 'bank', 'bank_nm', 'orgName', 'org_name', 'bankId', 'bankDisplayName', 'ORG_NM', 'ORG_NAME'],
+        acc: ['accountNumber', 'account_number', 'accNo', 'account_no', 'acc_no', 'resAccount', 'resAccountDisplay', 'ACCOUNT_NUMBER'],
+        desc: ['description', 'content', 'remark', 'print_content', 'resAccountName', 'tran_nm', 'PRINT_CONTENT', 'TRAN_NM']
       };
 
       for (const type of Object.keys(priorities)) {
         if (fallbackKeywords.some(k => type.includes(k.toLowerCase()))) {
           for (const pKey of priorities[type]) {
             if (obj[pKey] && typeof obj[pKey] === 'string' && obj[pKey].length > 1) {
-              const val = obj[pKey].trim();
+              let val = obj[pKey].trim();
+              
+              // 은행 명칭 정규화 (Beautifier)
+              if (type === 'bank') {
+                const bankMap: Record<string, string> = {
+                  'hana': '하나은행',
+                  'kb': '국민은행',
+                  'shinhan': '신한은행',
+                  'woori': '우리은행',
+                  'sc': 'SC제일은행',
+                  'ibk': 'IBK기업은행',
+                  'kdb': 'KDB산업은행',
+                  'nh': 'NH농협은행',
+                  'kakaobank': '카카오뱅크',
+                  'kbank': '케이뱅크',
+                  'toss': '토스뱅크',
+                  'post': '우체국',
+                  'saemaul': '새마을금고',
+                  'cu': '신협',
+                  'suhyup': '수협'
+                };
+                const lowerVal = val.toLowerCase();
+                if (bankMap[lowerVal]) return bankMap[lowerVal];
+                // 'hana_bank' 같은 경우 처리
+                for (const [id, name] of Object.entries(bankMap)) {
+                  if (lowerVal.includes(id)) return name;
+                }
+              }
               if (val.toLowerCase() !== 'checking' && val.toLowerCase() !== 'null') return val;
             }
           }
@@ -117,21 +163,23 @@ export function CashReport({ data, mapping, uiSettings, appName }: CashReportPro
 
         // [Self-healing] 계좌 요약 잔액이 0인 경우, 상세 거래 내역(rawData)에서 최신 잔액을 찾아 보정합니다.
         if (balance === 0 && rawData.length > 0) {
+          const cleanAccNo = accNo.replace(/[^0-9]/g, '');
           const accountTxs = rawData.filter(r => {
-            const rAccNo = findString(r, mapping.accountNumber, accKeywords) || '';
-            return rAccNo === accNo;
+            const rAccNo = (findString(r, mapping.accountNumber, accKeywords) || '').replace(/[^0-9]/g, '');
+            return rAccNo && cleanAccNo && rAccNo === cleanAccNo;
           });
 
           if (accountTxs.length > 0) {
             // 날짜/시간 기반 정렬하여 가장 최신 거래의 잔액 필드를 가져옴
-            const latestTx = [...accountTxs].sort((a, b) => {
-              const timeA = new Date(`${a[mapping.date] || a.date} ${a.time || ''}`).getTime();
-              const timeB = new Date(`${b[mapping.date] || b.date} ${b.time || ''}`).getTime();
-              return timeB - timeA;
-            })[0];
+            const sortedTxs = [...accountTxs].sort((a, b) => {
+              const dateA = a[mapping.date] || a.date || '';
+              const dateB = b[mapping.date] || b.date || '';
+              return new Date(dateB).getTime() - new Date(dateA).getTime();
+            });
             
-            const txBalance = findNumeric(latestTx, mapping.balance || 'balance', ['bal', 'balance']);
-            if (txBalance > 0) balance = txBalance;
+            const latestTx = sortedTxs[0];
+            const txBalance = findNumeric(latestTx, mapping.balance || 'balance', ['bal', 'balance', 'cur_bal', '잔액']);
+            if (txBalance !== 0) balance = txBalance;
           }
         }
 
@@ -140,14 +188,30 @@ export function CashReport({ data, mapping, uiSettings, appName }: CashReportPro
 
       const totalBalance = processedAccounts.reduce((sum, acc) => sum + acc.balance, 0);
       
-      const processedTransactions = rawData.map(item => ({
-        date: item[mapping.date] || item.date || item.transactionDate || item.tranDate || item.date_time,
-        description: item[mapping.description] || item.description || item.content || item.remark || item.print_content || '내역 없음',
-        inflow: findNumeric(item, mapping.inflow, ['inflow', 'deposit', 'inAmt', 'in_amt', 'deposit_amt']),
-        outflow: findNumeric(item, mapping.outflow, ['outflow', 'withdrawal', 'outAmt', 'out_amt', 'withdraw_amt']),
-        bank: findString(item, mapping.bankName, ['bank', 'org', 'name', 'nm']) || '기타',
-        category: item[mapping.category || ''] || item.category || '일반'
-      }));
+      const processedTransactions = rawData.map(item => {
+        const inflow = findNumeric(item, mapping.inflow, ['inflow', 'deposit', 'inAmt', 'in_amt', 'deposit_amt', 'IN_AMT', '입금', '입금액', '입금금액']);
+        const outflow = findNumeric(item, mapping.outflow, ['outflow', 'withdrawal', 'outAmt', 'out_amt', 'withdraw_amt', 'OUT_AMT', '출금', '출금액', '출금금액']);
+        
+        let dateVal = item[mapping.date] || item.date || item.TRAN_DATE || item.transactionDate || item.tranDate || item.date_time || item.transaction_datetime || '';
+        if (typeof dateVal === 'string' && dateVal.length === 8 && !dateVal.includes('-')) {
+            dateVal = `${dateVal.substring(0, 4)}-${dateVal.substring(4, 6)}-${dateVal.substring(6, 8)}`;
+        }
+        // 시간 정보 결합
+        const timeVal = item.time || item.TRAN_TIME || '';
+        if (timeVal && typeof dateVal === 'string' && !dateVal.includes(':')) {
+            dateVal = `${dateVal.split(' ')[0]} ${timeVal}`;
+        }
+
+        return {
+          date: dateVal,
+          description: item[mapping.description] || item.description || item.PRINT_CONTENT || item.content || item.remark || item.print_content || '내역 없음',
+          inflow,
+          outflow,
+          amount: inflow > 0 ? inflow : -outflow,
+          bank: findString(item, mapping.bankName, ['bank', 'org', 'name', 'nm', 'ORG_NM', '은행']) || '기타',
+          category: item[mapping.category || ''] || item.category || '일반'
+        };
+      });
 
       const totalIn = processedTransactions.reduce((sum, t) => sum + t.inflow, 0);
       const totalOut = processedTransactions.reduce((sum, t) => sum + t.outflow, 0);
@@ -157,7 +221,10 @@ export function CashReport({ data, mapping, uiSettings, appName }: CashReportPro
         accountBalances: processedAccounts.map(acc => ({
           name: `${acc.bankName} (${acc.accNo})`,
           balance: acc.balance,
-          count: rawData.filter(r => (findString(r, mapping.bankName, ['bank']) || '기타') === acc.bankName).length
+          count: rawData.filter(r => {
+             const rBank = findString(r, mapping.bankName, ['bank']) || '기타';
+             return rBank === acc.bankName;
+          }).length
         })),
         transactions: processedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       };
@@ -175,28 +242,35 @@ export function CashReport({ data, mapping, uiSettings, appName }: CashReportPro
     let totalOut = 0;
 
     const processed = rawData.map(item => {
-      const inflow = findNumeric(item, mapping.inflow, ['inflow', 'deposit', 'inAmt', 'deposit_amt']);
-      const outflow = findNumeric(item, mapping.outflow, ['outflow', 'withdrawal', 'outAmt', 'out_amt', 'withdraw_amt']);
-      const rowBalance = findNumeric(item, 'BALANCE', ['balance', 'cur_bal', '잔액']); // Check 'BALANCE' first as per user spec
+      const inflow = findNumeric(item, mapping.inflow, ['inflow', 'deposit', 'inAmt', 'deposit_amt', '입금', '입금액', '입금금액']);
+      const outflow = findNumeric(item, mapping.outflow, ['outflow', 'withdrawal', 'outAmt', 'out_amt', 'withdraw_amt', '출금', '출금액', '출금금액']);
+      const rowBalance = findNumeric(item, 'BALANCE', ['balance', 'cur_bal', '잔액', '현잔액', '거래후잔액']);
       
-      const bank = findString(item, mapping.bankName, ['bank', 'org', 'name']) || '기타 계좌';
-      const accNum = findString(item, mapping.accountNumber, ['acc', 'no', 'number']) || '';
-      const date = item[mapping.date] || item.date || item.transactionDate || item.tranDate || item.date_time || '';
+      const bank = findString(item, mapping.bankName, ['bank', 'org', 'name', '은행']) || '기타 계좌';
+      const accNum = findString(item, mapping.accountNumber, ['acc', 'no', 'number', '계좌']) || '';
+      
+      let date = item[mapping.date] || item.date || item.transactionDate || item.tranDate || item.date_time || item.transaction_datetime || '';
+      if (typeof date === 'string' && date.length === 8 && !date.includes('-')) {
+        date = `${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)}`;
+      }
+      const time = item.time || item.TRAN_TIME || '';
+      if (time && typeof date === 'string' && !date.includes(':')) {
+        date = `${date.split(' ')[0]} ${time}`;
+      }
+
       const key = `${bank}-${accNum}`;
 
       totalIn += inflow;
       totalOut += outflow;
 
-      // If row has a balance, track the latest one for each account
-      if (!balances[key] || new Date(date) >= new Date(balances[key].lastDate)) {
+      // 가장 최신의 잔액을 유지 (날짜와 시간까지 포함된 정밀 비교)
+      if (!balances[key] || new Date(date).getTime() >= new Date(balances[key].lastDate).getTime()) {
         if (!balances[key]) {
           balances[key] = { name: bank + (accNum ? ` (${accNum})` : ''), balance: 0, count: 0, lastDate: date };
         }
-        // If rowBalance exists (> 0), use it as the definitive balance for this account so far
         if (rowBalance !== 0) {
           balances[key].balance = rowBalance;
         } else if (balances[key].balance === 0) {
-          // If no rowBalance, keep calculating from in/out
           balances[key].balance += (inflow - outflow);
         }
         balances[key].lastDate = date;
@@ -209,7 +283,7 @@ export function CashReport({ data, mapping, uiSettings, appName }: CashReportPro
         description: item[mapping.description] || item.description || item.content || item.remark || '내역 없음',
         inflow,
         outflow,
-        amount: inflow - outflow,
+        amount: inflow > 0 ? inflow : -outflow,
         bank: bank,
         category: item[mapping.category || ''] || item.category || '일반'
       };
@@ -345,9 +419,9 @@ export function CashReport({ data, mapping, uiSettings, appName }: CashReportPro
                 <div className="text-right shrink-0">
                   <p className={cn(
                     "text-sm font-black",
-                    tx.inflow > 0 ? "text-emerald-400" : "text-rose-400"
+                    tx.amount > 0 ? "text-emerald-400" : "text-rose-400"
                   )}>
-                    {tx.inflow > 0 ? '+' : '-'}{formatKRW(Math.max(tx.inflow, tx.outflow))}
+                    {tx.amount > 0 ? '+' : '-'}{formatKRW(Math.abs(tx.amount))}
                   </p>
                 </div>
               </div>
@@ -365,35 +439,118 @@ export function CashReport({ data, mapping, uiSettings, appName }: CashReportPro
         </div>
       </div>
 
-      {/* Analytics Insight Area */}
-      <div className="bg-white rounded-[40px] p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-            <TrendingUp className="w-6 h-6 text-blue-600" />
+      {/* Analytics Insight Area (Conditional Pie Chart) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* 기존 선형 차트 (태그 조건부 제외 - 공백 무시 및 유연한 매칭) */}
+        {!(uiSettings.tags?.some((t: string) => 
+          (t.replace(/\s+/g, '').includes('현금흐름') && (t.includes('제외') || t.includes('!'))) ||
+          (t.replace(/\s+/g, '').includes('현금흐름심층분석') && (t.includes('제외') || t.includes('!')))
+        )) && (
+          <div className="bg-white rounded-[40px] p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900">현금 흐름 심층 분석</h3>
+            </div>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={transactions.slice(0, 30).reverse()}>
+                  <defs>
+                    <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="date" hide />
+                  <YAxis hide />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+                    formatter={(val: number) => formatKRW(val)}
+                  />
+                  <Area type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={4} fillOpacity={1} fill="url(#colorAmount)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <h3 className="text-xl font-black text-slate-900">현금 흐름 심층 분석</h3>
-        </div>
-        <div className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={transactions.slice(0, 30).reverse()}>
-              <defs>
-                <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="date" hide />
-              <YAxis hide />
-              <Tooltip 
-                contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
-                formatter={(val: number) => formatKRW(val)}
-              />
-              <Area type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={4} fillOpacity={1} fill="url(#colorAmount)" />
-            </AreaChart>
-          </ResponsiveContainer>
+        )}
+
+        {/* 파이 차트 (태그 조건부) */}
+        <div className="bg-white rounded-[40px] p-10 border border-slate-100 shadow-xl shadow-slate-200/50 flex flex-col">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+                <Database className="w-6 h-6 text-indigo-600" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900">자산 구성 분석</h3>
+            </div>
+            <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-tighter">Asset Mix</span>
+          </div>
+          
+          <div className="flex-1 min-h-[300px] relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={accountBalances.map(acc => ({ name: acc.name, value: acc.balance }))}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {accountBalances.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={[
+                      '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981'
+                    ][index % 7]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+                  formatter={(val: number) => formatKRW(val)}
+                />
+                <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
+
+      {/* 전자어음 관리 섹션 (태그 조건부) */}
+      {(uiSettings.tags?.some((t: string) => t.replace(/\s+/g, '').includes('전자어음')) || appName.includes('어음')) && (
+        <div className="bg-slate-50 rounded-[40px] p-10 border border-slate-200 border-dashed">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center">
+                <CreditCard className="w-6 h-6 text-rose-600" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900">전자어음 보유 현황</h3>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Note Balance</p>
+              <p className="text-2xl font-black text-rose-600">₩452,000,000</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { company: '(주)미래상사', amount: 150000000, date: '2026-05-15', status: 'D-21' },
+              { company: '대명건설(주)', amount: 220000000, date: '2026-06-02', status: 'D-39' },
+              { company: '현대인더스트리', amount: 82000000, date: '2026-04-30', status: 'D-6' },
+            ].map((note, i) => (
+              <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start mb-4">
+                  <span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black">{note.status}</span>
+                  <p className="text-sm font-black text-slate-900">{formatKRW(note.amount)}</p>
+                </div>
+                <p className="text-xs font-bold text-slate-600 mb-1">{note.company}</p>
+                <p className="text-[10px] font-medium text-slate-400">만기일: {note.date}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

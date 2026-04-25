@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{appName}}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', 'Noto Sans KR', sans-serif; background-color: #f8fafc; }
+        .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
+        .premium-shadow { box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.6s ease-out forwards; }
+    </style>
+</head>
+<body class="p-8 md:p-12">
+    <!-- Header -->
+    <header class="max-w-7xl mx-auto flex justify-between items-center mb-12 animate-fade-in">
+        <div>
+            <h1 class="text-3xl font-black text-slate-900 tracking-tight">{{appName}}</h1>
+            <p class="text-sm font-medium text-slate-500 mt-1">최종 업데이트: <span id="current-time">{{currentTime}}</span></p>
+        </div>
+        <div class="flex gap-2">
+            <span class="px-4 py-2 bg-white rounded-full text-xs font-bold shadow-sm border border-slate-100">LIVE DATA</span>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto space-y-8">
+        <!-- Hero Section -->
+        <section class="bg-blue-600 rounded-[40px] p-10 text-white premium-shadow relative overflow-hidden animate-fade-in" style="animation-delay: 0.1s">
+            <div class="relative z-10">
+                <p class="text-xs font-black uppercase tracking-widest opacity-60 mb-2">Total Liquid Assets</p>
+                <h2 class="text-6xl font-black mb-8 tracking-tighter">₩{{totalBalance}}</h2>
+                
+                <div class="grid grid-cols-2 gap-8 pt-8 border-t border-white/20">
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Total Inflow (Month)</p>
+                        <p class="text-2xl font-bold">+₩{{totalInflow}}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Total Outflow (Month)</p>
+                        <p class="text-2xl font-bold">-₩{{totalOutflow}}</p>
+                    </div>
+                </div>
+            </div>
+            <!-- Decorative Elements -->
+            <div class="absolute -right-20 -top-20 w-80 h-80 bg-white/10 rounded-full blur-3xl"></div>
+            <div class="absolute -left-20 -bottom-20 w-60 h-60 bg-blue-400/20 rounded-full blur-2xl"></div>
+        </section>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Account List -->
+            <div class="lg:col-span-2 space-y-6 animate-fade-in" style="animation-delay: 0.2s">
+                <div class="flex items-center justify-between px-2">
+                    <h3 class="text-lg font-black text-slate-900">연결 계좌 현황</h3>
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">{{accountCount}} Accounts</span>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {{#each accounts}}
+                    <div class="glass-card p-6 rounded-[32px] hover:scale-[1.02] transition-transform cursor-pointer shadow-sm">
+                        <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center mb-4">
+                            <span class="text-lg">🏦</span>
+                        </div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase mb-1">{{name}}</p>
+                        <p class="text-lg font-black text-slate-900">₩{{balance}}</p>
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+
+            <!-- Timeline Sidebar -->
+            <aside class="bg-slate-900 rounded-[40px] p-8 text-white shadow-2xl animate-fade-in" style="animation-delay: 0.3s">
+                <h3 class="text-lg font-black mb-8 flex justify-between items-center">
+                    거래 타임라인
+                    <span class="text-[10px] opacity-40 uppercase tracking-widest">Recent 15</span>
+                </h3>
+                
+                <div class="space-y-4">
+                    {{#each transactions}}
+                    <div class="flex justify-between items-center p-3 rounded-2xl bg-white/5 border border-white/5">
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold truncate">{{description}}</p>
+                            <p class="text-[10px] opacity-40">{{date}} • {{bankName}}</p>
+                        </div>
+                        <p class="text-sm font-black {{#if inflow}}text-emerald-400{{else}}text-rose-400{{/if}}">
+                            {{#if inflow}}+{{else}}-{{/if}}₩{{amount}}
+                        </p>
+                    </div>
+                    {{/each}}
+                </div>
+            </aside>
+        </div>
+    </main>
+</body>
+</html>

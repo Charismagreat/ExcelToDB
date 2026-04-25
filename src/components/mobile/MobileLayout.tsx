@@ -16,9 +16,12 @@ function cn(...inputs: ClassValue[]) {
 interface MobileLayoutProps {
   children: React.ReactNode;
   user?: any;
+  title?: string;
+  hideNavigation?: boolean;
+  branding?: string;
 }
 
-export function MobileLayout({ children, user }: MobileLayoutProps) {
+export function MobileLayout({ children, user, title, hideNavigation = false, branding }: MobileLayoutProps) {
   const pathname = usePathname();
 
   const navItems = [
@@ -33,8 +36,12 @@ export function MobileLayout({ children, user }: MobileLayoutProps) {
       {/* Mobile Top Header */}
       <header className="sticky top-0 z-40 glass border-b px-6 py-4 flex items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-[10px] font-black tracking-widest text-primary uppercase">Won Conductor</span>
-          <h1 className="text-xl font-black tracking-tight">마이 워크스페이스 2.0</h1>
+          {branding !== null && (
+            <span className="text-[10px] font-black tracking-widest text-primary uppercase">
+              {branding || 'Won Conductor'}
+            </span>
+          )}
+          <h1 className="text-xl font-black tracking-tight">{title || '마이 워크스페이스 2.0'}</h1>
         </div>
         <div className="flex items-center gap-3">
           <button className="p-2 rounded-xl glass hover:bg-opacity-80 transition-all active:scale-95">
@@ -45,17 +52,18 @@ export function MobileLayout({ children, user }: MobileLayoutProps) {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 pb-24 overflow-x-hidden overflow-y-auto">
+      <main className={cn("flex-1 overflow-x-hidden overflow-y-auto", !hideNavigation && "pb-24")}>
         {children}
       </main>
 
-      {/* Floating Action Button */}
-      <AIFAB />
+      {/* Floating Action Button - Only show when navigation is visible */}
+      {!hideNavigation && <AIFAB />}
 
       {/* Bottom Navigation Tab Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 glass border-t pb-safe">
-        <div className="max-w-md mx-auto grid grid-cols-4 px-2 py-3">
-          {navItems.map((item) => {
+      {!hideNavigation && (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 glass border-t pb-safe">
+          <div className="max-w-md mx-auto grid grid-cols-4 px-2 py-3">
+            {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
@@ -86,6 +94,7 @@ export function MobileLayout({ children, user }: MobileLayoutProps) {
           })}
         </div>
       </nav>
+      )}
     </div>
   );
 }

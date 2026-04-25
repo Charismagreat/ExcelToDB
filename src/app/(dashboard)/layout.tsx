@@ -28,9 +28,12 @@ export default async function DashboardLayout({
     redirect('/workspace');
   }
 
+  const { listMicroAppsAction } = await import('@/app/actions/publishing');
+  const microApps = await listMicroAppsAction();
+
   return (
     <DashboardLayoutClient 
-      sidebar={<NavigationSidebar user={user} />}
+      sidebar={<NavigationSidebar user={user} microApps={microApps} />}
     >
       {children}
     </DashboardLayoutClient>

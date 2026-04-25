@@ -16,6 +16,7 @@ import { getSessionAction } from './auth';
 
 /**
  * AI가 워크스페이스 테이블을 스캔하여 발행 가능한 마이크로 앱을 추천합니다.
+ * 사용자 요청에 따라 MY DB의 모든 테이블과 리포트를 포함하도록 확장되었습니다.
  */
 export async function getProactivePublishingSuggestionsAction() {
   const user = await getSessionAction();
@@ -23,137 +24,66 @@ export async function getProactivePublishingSuggestionsAction() {
 
   try {
     const { tables } = await listTables();
-    const suggestions = [];
+    const suggestions: any[] = [];
 
-    // 0. 리포지토리 테이블 우선 탐색 (가상 테이블)
-    const repoTables = tables.filter((t: any) => 
-      t.name?.toLowerCase().includes('financehub') || 
-      t.displayName?.toLowerCase().includes('financehub')
-    );
+    // 1. 시스템 금융 소스 (FinanceHub / HomeTax) - MY DB의 고정 메뉴들과 일치시킴
+    const systemSources = [
+      { id: 'finance-hub-bank-table', name: '은행 계좌 거래 내역 (FinanceHub)', reason: '실시간 은행 입출금 내역 기반 자금 관리가 가능합니다.' },
+      { id: 'finance-hub-card-table', name: '신용카드 거래 내역 (FinanceHub)', reason: '법인/개인 카드 지출 내역을 기반으로 비용 분석이 가능합니다.' },
+      { id: 'finance-hub-promissory-table', name: '전자어음 내역 (FinanceHub)', reason: '어음 만기 및 수취 현황을 추적할 수 있습니다.' },
+      { id: 'finance-hub-hometax-sales-tax', name: '매출세금계산서 (홈택스)', reason: '국세청 연동 매출 증빙 데이터를 분석합니다.' },
+      { id: 'finance-hub-hometax-purchase-tax', name: '매입세금계산서 (홈택스)', reason: '국세청 연동 매입 증빙 데이터를 분석합니다.' },
+      { id: 'finance-hub-hometax-cash-receipt', name: '현금영수증 내역 (홈택스)', reason: '현금 결제 증빙 내역을 추적합니다.' }
+    ];
 
-    for (const repo of repoTables) {
+    for (const sys of systemSources) {
       suggestions.push({
-        tableId: repo.name,
-        tableName: repo.displayName || repo.name,
+        tableId: sys.id,
+        tableName: sys.name,
         templateId: 'cash-report',
-        reason: 'FinanceHub 리포지토리 데이터가 감지되었습니다. 실시간 잔액과 입출금 내역을 기반으로 가장 정확한 자금일보 발행이 가능합니다.',
-        priority: 'high',
-        mapping: {
-          date: 'DATE',
-          inflow: 'DEPOSIT',
-          outflow: 'WITHDRAWAL',
-          description: 'DESCRIPTION',
-          bankName: '_BANKNAME',
-          accountNumber: 'ACCOUNTNUMBER',
-          category: 'ACCOUNTNAME'
-        }
+        reason: sys.reason,
+        priority: 'high'
       });
     }
 
-    for (const table of tables) {
-      const name = table.displayName || table.name;
-      // 리포지토리 테이블은 위에서 이미 처리했으므로 중복 방지
-      if (repoTables.some(r => r.name === table.name)) continue;
-      const knowledgeRes = await queryTable('table_knowledge', { 
-        filters: { table_name: table.name } 
-      });
-      const knowledge = knowledgeRes?.[0];
-
-      if (knowledge) {
-        // AI가 이미 분석한 고급 정보를 바탕으로 추천
-        if (knowledge.category === 'Financial' || knowledge.category === 'Transactional') {
-          // 스키마 정보를 분석하여 최적 매핑 구성
-          let mappingConfig = {
-            date: 'DATE',
-            inflow: 'DEPOSIT',
-            outflow: 'WITHDRAWAL',
-            description: 'DESCRIPTION',
-            bankName: '_BANKNAME',
-            accountNumber: 'ACCOUNTNUMBER',
-            category: 'ACCOUNTNAME',
-            balance: 'BALANCE'
-          };
-
-          try {
-            const schema = JSON.parse(knowledge.schema_info || '[]');
-            const colNames = schema.map((c: any) => c.name);
-            
-            // 실시간 스키마에 맞춰 매핑 보정
-            if (colNames.includes('날짜')) mappingConfig.date = '날짜';
-            if (colNames.includes('입금액')) mappingConfig.inflow = '입금액';
-            if (colNames.includes('출금액')) mappingConfig.outflow = '출금액';
-            if (colNames.includes('적요')) mappingConfig.description = '적요';
-            if (colNames.includes('잔액')) mappingConfig.balance = '잔액';
-          } catch (e) {}
-
-          suggestions.push({
-            tableId: table.name,
-            tableName: name,
-            templateId: 'cash-report',
-            reason: knowledge.insight || knowledge.description,
-            mapping: mappingConfig // 지식 기반 자동 매핑 주입
-          });
-          continue; // 지식 정보가 있으면 휴리스틱 스캔 건너뜀
-        }
-      }
-
-      // 1. Heuristic Scan (Knowledge가 없는 경우에만 실행)
-      // 금융과 무관한 명부성 테이블은 명시적으로 제외
-      if (name.includes('명부') || name.includes('담당자') || name.includes('연락처') || name.includes('설정')) {
-        continue;
-      }
-
-      // Heuristic 1: Table Name
-      const isFinancialName = name.includes('은행') || name.includes('계좌') || name.includes('거래') || name.includes('통장') || name.includes('입출금');
-      
-      // Heuristic 2: Column Names (Schema Scan)
-      let hasFinancialColumns = false;
-      try {
-        const schema = await getTableSchema(table.name);
-        const colNames = schema.map((c: any) => c.name || c.displayName);
-        hasFinancialColumns = colNames.some((n: string) => 
-          n.includes('금액') || n.includes('입금') || n.includes('출금') || n.includes('잔액')
-        );
-      } catch (e) {
-        // Ignore schema fetch errors
-      }
-
-      if (isFinancialName || hasFinancialColumns) {
-        suggestions.push({
-          tableId: table.name,
-          tableName: name,
-          templateId: 'cash-report',
-          reason: `'${name}' 테이블에서 ${isFinancialName ? '이름 기반' : '데이터 구조 기반'} 금융 패턴이 감지되었습니다. 자금일보 앱 발행을 추천합니다.`
-        });
-      }
-    }
-
-    // 2. FinanceHub & Hometax 소스 추가
+    // 2. 사용자가 생성한 리포트 (report 테이블)
     try {
-      const banks = await listBanks();
-      if (banks && banks.length > 0) {
+      const reports = await queryTable('report', { limit: 100 });
+      for (const r of reports) {
+        // 이미 추가된 시스템 소스와 중복 방지
+        if (suggestions.some(s => s.tableId === r.id)) continue;
+        
         suggestions.push({
-          tableId: 'finance_bank_transactions',
-          tableName: '은행 계좌 거래 내역 (FinanceHub)',
-          templateId: 'cash-report',
-          reason: '연결된 은행 계좌 데이터가 감지되었습니다. 실시간 자금일보 발행이 가능합니다.'
-        });
-      }
-
-      const hometax = await listHometaxConnections();
-      if (hometax && hometax.length > 0) {
-        suggestions.push({
-          tableId: 'hometax_sales_invoices',
-          tableName: '매출세금계산서 (홈택스)',
-          templateId: 'cash-report', // 임시로 cash-report 사용, 추후 전용 템플릿 추가 가능
-          reason: '홈택스 매출 데이터가 연동되어 있습니다. 매출 분석 리포트 발행을 추천합니다.'
+          tableId: r.id,
+          tableName: r.name,
+          templateId: 'custom-app',
+          reason: r.description || `사용자 정의 리포트: ${r.sheetName || 'MY DB'}`,
+          priority: 'medium'
         });
       }
     } catch (e) {
-      console.error('Finance/Hometax discovery error:', e);
+      console.warn('Failed to fetch reports for suggestions:', e);
     }
 
-    return suggestions;
+    // 3. 물리 테이블 (전체 포함)
+    for (const table of tables) {
+      const name = table.displayName || table.name;
+      // 이미 리포트나 시스템 소스로 추가된 경우 스킵
+      if (suggestions.some(s => s.tableId === table.name || s.tableName === name)) continue;
+
+      suggestions.push({
+        tableId: table.name,
+        tableName: name,
+        templateId: 'custom-app',
+        reason: `'${name}' 테이블의 원시 데이터를 활용하여 앱을 빌드합니다.`,
+        priority: 'low'
+      });
+    }
+
+    // 우선순위 정렬 (High -> Medium -> Low)
+    const priorityMap: any = { high: 0, medium: 1, low: 2 };
+    return suggestions.sort((a, b) => (priorityMap[a.priority] || 2) - (priorityMap[b.priority] || 2));
+    
   } catch (error) {
     console.error('Failed to get publishing suggestions:', error);
     return [];
@@ -277,6 +207,7 @@ export async function getPublishingAIAdjustmentAction(
     const parsed = JSON.parse(text);
 
     // 유효성 검사: 선택된 테이블이 가용 테이블 목록에 있는지 확인
+    const { tables } = await listTables();
     if (parsed.newTableId && parsed.newTableId !== 'undefined') {
       const exists = tables.some((t: any) => t.name === parsed.newTableId);
       if (!exists) parsed.newTableId = currentTableId; // 존재하지 않으면 현재 테이블 유지
@@ -286,12 +217,125 @@ export async function getPublishingAIAdjustmentAction(
 
     return parsed;
   } catch (error) {
-    console.error("AI Adjustment Error:", error);
     return {
       explanation: "죄송합니다. 설정을 분석하는 중 오류가 발생했습니다.",
       newTableId: currentTableId,
       newMapping: currentMapping
     };
+  }
+}
+
+/**
+ * 프로젝트의 모든 데이터 소스를 분석하여 최적의 디자인 셋업(템플릿, 매핑, UI)을 제안합니다.
+ */
+export async function getAISuggestedProjectSetupAction(appId: string) {
+  console.log(`[AI 추천 엔진] >>> 분석 시작 (App ID: ${appId})`);
+  const user = await getSessionAction();
+  if (!user) throw new Error('인증이 필요합니다.');
+
+  try {
+    // 1. 프로젝트 정보 및 소스 목록 가져오기
+    console.log('[AI 추천 엔진] 1. 프로젝트 정보 로드 중...');
+    const { getMicroAppProjectAction } = await import('./micro-app');
+    const project = await getMicroAppProjectAction(appId);
+    if (!project) {
+        console.error(`[AI 추천 엔진] 프로젝트를 찾을 수 없음: ${appId}`);
+        throw new Error('프로젝트를 찾을 수 없습니다.');
+    }
+    if (project.sources.length === 0) {
+        console.error(`[AI 추천 엔진] 소스 없음: ${appId}`);
+        throw new Error('분석할 데이터 소스가 없습니다.');
+    }
+
+    // 2. 각 소스의 컨텍스트 수집
+    console.log(`[AI 추천 엔진] 2. 데이터 소스(${project.sources.length}개) 분석 중...`);
+    const sourceContexts = await Promise.all(project.sources.map(async (s: any) => {
+      console.log(`   - 소스 분석: ${s.name} (${s.id})`);
+      const schema = await getTableSchema(s.id).catch(e => {
+          console.warn(`     ! 스키마 조회 실패 (${s.id}):`, e.message);
+          return [];
+      });
+      const samples = await queryTable(s.id, { limit: 3 }).catch(e => {
+          console.warn(`     ! 샘플 데이터 조회 실패 (${s.id}):`, e.message);
+          return [];
+      });
+      return { id: s.id, name: s.name, schema, samples };
+    }));
+
+    // 3. 태그 분석
+    const explicitTags = project.tags || [];
+    const implicitTags = `${project.name} ${project.description || ''}`.match(/#[\w가-힣]+/g)?.map(t => t.replace('#', '')) || [];
+    const allTags = Array.from(new Set([...explicitTags, ...implicitTags]));
+    console.log(`[AI 추천 엔진] 3. 컨텍스트 수집 완료. 태그: ${allTags.join(', ')}`);
+
+    const tagHint = allTags.length > 0 
+      ? `[중요] 사용자가 다음 스타일 및 정보 필터링 태그를 명시했습니다: ${allTags.join(', ')}. 
+         당신의 추천 결과와 설명문(description)에는 반드시 이 태그들이 어떻게 반영되었는지 구체적으로 언급되어야 합니다.` 
+      : '제공된 데이터 소스의 특성을 분석하여 최적의 앱 디자인을 추천하세요.';
+
+    // 4. AI 분석 요청
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    console.log(`[AI 추천 엔진] 4. AI 호출 준비 중 (API Key 존재 여부: ${!!apiKey})`);
+    if (!apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다. (.env.local 확인 필요)');
+
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+
+    const prompt = `
+      당신은 기업용 마이크로 앱 디자인 전문가입니다. 
+      제공된 데이터 소스와 사용자가 입력한 태그 정보를 바탕으로 최적의 앱 디자인을 추천하세요.
+
+      [프로젝트 정보]
+      - 이름: ${project.name}
+      - 강조 태그: ${tagHint}
+
+      [데이터 소스 정보]
+      ${JSON.stringify(sourceContexts, null, 2)}
+
+      [수행 과제]
+      1. 데이터 특성과 '강조 태그'의 의도를 100% 결합하여 분석하세요.
+      2. 추천된 설정의 '이유'를 설명하는 'description' 필드에는 반드시 사용자가 제공한 태그를 언급하며 그 태그가 어떻게 반영되었는지 설명하세요.
+      3. 가장 적합한 템플릿 아이디를 선택하세요. (cash-report, custom-app)
+      4. 'mappingConfig'를 생성하세요.
+      5. 'uiSettings' (theme, title, description)를 제안하세요.
+
+      [응답 양식 - 반드시 JSON으로만 응답]
+      {
+        "explanation": "이 디자인을 추천하는 비즈니스적 이유 (한글)",
+        "templateId": "cash-report" | "custom-app",
+        "mappingConfig": [
+          { "sourceColumn": "원본컬럼명", "displayName": "표시컬럼명", "type": "amount" | "text" | "date" }
+        ],
+        "uiSettings": {
+          "theme": "blue" | "indigo" | "slate" | "emerald" | "rose" | "amber",
+          "title": "추천 앱 이름",
+          "description": "앱에 대한 짧은 설명"
+        }
+      }
+    `;
+
+    console.log('[AI 추천 엔진] 5. Gemini API 호출 중...');
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text().trim();
+    
+    console.log('[AI 추천 엔진] 6. AI 응답 수신 완료');
+    
+    // JSON 추출
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('[AI 추천 엔진] JSON 파싱 실패. 원본 텍스트:', text);
+      throw new Error('AI가 유효한 JSON 형식을 반환하지 않았습니다.');
+    }
+    
+    const suggestion = JSON.parse(jsonMatch[0]);
+    console.log('[AI 추천 엔진] 7. 분석 성공!');
+    return { success: true, data: suggestion };
+
+  } catch (error: any) {
+    console.error("[AI 추천 엔진] !!! 치명적 오류:", error);
+    return { success: false, error: error.message || 'AI 분석 엔진 내부 오류가 발생했습니다.' };
   }
 }
 
@@ -322,17 +366,29 @@ export async function listMicroAppsAction() {
   const user = await getSessionAction();
   if (!user) return [];
 
-  const results = await queryTable('micro_app_config', {
-    orderBy: 'createdAt',
-    orderDirection: 'DESC'
-  });
+  try {
+    const results = await queryTable('micro_app_config', {
+      orderBy: 'createdAt',
+      orderDirection: 'DESC'
+    });
 
-  return results.map((config: any) => ({
-    ...config,
-    mappingConfig: JSON.parse(config.mappingConfig),
-    uiSettings: JSON.parse(config.uiSettings),
-    rbacRoles: JSON.parse(config.rbacRoles)
-  }));
+    const projects = await queryTable('micro_app_projects');
+    const projectMap = new Map((projects || []).map((p: any) => [p.id, p]));
+
+    return (results || []).map((config: any) => {
+      const project = projectMap.get(config.projectId);
+      return {
+        ...config,
+        name: project?.name || '이름 없는 앱',
+        mappingConfig: config.mappingConfig ? JSON.parse(config.mappingConfig) : [],
+        uiSettings: config.uiSettings ? JSON.parse(config.uiSettings) : { theme: 'blue' },
+        rbacRoles: config.rbacRoles ? JSON.parse(config.rbacRoles) : ['CEO', 'ADMIN']
+      };
+    });
+  } catch (error) {
+    console.log('micro_app_config table not found or error, returning empty list.');
+    return [];
+  }
 }
 
 /**
@@ -356,7 +412,7 @@ export async function profileAllTablesAction() {
 
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY || "");
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
   for (const table of sortedTables) {
     try {
@@ -432,56 +488,260 @@ export async function profileAllTablesAction() {
   return { success: true };
 }
 
+function inferColumnType(name: string): string {
+  const lowercase = name.toLowerCase();
+  if (lowercase.includes('date') || lowercase.includes('at') || lowercase.includes('time')) return 'date';
+  if (lowercase.includes('amount') || lowercase.includes('price') || lowercase.includes('cost') || lowercase.includes('fee') || lowercase.includes('금액') || lowercase.includes('가액') || lowercase.includes('세액') || lowercase === '부가세') return 'currency';
+  if (lowercase.includes('count') || lowercase.includes('quantity') || (lowercase.includes('id') && lowercase !== 'id' && !lowercase.includes('uuid'))) return 'number';
+  if (lowercase.startsWith('is') || lowercase.startsWith('has') || lowercase === 'active' || lowercase === 'deleted') return 'boolean';
+  if (lowercase.includes('memo') || lowercase.includes('description') || lowercase.includes('data') || lowercase.includes('비고') || lowercase.includes('적요')) return 'textarea';
+  return 'string';
+}
+
 /**
  * 퍼블리싱용 데이터를 서버 사이드에서 안전하게 가져옵니다.
+ * 복수 소스(배열) 처리를 지원하도록 고도화되었습니다.
  */
-export async function fetchPublishingDataAction(
-  sourceTableId: string,
-  options: any = { limit: 100 }
-) {
-  // 세션 체크를 로그로 남기고 통과시킵니다 (디버깅용)
-  const user = await getSessionAction();
-  if (!user) {
-    console.warn('[fetchPublishingDataAction] No session found, proceeding with API key.');
+export async function fetchPublishingDataAction(sourceTableIds: string | string[], options: any = {}) {
+  let ids: string[] = [];
+  if (Array.isArray(sourceTableIds)) {
+    ids = sourceTableIds;
+  } else if (typeof sourceTableIds === 'string') {
+    ids = sourceTableIds.split(',').map(id => id.trim()).filter(id => id);
   }
+  
+  if (ids.length === 0) return { transactions: [], columns: [], _sourceName: '데이터 없음' };
+  
+  const allResults = await Promise.all(ids.map(id => fetchSingleSourceData(id, options)));
+  
+  // 모든 결과를 하나로 합침
+  const mergedTransactions = allResults.flatMap(r => r.transactions);
+  const mergedColumns = allResults[0]?.columns || []; // 컬럼 구조는 첫 번째 소스를 기준으로 하되, 필요시 병합 로직 추가 가능
+  const mergedSourceName = ids.length > 1 ? `${allResults.length}개 소스 통합` : (allResults[0]?._sourceName || '통합 데이터');
+
+  return { 
+    transactions: mergedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), // 날짜 기준 역순 정렬
+    columns: mergedColumns,
+    _sourceName: mergedSourceName 
+  };
+}
+
+/**
+ * 단일 소스 데이터를 가져오는 내부 함수
+ */
+async function fetchSingleSourceData(sourceTableId: string, options: any = {}) {
+  const user = await getSessionAction();
+  if (!user) console.warn('[fetchPublishingDataAction] No session found');
 
   const { 
     queryBankTransactions, 
+    queryCardTransactions,
     queryTable,
     listAccounts,
-    listTables
+    listBanks,
+    queryTaxInvoices,
+    queryTaxExemptInvoices,
+    queryCashReceipts,
+    queryPromissoryNotes,
+    getTableSchema
   } = await import('@/egdesk-helpers');
 
-  // 1. Check if sourceTableId is a real table first (to prioritize repository tables)
-  const { tables } = await listTables();
-  const targetTable = tables.find((t: any) => t.name === sourceTableId);
+  let rows: any[] = [];
+  let columns: any[] = [];
+  let sourceName = '';
 
-  if (targetTable) {
-    const rows = await queryTable(sourceTableId, options);
-    // Add metadata for transparency
-    if (Array.isArray(rows)) {
-      (rows as any)._sourceName = targetTable.displayName || targetTable.name;
+  // 1. 은행/카드 금융 데이터 (FinanceHub)
+  if (sourceTableId === 'finance-hub-bank-table' || sourceTableId === 'finance-hub-card-table' || sourceTableId === 'finance_bank_transactions') {
+    const isCard = sourceTableId === 'finance-hub-card-table';
+    sourceName = isCard ? '신용카드 거래 내역 (FinanceHub)' : '은행 계좌 거래 내역 (FinanceHub)';
+    
+    let allTransactions: any[] = [];
+    let offset = 0;
+    const limit = 1000;
+    while (true) {
+        const txData = isCard 
+            ? await queryCardTransactions({ limit, offset, orderBy: 'date', orderDir: 'desc' })
+            : await queryBankTransactions({ limit, offset, orderBy: 'date', orderDir: 'desc' });
+        const batch = Array.isArray(txData) ? txData : (txData?.transactions || []);
+        if (batch.length > 0) allTransactions.push(...batch);
+        if (batch.length < limit) break;
+        offset += limit;
     }
-    return rows;
+
+    const [accountData, bankData] = await Promise.all([listAccounts(), listBanks()]);
+    const accounts = Array.isArray(accountData) ? accountData : (accountData?.accounts || []);
+    const accountMap = new Map(accounts.map((a: any) => [a.id, a]));
+    const banks = (bankData as any)?.banks || [];
+    const bankMap = new Map(banks.map((b: any) => [b.id, b.nameKo || b.name]));
+    
+        rows = allTransactions.map((t: any) => {
+            const acc = accountMap.get(t.accountId);
+            let displayDate = t.date || '';
+            if (displayDate.length === 8 && !displayDate.includes('-')) {
+                displayDate = `${displayDate.substring(0, 4)}-${displayDate.substring(4, 6)}-${displayDate.substring(6, 8)}`;
+            }
+            // 시간 정보가 있으면 날짜 뒤에 붙임 (정밀 정렬용)
+            if (t.time && !displayDate.includes(':')) {
+                displayDate += ` ${t.time}`;
+            } else if (t.transaction_datetime) {
+                displayDate = t.transaction_datetime;
+            }
+
+            return {
+                ...t,
+                date: displayDate,
+                _bankName: isCard ? (bankMap.get(t.cardCompanyId) || t.cardCompanyId || '') : (bankMap.get(t.bankId) || t.bankId || ''),
+                accountNumber: isCard ? (t.cardNumber || '') : (acc?.accountNumber || ''),
+                accountName: acc?.accountName || '',
+                withdrawal: isCard ? Number(t.amount || 0) : Number(t.withdrawal || t.outAmount || 0),
+                deposit: isCard ? 0 : Number(t.deposit || t.inAmount || 0),
+                balance: Number(t.balance || 0),
+            };
+        });
+
+    columns = [
+        { name: 'date', displayName: '날짜', type: 'date' },
+        { name: '_bankName', displayName: isCard ? '카드사' : '은행명', type: 'string' },
+        { name: 'accountNumber', displayName: isCard ? '카드번호' : '계좌번호', type: 'string' },
+        { name: 'description', displayName: '적요', type: 'string' },
+        { name: 'withdrawal', displayName: '출금액', type: 'currency' },
+        { name: 'deposit', displayName: '입금액', type: 'currency' },
+        { name: 'balance', displayName: '잔액', type: 'currency' }
+    ];
+  } 
+  // 2. 홈택스/전자어음 (특수 필터링 적용)
+  else if (sourceTableId.startsWith('finance-hub-hometax-') || sourceTableId === 'finance-hub-promissory-table' || sourceTableId === 'hometax_sales_invoices') {
+    let allFetched: any[] = [];
+    let offset = 0;
+    const limit = 1000;
+    
+    while (true) {
+        let batchData: any = null;
+        if (sourceTableId.includes('-tax') || sourceTableId === 'hometax_sales_invoices') {
+            batchData = await queryTaxInvoices({ invoiceType: sourceTableId.includes('purchase') ? 'purchase' : 'sales', limit, offset });
+        } else if (sourceTableId.includes('-bill')) {
+            batchData = await queryTaxExemptInvoices({ invoiceType: sourceTableId.includes('purchase') ? 'purchase' : 'sales', limit, offset });
+        } else if (sourceTableId.includes('-cash-receipt')) {
+            batchData = await queryCashReceipts({ limit, offset });
+        } else if (sourceTableId === 'finance-hub-promissory-table') {
+            batchData = await queryPromissoryNotes({ limit, offset });
+        }
+
+        const rawBatch = Array.isArray(batchData) ? batchData : (
+            batchData?.rows || batchData?.invoices || batchData?.receipts || batchData?.notes || []
+        );
+
+        let filteredBatch = rawBatch;
+        if ((sourceTableId.includes('-tax') || sourceTableId === 'hometax_sales_invoices') && sourceTableId.includes('hometax')) {
+            filteredBatch = rawBatch.filter((b: any) => b['전자세금계산서분류'] && b['전자세금계산서분류'].includes('세금계산서'));
+        } else if (sourceTableId.includes('-bill') && sourceTableId.includes('hometax')) {
+            filteredBatch = rawBatch.filter((b: any) => {
+                const cls = b['전자세금계산서분류'] || '';
+                return (cls.includes('계산서') && !cls.includes('세금계산서')) || !cls;
+            });
+        }
+
+        if (filteredBatch.length > 0) allFetched.push(...filteredBatch);
+        if (rawBatch.length < limit) break;
+        offset += limit;
+    }
+
+    rows = allFetched;
+    const firstRow = rows[0] || {};
+    columns = Object.keys(firstRow).filter(k => k !== 'id').map(k => ({
+        name: k,
+        displayName: k,
+        type: inferColumnType(k)
+    }));
+    sourceName = `MY DB 시스템 테이블 (${sourceTableId})`;
+  }
+  // 3. 일반 테이블
+  else {
+    let allRows: any[] = [];
+    let offset = 0;
+    const limit = 1000;
+    while (true) {
+      const batch = await queryTable(sourceTableId, { ...options, limit, offset });
+      if (batch.length > 0) allRows.push(...batch);
+      if (batch.length < limit) break;
+      offset += limit;
+    }
+    
+    rows = allRows;
+    const schema = await getTableSchema(sourceTableId).catch(() => []);
+    columns = schema.length > 0 ? schema.map((s: any) => ({
+        name: s.name,
+        displayName: s.displayName || s.name,
+        type: s.type || inferColumnType(s.name)
+    })) : Object.keys(rows[0] || {}).map(k => ({ name: k, displayName: k, type: inferColumnType(k) }));
+    
+    sourceName = `MY DB 테이블 (${sourceTableId})`;
   }
 
-  // 2. Virtual API Sources
-  if (sourceTableId === 'finance_bank_transactions') {
-    const [accounts, transactions] = await Promise.all([
-      listAccounts(),
-      queryBankTransactions(options)
-    ]);
-    const result = { accounts, transactions };
-    (result as any)._sourceName = 'FinanceHub 실시간 API';
-    return result;
-  } else if (sourceTableId === 'hometax_sales_invoices') {
-    const rows = await queryTaxInvoices({ ...options, invoiceType: 'sales' });
-    if (Array.isArray(rows)) {
-      (rows as any)._sourceName = '홈택스 매출 리포트';
-    }
-    return rows;
-  } else {
-    return await queryTable(sourceTableId, options);
-  }
+  return { 
+    transactions: rows, 
+    columns: columns,
+    _sourceName: sourceName 
+  };
 }
 
+/**
+ * 데이터 구조는 유지한 채 디자인 스타일(테마, 타이틀, 설명 등)만 새롭게 제안합니다.
+ */
+export async function getAIDesignRefreshAction(appId: string) {
+  console.log(`[AI 디자인 리프레시] >>> 스타일 분석 시작 (App ID: ${appId})`);
+  const user = await getSessionAction();
+  if (!user) throw new Error('인증이 필요합니다.');
+
+  try {
+    const { getMicroAppProjectAction } = await import('./micro-app');
+    const project = await getMicroAppProjectAction(appId);
+    if (!project) throw new Error('프로젝트를 찾을 수 없습니다.');
+
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다.');
+
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+
+    const prompt = `
+      당신은 기업용 대시보드 UI/UX 전문가입니다. 
+      현재 앱의 내용은 확정되었습니다. 이 앱을 더 프리미엄하고 세련되게 보일 수 있는 '디자인 스타일'만 제안하세요.
+      데이터 매핑은 변경하지 않습니다.
+
+      [현재 앱 정보]
+      - 이름: ${project.name}
+      - 설명: ${project.description || ''}
+      - 강조 태그: ${JSON.stringify(project.tags)}
+
+      [수행 과제]
+      1. 현재 테마와 태그를 분석하여 더 전문적인 비즈니스 룩앤필을 제안하세요.
+      2. 'uiSettings' (theme, title, description)만 제안하세요. 
+         - theme: blue, indigo, slate, emerald, rose, amber 중 선택
+         - description: 앱의 가치를 높여주는 전문적인 비즈니스 문구로 작성
+
+      [응답 양식 - 반드시 JSON으로만 응답]
+      {
+        "explanation": "이 디자인 스타일을 제안하는 이유",
+        "uiSettings": {
+          "theme": "color-name",
+          "title": "세련된 앱 이름",
+          "description": "매력적인 비즈니스 설명"
+        }
+      }
+    `;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('유효한 디자인 제안을 생성하지 못했습니다.');
+    
+    const suggestion = JSON.parse(jsonMatch[0]);
+    return { success: true, data: suggestion };
+
+  } catch (error: any) {
+    console.error("[AI 디자인 리프레시] 오류:", error);
+    return { success: false, error: error.message };
+  }
+}
