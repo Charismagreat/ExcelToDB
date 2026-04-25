@@ -44,6 +44,7 @@ export default async function DataAnalysisStudioPage() {
     ...virtualReports,
     ...reportsData.map((r: any) => ({
       ...r,
+      name: r.displayName || r.name, // displayName이 있으면 그것을 우선 사용
       columns: r.columns
     }))
   ];

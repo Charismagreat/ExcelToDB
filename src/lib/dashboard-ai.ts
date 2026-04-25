@@ -78,6 +78,16 @@ const tools: any[] = [
           },
           required: ["tableId"]
         }
+      },
+      {
+        name: "list_bank_accounts",
+        description: "등록된 은행 계좌 목록과 현재 잔액 정보를 가져옵니다. '은행별 잔액', '계좌 현황' 요청 시 반드시 사용하세요.",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            bankId: { type: SchemaType.STRING, description: "특정 은행 ID (선택 사항)" }
+          }
+        }
       }
     ]
   }
@@ -125,7 +135,7 @@ async function getInitialContext(tableIds: string[]) {
         id,
         name: '금융거래 통합 내역 (FinanceHub)',
         description: '카드 결제 및 계좌 거래 내역을 포함하는 통합 금융 데이터입니다.',
-        availableTools: ['get_finance_monthly_summary', 'get_finance_statistics', 'get_card_usage_by_approval_date']
+        availableTools: ['get_finance_monthly_summary', 'get_finance_statistics', 'get_card_usage_by_approval_date', 'list_bank_accounts']
       };
     } else {
       const reports = await queryTable('report', { filters: { id } });
@@ -165,7 +175,8 @@ export async function getVisualizationRecommendation(
     [당신의 권한]
     당신은 실시간으로 데이터를 조회하고 집계할 수 있는 '도구(Tools)'를 가지고 있습니다. 
     1. 사용자가 "지난달과 이번달 비교"와 같이 전체 데이터 집계가 필요한 요청을 하면 관련 도구를 호출하십시오.
-    2. 특히 "정확한 금액" 또는 "승인일 기준" 요청이 있으면 반드시 'get_card_usage_by_approval_date' 도구를 사용하여 데이터를 직접 집계하십시오. 이 도구는 요약 정보뿐만 아니라 '개별 거래 내역(transactions)' 데이터(승인일 approvalDate, 카드번호 cardNumber 등 포함)도 함께 반환하므로, 사용자가 "건별 내역"이나 "상세 표"를 요청할 때 이를 적극 활용하십시오.
+    2. "은행별 잔액", "현재 계좌 현황" 등을 요청하면 반드시 'list_bank_accounts' 도구를 사용하십시오. 이 도구는 'accountName'(계좌명), 'bankName'(은행명), 'balance'(잔액) 등의 필드를 반환하므로, 이를 활용해 파이 차트나 바 차트를 생성하십시오.
+    3. 특히 "정확한 금액" 또는 "승인일 기준" 요청이 있으면 반드시 'get_card_usage_by_approval_date' 도구를 사용하여 데이터를 직접 집계하십시오.
     
     [분석 대상 테이블 정보]
     ${JSON.stringify(contexts, null, 2)}
@@ -269,18 +280,30 @@ export async function getVisualizationRecommendation(
   const responseText = response.response.text();
   let cleanedResponseText = responseText.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
 
-  // JSON 추출
+  // JSON 추출 및 정제 로직 강화
   const jsonMatch = cleanedResponseText.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
+    let jsonString = jsonMatch[0];
     try {
-      return JSON.parse(jsonMatch[0]);
+      return JSON.parse(jsonString);
     } catch (e: any) {
-      console.error("[JSON Parsing Error]:", e, responseText);
-      return { 
-        content: `시각화 데이터를 구성하는 중 파싱 오류가 발생했습니다. AI가 반환한 포맷이 규격을 벗어났습니다.\n\nAI가 작성하려고 했던 답변 일부:\n${cleanedResponseText.substring(0, 100)}...`
-      };
+      console.error("[JSON Parsing Error - Attempting Cleanup]:", e);
+      // 일반적인 줄바꿈(\n)이 이스케이프되지 않았을 경우를 대비한 2차 정제
+      try {
+        const repairedJson = jsonString
+          .replace(/\n/g, "\\n")
+          .replace(/\r/g, "\\r")
+          .replace(/\t/g, "\\t");
+        return JSON.parse(repairedJson);
+      } catch (e2) {
+        // 최종 실패 시 content만이라도 추출 시도
+        const contentMatch = jsonString.match(/"content"\s*:\s*"([\s\S]*?)"(?=\s*,\s*"|\s*\})/);
+        if (contentMatch) {
+          return { content: contentMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') };
+        }
+      }
     }
   }
 
-  return { content: cleanedResponseText };
+  return { content: cleanedResponseText || "요청하신 내용에 대해 분석 결과를 생성하지 못했습니다. 질문을 조금 더 구체적으로 말씀해 주시거나 다른 테이블을 선택해 보세요." };
 }

@@ -215,12 +215,13 @@ export default async function DashboardPage() {
       .filter((t: any) => !mappedTableNames.has(t.tableName?.toLowerCase())) // 이미 가상 보고서와 연결된 물리 테이블은 중복 방지를 위해 제외
       .map((t: any) => ({
         id: t.tableName,
+        tableName: t.tableName, // 카드 UI에서 표시할 ID 필드 추가
         name: t.displayName || t.tableName,
         sheetName: 'System Table',
         _count: { rows: t.rowCount !== null && t.rowCount !== undefined ? t.rowCount : 'N/A' },
         isSystemTable: true,
         ownerId: 'system',
-        isReadOnly: t.tableName === 'user' ? false : true, // user 테이블은 관리 가능하도록 예외 처리
+        isReadOnly: t.tableName === 'user' ? false : true,
         category: 'System'
       }));
     reports = [...reports, ...mappedSystemTables];

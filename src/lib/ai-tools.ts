@@ -1,4 +1,4 @@
-import { queryTable, executeSQL } from "@/egdesk-helpers";
+import { queryTable, executeSQL, listAccounts } from "@/egdesk-helpers";
 import { queryCardTransactions, getMonthlySummary, getTransactionStats as getStatistics } from "@/egdesk-helpers";
 
 /**
@@ -11,6 +11,10 @@ export async function runAITool(name: string, args: any) {
       return await getMonthlySummary({ months: args.months || 6 });
     case "get_finance_statistics":
       return await getStatistics({ startDate: args.startDate, endDate: args.endDate });
+    case "list_bank_accounts": {
+      const accounts = await listAccounts(args);
+      return Array.isArray(accounts) ? accounts : (accounts?.accounts || []);
+    }
     case "get_card_usage_by_approval_date": {
       const result = await queryCardTransactions({
         startDate: args.startDate,

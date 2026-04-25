@@ -113,8 +113,11 @@ export function ReportHeader({
             ) : (
               <div className="group relative">
                 <div className="flex items-center gap-4">
-                  <h1 className="text-xl md:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3 font-[family-name:var(--font-geist-sans)] leading-tight uppercase">
+                  <h1 className="text-xl md:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3 font-[family-name:var(--font-geist-sans)] leading-tight">
                     {name}
+                    <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-400 text-[10px] font-black rounded-lg border border-slate-200">
+                      <span className="text-blue-600">ID:</span> {reportId}
+                    </div>
                     <FileText className="text-blue-600 shrink-0" size={24} />
                     {isOwner && !isReadOnly && (
                       <button 
@@ -135,13 +138,13 @@ export function ReportHeader({
                 
                 <div className="flex items-center gap-4 mt-4">
                   <div className="text-slate-500 font-bold leading-relaxed max-w-2xl flex items-center gap-3">
-                    <div className="flex items-center gap-2 bg-blue-50 px-3 py-1 rounded-xl">
-                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Repository</span>
-                        <span className="text-slate-900 font-black text-xs">{sheetName}</span>
+                    <div className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-xl shadow-lg shadow-blue-500/20">
+                        <span className="text-[9px] font-black uppercase tracking-widest opacity-80">Repository</span>
+                        <span className="font-black text-[11px]">{sheetName}</span>
                     </div>
                     <span className="text-slate-300">|</span>
                     <div className="flex items-center gap-2 text-slate-400 font-black text-[10px] uppercase tracking-widest">
-                        <span>Synchronized at {createdAt}</span>
+                        <span>Synchronized at {new Date(createdAt).toLocaleString()}</span>
                         {rowCount !== undefined && (
                             <>
                                 <span className="text-slate-200">|</span>

@@ -212,7 +212,7 @@ export function DashboardHubClient({ user, isStaff, reports, events }: Dashboard
                    const rCat = report.category || (report.uiConfig ? JSON.parse(report.uiConfig).category : 'Uncategorized');
                    
                    return (
-                    <div key={report.id} className="relative group bg-white border border-slate-100 rounded-[40px] hover:border-blue-500/30 hover:shadow-2xl hover:shadow-slate-900/10 transition-all duration-500 overflow-hidden">
+                    <div key={report.id} className="relative group bg-white border border-slate-100 rounded-[32px] hover:border-blue-500/30 hover:shadow-2xl hover:shadow-slate-900/10 transition-all duration-500 overflow-hidden">
                       {/* Entire card is a link */}
                       <Link
                         href={
@@ -223,54 +223,61 @@ export function DashboardHubClient({ user, isStaff, reports, events }: Dashboard
                         className="absolute inset-0 z-0"
                       />
 
-                      <div className="p-10 relative z-10 pointer-events-none">
-                        <div className="flex justify-between items-start mb-6">
-                          <div className={`p-3 rounded-2xl transition-all duration-500 ${
+                      <div className="p-7 relative z-10 pointer-events-none">
+                        <div className="flex items-start gap-4 mb-6">
+                          <div className={`p-3 rounded-2xl transition-all duration-500 shrink-0 ${
                               report.isFinanceTable ? 'bg-indigo-50 text-indigo-600' :
                               report.isSystemTable ? 'bg-purple-50 text-purple-600' :
                               report.isDirectTable ? 'bg-slate-50 text-slate-600' :
                               (isStaff ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-700 group-hover:bg-blue-600 group-hover:text-white group-hover:scale-110 shadow-sm')
                             }`}>
-                            {report.isFinanceTable ? <Wallet size={24} /> :
-                              report.isSystemTable ? <Database size={24} /> :
-                              report.isDirectTable ? <Database size={24} /> :
-                                (isStaff ? <ShieldCheck size={24} /> : <FileSpreadsheet size={24} />)}
+                            {report.isFinanceTable ? <Wallet size={20} /> :
+                              report.isSystemTable ? <Database size={20} /> :
+                              report.isDirectTable ? <Database size={20} /> :
+                                (isStaff ? <ShieldCheck size={20} /> : <FileSpreadsheet size={20} />)}
                           </div>
                           
-                          <div className="flex flex-col items-end gap-2">
-                              <span className="px-2 py-1 bg-slate-50 text-slate-400 text-[9px] font-black rounded-lg border border-slate-100 uppercase tracking-tighter">
-                                {rCat}
-                              </span>
-                              <div className="flex items-center gap-2 pointer-events-auto">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="text-base font-black text-slate-900 truncate group-hover:text-blue-600 transition-colors">
+                                    {report.name}
+                                  </h3>
                                   {report.isReadOnly && (
-                                    <span className="px-2 py-1 bg-rose-50 text-rose-600 text-[9px] font-black rounded-lg uppercase tracking-widest border border-rose-100">
+                                    <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[8px] font-black rounded-md uppercase tracking-widest border border-rose-100 shrink-0">
                                       Locked
                                     </span>
                                   )}
-                                  {!isStaff && !report.isReadOnly && (
-                                    <div className="opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
-                                      <DeleteReportButton reportId={report.id} reportName={report.name} />
-                                    </div>
-                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-400 line-clamp-1 font-bold">
+                                  {report.description || 'No description available for this table.'}
+                                </p>
                               </div>
+                              
+                              <div className="flex flex-col items-end gap-2 shrink-0">
+                                <span className="px-2 py-0.5 bg-slate-50 text-slate-400 text-[8px] font-black rounded-md border border-slate-100 uppercase tracking-tighter shrink-0">
+                                  {rCat}
+                                </span>
+                                <div className="pointer-events-auto opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+                                  {!isStaff && !report.isReadOnly && (
+                                    <DeleteReportButton reportId={report.id} reportName={report.name} />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="space-y-2 mb-6">
-                          <h3 className="text-lg font-bold text-slate-900 truncate leading-snug group-hover:text-blue-600 transition-colors">
-                            {report.name}
-                          </h3>
-                          <p className="text-xs text-slate-400 line-clamp-1 font-medium">
-                            {report.description || 'No description available for this table.'}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-tight">
-                            <span className="text-blue-600">ID:</span> {report.tableName}
+                        <div className="flex flex-wrap items-center gap-2 pt-5 border-t border-slate-50">
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg text-[9px] font-bold text-slate-500 border border-slate-100">
+                            <span className="text-blue-600 font-black">ID:</span> {report.tableName || report.id}
                           </div>
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50/50 rounded-xl text-[10px] font-bold text-blue-600 uppercase tracking-tight">
-                            {report._count?.rows ?? '0'} Rows
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 text-white rounded-lg text-[9px] font-bold shadow-lg shadow-blue-500/10">
+                            <span className="opacity-80">REPO:</span> {report.sheetName || 'MY DB'}
+                          </div>
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50/50 rounded-lg text-[9px] font-bold text-blue-600">
+                            <span className="font-black">{report._count?.rows ?? '0'}</span> Rows
                           </div>
                         </div>
                       </div>

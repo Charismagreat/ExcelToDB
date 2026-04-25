@@ -290,7 +290,7 @@ export function DashboardClient({ allTables, user }: DashboardClientProps) {
                   <BarChart3 size={14} />
                 </div>
                 <div className="flex-1 text-left overflow-hidden">
-                  <p className="text-xs font-black truncate">{table.name}</p>
+                  <p className="text-xs font-black truncate">{table.displayName || table.name}</p>
                   <p className={`text-[9px] uppercase tracking-tighter opacity-60 ${
                     selectedIds.includes(table.id) ? 'text-blue-100' : 'text-slate-400'
                   }`}>
@@ -314,9 +314,9 @@ export function DashboardClient({ allTables, user }: DashboardClientProps) {
                 selectedIds.map(id => {
                   const table = allTables.find(t => t.id === id);
                   return (
-                    <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-600 rounded-lg text-[9px] font-black uppercase">
-                      {table?.name.slice(0, 8)}...
-                      <X size={10} className="cursor-pointer" onClick={() => toggleTable(id)} />
+                    <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-600 rounded-lg text-[9px] font-black">
+                      {table?.displayName || table?.name || id}
+                      <X size={10} className="cursor-pointer shrink-0" onClick={() => toggleTable(id)} />
                     </span>
                   );
                 })
