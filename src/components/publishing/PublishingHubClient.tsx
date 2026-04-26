@@ -254,7 +254,7 @@ export function PublishingHubClient({ initialApps, initialProjects, user }: Publ
                 <div className="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
                   <span className="flex items-center gap-1.5"><Calendar size={12} /> {new Date(app.createdAt).toLocaleDateString()}</span>
                   <div className="flex items-center gap-4">
-                    <Link href={`/publishing/edit/${app.id}`} className="text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors">
+                    <Link href={`/publishing/edit/${app.projectId}`} className="text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors">
                       <Edit3 size={14} /> 수정
                     </Link>
                     <Link 

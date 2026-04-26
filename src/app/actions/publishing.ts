@@ -91,6 +91,131 @@ export async function getProactivePublishingSuggestionsAction() {
 }
 
 /**
+ * 특정 데이터 소스의 뷰 설정(표시명, 순서 등)을 저장합니다.
+ * 이 설정은 MY DB, APP STUDIO 등 모든 메뉴에서 공통으로 참조됩니다.
+ */
+export async function saveSourceViewSettingsAction(sourceId: string, viewConfig: any) {
+  const user = await getSessionAction();
+  if (!user) throw new Error('인증이 필요합니다.');
+
+  const { queryTable, insertRows, deleteRows } = await import('@/egdesk-helpers');
+  const { SystemConfigService } = await import('@/lib/services/system-config-service');
+  const now = new Date().toISOString();
+
+  try {
+    // 시스템 테이블 보장 (Self-Healing)
+    const { SystemConfigService } = await import('@/lib/services/system-config-service');
+    await SystemConfigService.ensureSystemTables();
+
+    // 기존 설정 삭제 후 재삽입 (Upsert) - 스키마: id, view_config, updatedAt
+    await deleteRows('source_view_settings', { filters: { id: sourceId } }).catch(() => {});
+    
+    await insertRows('source_view_settings', [{
+      id: sourceId,
+      view_config: JSON.stringify(viewConfig),
+      updatedAt: now
+    }]);
+
+    revalidatePath('/report/' + sourceId);
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to save source view settings:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 특정 데이터 소스의 저장된 뷰 설정을 가져옵니다.
+ */
+export async function getSourceViewSettingsAction(sourceId: string) {
+  const { queryTable } = await import('@/egdesk-helpers');
+  try {
+    const results = await queryTable('source_view_settings', { 
+      filters: { id: sourceId },
+      limit: 1 
+    }).catch(() => []);
+    
+    const rows = Array.isArray(results) ? results : (results?.rows || []);
+
+    if (rows && rows.length > 0) {
+      return { 
+        success: true, 
+        data: {
+          ...rows[0],
+          view_config: JSON.parse(rows[0].view_config)
+        }
+      };
+    }
+    return { success: true, data: null };
+  } catch (error: any) {
+    console.error('Failed to get source view settings:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+
+/**
+ * 프로젝트에 연결된 모든 소스 테이블의 스키마 정보를 가져옵니다.
+ */
+export async function getProjectSourceSchemasAction(sourceIds: string[]) {
+  const { getTableSchema, queryTable } = await import('@/egdesk-helpers');
+  try {
+    const schemas = await Promise.all(sourceIds.map(async (id) => {
+      // 1. 해당 소스의 저장된 뷰 설정 가져오기
+      const viewSettingsRes = await getSourceViewSettingsAction(id);
+      const savedConfig = viewSettingsRes.success && viewSettingsRes.data ? viewSettingsRes.data.view_config : null;
+
+      let columns: any[] = [];
+      
+      // 2. 가상 테이블(FinanceHub) 기본 스키마 정의
+      if (id === 'finance-hub-bank-table' || id === 'finance-hub-card-table' || id === 'FinanceHub') {
+        const isCard = id.includes('card');
+        columns = [
+          { name: 'date', displayName: '날짜', type: 'date' },
+          { name: '_bankName', displayName: isCard ? '카드사' : '은행명', type: 'string' },
+          { name: 'accountNumber', displayName: isCard ? '카드번호' : '계좌번호', type: 'string' },
+          { name: 'accountName', displayName: '계좌명', type: 'string' },
+          { name: 'description', displayName: '적요', type: 'string' },
+          { name: 'withdrawal', displayName: '출금액', type: 'currency' },
+          { name: 'deposit', displayName: '입금액', type: 'currency' },
+          { name: 'balance', displayName: '잔액', type: 'currency' },
+          { name: 'updatedAt', displayName: '최종갱신', type: 'date' }
+        ];
+      } else {
+        columns = await getTableSchema(id).catch(() => []);
+      }
+
+      // 3. 저장된 설정(savedConfig)이 있으면 이름과 순서 덮어쓰기
+      if (savedConfig && savedConfig.columns) {
+        const configuredCols = savedConfig.columns; // { name, displayName, visible, order }
+        
+        // 설정된 컬럼들만 먼저 순서대로 정렬하여 배치
+        const mergedColumns = configuredCols
+          .filter((cc: any) => cc.visible !== false)
+          .map((cc: any) => {
+            const originalCol = columns.find(c => c.name === cc.name) || {};
+            return {
+              ...originalCol,
+              name: cc.name,
+              displayName: cc.displayName || originalCol.displayName || cc.name,
+              type: originalCol.type || cc.type || 'text'
+            };
+          });
+
+        // 설정에 없는 나머지 컬럼들 추가 (필요시)
+        const remainingCols = columns.filter(c => !configuredCols.some((cc: any) => cc.name === c.name));
+        columns = [...mergedColumns, ...remainingCols];
+      }
+
+      return { id, columns };
+    }));
+    return { success: true, schemas };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * 새로운 마이크로 앱을 발행합니다.
  */
 export async function publishMicroAppAction(data: {
@@ -342,20 +467,57 @@ export async function getAISuggestedProjectSetupAction(appId: string) {
 
 /**
  * 마이크로 앱 설정을 가져옵니다.
+ * 사용자 요청에 따라 원본 소스 테이블의 뷰 설정(정렬, 컬럼명 등)을 자동으로 상속받습니다.
  */
 export async function getMicroAppConfigAction(id: string) {
-  const results = await queryTable('micro_app_config', {
-    filters: { id }
-  });
+  const results = await queryTable('micro_app_config');
+  console.log(`[getMicroAppConfigAction] Searching for Published App ID: "${id}"`);
+  
+  let config = (results || []).find((c: any) => c.id === id);
+  if (!config && id) {
+    config = (results || []).find((c: any) => String(c.id).trim() === String(id).trim());
+  }
 
-  if (!results || results.length === 0) return null;
+  if (!config) {
+    console.error(`[getMicroAppConfigAction] Config NOT FOUND for ID: ${id}`);
+    return null;
+  }
 
-  const config = results[0];
+  const parsedMapping = config.mappingConfig ? JSON.parse(config.mappingConfig) : [];
+  const parsedUiSettings = config.uiSettings ? JSON.parse(config.uiSettings) : {};
+  const parsedRbacRoles = config.rbacRoles ? JSON.parse(config.rbacRoles) : [];
+
+  // [고도화] 원본 테이블의 뷰 설정 상속 (Inheritance)
+  if (config.sourceTableId) {
+    try {
+      const sourceId = config.sourceTableId.split(',')[0].trim(); // 첫 번째 소스 기준
+      const sourceSettingsRes = await getSourceViewSettingsAction(sourceId);
+      if (sourceSettingsRes.success && sourceSettingsRes.data) {
+        const sourceConfig = sourceSettingsRes.data.view_config;
+        // 마이크로 앱 전용 설정이 없는 경우에만 상속 (또는 병합)
+        parsedUiSettings.multiSortConfig = parsedUiSettings.multiSortConfig || sourceConfig.multiSortConfig;
+        parsedUiSettings.itemsPerPage = parsedUiSettings.itemsPerPage || sourceConfig.itemsPerPage;
+        
+        // 컬럼명 상속 (mappingConfig에 displayName이 없으면 소스 설정에서 가져옴)
+        if (sourceConfig.columns) {
+          parsedMapping.forEach((m: any) => {
+            const sourceCol = sourceConfig.columns.find((sc: any) => sc.name === m.sourceColumn);
+            if (sourceCol && !m.displayName) {
+              m.displayName = sourceCol.displayName;
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[getMicroAppConfigAction] Failed to inherit source settings:', e);
+    }
+  }
+
   return {
     ...config,
-    mappingConfig: JSON.parse(config.mappingConfig),
-    uiSettings: JSON.parse(config.uiSettings),
-    rbacRoles: JSON.parse(config.rbacRoles)
+    mappingConfig: parsedMapping,
+    uiSettings: parsedUiSettings,
+    rbacRoles: parsedRbacRoles
   };
 }
 
@@ -514,13 +676,14 @@ export async function fetchPublishingDataAction(sourceTableIds: string | string[
   
   const allResults = await Promise.all(ids.map(id => fetchSingleSourceData(id, options)));
   
-  // 모든 결과를 하나로 합침
+  // 모든 결과를 하나로 합침 (하위 호환성 유지)
   const mergedTransactions = allResults.flatMap(r => r.transactions);
-  const mergedColumns = allResults[0]?.columns || []; // 컬럼 구조는 첫 번째 소스를 기준으로 하되, 필요시 병합 로직 추가 가능
+  const mergedColumns = allResults[0]?.columns || []; 
   const mergedSourceName = ids.length > 1 ? `${allResults.length}개 소스 통합` : (allResults[0]?._sourceName || '통합 데이터');
 
   return { 
-    transactions: mergedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), // 날짜 기준 역순 정렬
+    datasets: allResults, // [NEW] 개별 소스별 데이터셋 포함
+    transactions: mergedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     columns: mergedColumns,
     _sourceName: mergedSourceName 
   };
@@ -679,9 +842,10 @@ async function fetchSingleSourceData(sourceTableId: string, options: any = {}) {
   }
 
   return { 
-    transactions: rows, 
-    columns: columns,
-    _sourceName: sourceName 
+    id: sourceTableId,
+    _sourceName: sourceName,
+    transactions: rows.map(r => ({ ...r, _sourceId: sourceTableId })), 
+    columns: columns
   };
 }
 

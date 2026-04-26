@@ -5,7 +5,8 @@ import { MobileLayout } from '@/components/mobile/MobileLayout';
 import { getSessionAction } from '@/app/actions/auth';
 import { notFound } from 'next/navigation';
 
-export default async function MicroAppPage({ params }: { params: { id: string } }) {
+export default async function MicroAppPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { id } = params;
   const config = await getMicroAppConfigAction(id);
   const user = await getSessionAction();
@@ -25,7 +26,7 @@ export default async function MicroAppPage({ params }: { params: { id: string } 
       branding="APP STUDIO PUBLISHED"
     >
       <div className="p-4 sm:p-6 animate-in fade-in duration-700">
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-900/5 overflow-hidden">
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-900/5">
           <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
             <div>
               <h1 className="text-xl font-black text-slate-900">{config.name}</h1>
@@ -40,6 +41,7 @@ export default async function MicroAppPage({ params }: { params: { id: string } 
           
           <div className="p-0">
             <TemplateRenderer 
+              id={id}
               templateId={config.templateId}
               sourceTableId={config.sourceTableId}
               mappingConfig={config.mappingConfig}

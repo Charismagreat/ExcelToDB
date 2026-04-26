@@ -20,13 +20,15 @@ import {
   FileText,
   Search,
   Layout,
-  Bot
+  Bot,
+  RotateCcw
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
   addSourcesToProjectAction, 
   removeSourceFromProjectAction,
+  removeAllSourcesFromProjectAction,
   publishProjectAction,
   updateMicroAppProjectAction
 } from '@/app/actions/micro-app';
@@ -49,11 +51,27 @@ export function MicroAppStudio({ project, user }: MicroAppStudioProps) {
   const [activeTab, setActiveTab] = useState<'general' | 'code'>('general');
   const [customHtml, setCustomHtml] = useState(project.uiSettings.customHtml || '');
   const [customCss, setCustomCss] = useState(project.uiSettings.customCss || '');
+  const [sourceSchemas, setSourceSchemas] = useState<any[]>([]);
   const router = useRouter();
+  
+  // 소스 스키마 정보 가져오기
+  useEffect(() => {
+    const fetchSchemas = async () => {
+      if (project.sources.length > 0) {
+        const { getProjectSourceSchemasAction } = await import('@/app/actions/publishing');
+        const res = await getProjectSourceSchemasAction(project.sources.map((s: any) => s.id));
+        if (res.success) {
+          setSourceSchemas(res.schemas);
+        }
+      }
+    };
+    fetchSchemas();
+  }, [project.sources]);
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    console.log(`[MicroAppStudio] Project Loaded: "${project.name}" (ID: ${project.id})`);
+  }, [project.id, project.name]);
 
   const handleSaveName = async () => {
     if (name.trim() === '' || name === project.name) {
@@ -190,6 +208,24 @@ export function MicroAppStudio({ project, user }: MicroAppStudioProps) {
       await removeSourceFromProjectAction(project.id, sourceId);
     } catch (e) {
       alert('소스 제거에 실패했습니다.');
+    }
+  };
+
+  const handleResetSources = async () => {
+    if (!confirm('연결된 모든 데이터 소스를 제거하시겠습니까? 이 작업은 취소할 수 없습니다.')) return;
+    
+    setPending(true);
+    try {
+      const res = await removeAllSourcesFromProjectAction(project.id);
+      if (res.success) {
+        router.refresh();
+      } else {
+        alert('초기화에 실패했습니다.');
+      }
+    } catch (e) {
+      alert('초기화 중 오류가 발생했습니다.');
+    } finally {
+      setPending(false);
     }
   };
 
@@ -397,9 +433,21 @@ export function MicroAppStudio({ project, user }: MicroAppStudioProps) {
               <div className="space-y-0">
                 {/* 1. Source List (Original) */}
                 <div className="p-4 md:p-8 border-b border-slate-50">
-                  <div className="flex items-center gap-3 mb-6 px-2">
-                    <Database className="text-slate-400" size={18} />
-                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">Connected Sources</h4>
+                  <div className="flex items-center justify-between mb-6 px-2">
+                    <div className="flex items-center gap-3">
+                      <Database className="text-slate-400" size={18} />
+                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">Connected Sources</h4>
+                    </div>
+                    {project.sources.length > 0 && (
+                      <button 
+                        onClick={handleResetSources}
+                        disabled={pending}
+                        className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 hover:text-white transition-all border border-orange-100 disabled:opacity-50 group"
+                      >
+                        <RotateCcw size={14} className="group-hover:-rotate-90 transition-transform duration-500" />
+                        Reset Sources
+                      </button>
+                    )}
                   </div>
                   {project.sources.length === 0 ? (
                       <div className="py-20 flex flex-col items-center justify-center text-center">
@@ -438,6 +486,7 @@ export function MicroAppStudio({ project, user }: MicroAppStudioProps) {
 
                 {/* 2. Template Selection & Preview */}
                 <div className="p-8 md:p-12 space-y-12 bg-slate-50/30">
+                  {/* Template Selection */}
                   <div className="space-y-6">
                     <div className="flex items-center gap-3 px-2">
                       <Layout className="text-slate-400" size={18} />
@@ -468,6 +517,114 @@ export function MicroAppStudio({ project, user }: MicroAppStudioProps) {
                     </div>
                   </div>
 
+                  {/* Mapping Configuration */}
+                  <div className="pt-12 border-t border-slate-100">
+                    <div className="flex items-center gap-3 px-2 mb-6">
+                      <Settings className="text-slate-400" size={18} />
+                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">Data Mapping Configuration</h4>
+                    </div>
+                    
+                    <div className="bg-white rounded-[40px] border border-slate-100 shadow-xl overflow-hidden">
+                      <div className="p-8 space-y-8">
+                        {project.sources.length === 0 ? (
+                          <div className="py-20 flex flex-col items-center justify-center text-center opacity-40">
+                             <Database size={32} className="mb-4" />
+                             <p className="text-xs font-black uppercase tracking-widest">No sources connected for mapping</p>
+                          </div>
+                        ) : (
+                          project.sources.map((source: any) => {
+                            const schema = sourceSchemas.find(s => s.id === source.id);
+                            const currentMappings = project.mappingConfig || [];
+                            
+                            return (
+                              <div key={source.id} className="space-y-6">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-6 bg-blue-600 rounded-full" />
+                                    <h5 className="font-black text-slate-900 text-sm">{source.name} <span className="text-[10px] text-slate-400 font-medium ml-2 uppercase tracking-widest">Source Table</span></h5>
+                                  </div>
+                                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    {currentMappings.length} Columns Active
+                                  </div>
+                                </div>
+                                
+                                <div className="flex flex-wrap gap-3">
+                                  {/* 스키마 기반 모든 컬럼 나열 */}
+                                  {schema ? (
+                                    schema.columns.map((col: any) => {
+                                      const mapping = currentMappings.find((m: any) => m.sourceColumn === col.name);
+                                      const isActive = !!mapping;
+                                      
+                                      return (
+                                        <div 
+                                          key={col.name}
+                                          className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all animate-in zoom-in-95 ${isActive ? 'bg-blue-50 border-blue-200 ring-2 ring-blue-500/5' : 'bg-white border-slate-100 opacity-60 hover:opacity-100 hover:border-slate-300'}`}
+                                        >
+                                          <button 
+                                            onClick={async () => {
+                                              let newMapping;
+                                              if (isActive) {
+                                                // 제거
+                                                newMapping = currentMappings.filter((m: any) => m.sourceColumn !== col.name);
+                                              } else {
+                                                // 추가 (displayName을 영문 ID가 아닌 한글 표시 이름으로 설정)
+                                                newMapping = [...currentMappings, { 
+                                                  sourceColumn: col.name, 
+                                                  displayName: col.displayName || col.name, 
+                                                  type: col.type || 'text' 
+                                                }];
+                                              }
+                                              await updateMicroAppProjectAction(project.id, { mappingConfig: newMapping });
+                                              router.refresh();
+                                            }}
+                                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isActive ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-300 hover:bg-slate-200'}`}
+                                          >
+                                            {isActive ? <Check size={14} strokeWidth={4} /> : <Plus size={14} />}
+                                          </button>
+                                          
+                                          <div className="flex flex-col min-w-[60px]">
+                                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">{col.name}</span>
+                                            {isActive ? (
+                                              <input 
+                                                type="text" 
+                                                value={mapping.displayName}
+                                                onChange={async (e) => {
+                                                  const newMapping = [...currentMappings];
+                                                  const idx = newMapping.findIndex(m => m.sourceColumn === col.name);
+                                                  if (idx !== -1) {
+                                                    newMapping[idx] = { ...newMapping[idx], displayName: e.target.value };
+                                                    await updateMicroAppProjectAction(project.id, { mappingConfig: newMapping });
+                                                    router.refresh();
+                                                  }
+                                                }}
+                                                className="text-xs font-black text-blue-700 bg-transparent border-none p-0 focus:ring-0"
+                                              />
+                                            ) : (
+                                              <span className="text-xs font-black text-slate-400">{col.displayName || col.name}</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <div className="flex items-center gap-2 py-4 px-2">
+                                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase">Loading table schema...</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-[10px] font-bold text-slate-400 italic px-2">
+                                  * 컬럼의 아이콘을 클릭하여 리포트에 추가하거나 제거할 수 있습니다. 활성화된 컬럼은 이름을 수정할 수 있습니다.
+                                </p>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Live Preview */}
                   <div className="pt-12 border-t border-slate-100">
                     <div className="flex items-center justify-between mb-8 px-2">
                       <div className="flex items-center gap-3">

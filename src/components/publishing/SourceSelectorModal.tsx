@@ -170,7 +170,7 @@ export function SourceSelectorModal({ onClose, onSelect }: SourceSelectorModalPr
                           }`}>
                             {source.templateId === 'cash-report' ? 'Financial' : 'General'}
                           </span>
-                          <span className={`text-[9px] font-black uppercase tracking-widest ${isSelected ? 'text-blue-400' : 'text-slate-200'}`}>ID: {source.tableId}</span>
+                          <span className={`text-[9px] font-black tracking-widest ${isSelected ? 'text-blue-400' : 'text-slate-200'}`}>ID: {source.tableId}</span>
                         </div>
                         <h4 className={`text-base font-black tracking-tight transition-colors ${isSelected ? 'text-blue-900' : 'text-slate-900 group-hover:text-blue-600'}`}>{source.tableName}</h4>
                         {source.reason && (

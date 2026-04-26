@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
     Trash2, Edit3, Search, ArrowUpDown, ArrowUp, ArrowDown, FilterX, FileDown, 
     Table as TableIcon, FileText, ChevronLeft, ChevronRight, ChevronsLeft, 
@@ -13,6 +13,9 @@ import * as XLSX from 'xlsx';
 import { BulkEditModal } from './BulkEditModal';
 import { StatusModal } from './StatusModal';
 import { AuditHistoryModal } from './AuditHistoryModal';
+import { saveSourceViewSettingsAction } from '@/app/actions/publishing';
+import { useRouter } from 'next/navigation';
+import { ArrowLeftRight, MoveLeft, MoveRight, Save } from 'lucide-react';
 
 /**
  * 🛡️ Paranoid SafeIcon for DynamicTable
@@ -50,6 +53,8 @@ interface DynamicTableProps {
   onToggleAddRecord?: () => void;
   onToggleBulkUpload?: () => void;
   onToggleAIImport?: () => void;
+  initialSortConfig?: { key: string; direction: 'asc' | 'desc' | null };
+  initialItemsPerPage?: number;
 }
 
 export function DynamicTable({ 
@@ -64,7 +69,9 @@ export function DynamicTable({
     onStatusShow,
     onToggleAddRecord,
     onToggleBulkUpload,
-    onToggleAIImport
+    onToggleAIImport,
+    initialSortConfig,
+    initialItemsPerPage
 }: DynamicTableProps) {
   const [isMounted, setIsMounted] = useState(false);
 
@@ -83,6 +90,9 @@ export function DynamicTable({
   // 전체 테이블 수준에서의 권한
   const hasBaseEditAuth = !isReadOnly && canEdit && (isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER');
   const hasBaseDeleteAuth = !isReadOnly && canEdit && (isOwner || userRole === 'ADMIN' || userRole === 'EDITOR' || userRole === 'VIEWER');
+  
+  // 마이크로앱(조회전용)이 아닌, MY DB 관리자용 뷰 권한 (isReadOnly가 데이터 속성일 경우에도 관리 가능)
+  const canManageView = !isReadOnly || (isOwner || userRole === 'ADMIN');
 
   // 개별 행에 대한 관리 권한 유무 확인 함수
   const isRowManager = (row: any) => {
@@ -93,7 +103,23 @@ export function DynamicTable({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' | null }>({ key: '데이터ID', direction: 'desc' });
+  // 다중 정렬 지원을 위한 배열 상태
+  const [multiSortConfig, setMultiSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }[]>([]);
+
+  // 초기 정렬 상태 설정 및 동기화 (안정화 로직 추가)
+  const lastInitialSortRef = useRef<string>('');
+  useEffect(() => {
+    if (!initialSortConfig) return;
+    
+    const configStr = JSON.stringify(initialSortConfig);
+    const isNotEmpty = Array.isArray(initialSortConfig) ? initialSortConfig.length > 0 : !!initialSortConfig;
+    
+    // 서버에서 실제 유효한 설정이 내려왔고, 현재 로컬과 다를 때만 동기화
+    if (isNotEmpty && configStr !== lastInitialSortRef.current) {
+      setMultiSortConfig(Array.isArray(initialSortConfig) ? initialSortConfig : [initialSortConfig as any]);
+      lastInitialSortRef.current = configStr;
+    }
+  }, [initialSortConfig]);
   const [isExportingMenuOpen, setIsExportingMenuOpen] = useState(false);
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
@@ -122,11 +148,67 @@ export function DynamicTable({
     }
   };
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(initialItemsPerPage || 10);
+  const router = useRouter();
+
+  // --- [NEW] 컬럼 편집 관련 상태 ---
+  const [isColumnEditMode, setIsColumnEditMode] = useState(false);
+  const [localColumns, setLocalColumns] = useState<any[]>([]);
+
+  // props로 넘어온 columns가 변경되면 로컬 상태 업데이트
+  useEffect(() => {
+    setLocalColumns(columns.map((c, idx) => ({ 
+      ...c, 
+      displayName: c.displayName || c.name,
+      order: idx 
+    })));
+  }, [columns]);
+
+  const handleColumnMove = (index: number, direction: 'left' | 'right') => {
+    const newCols = [...localColumns];
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newCols.length) return;
+    
+    [newCols[index], newCols[targetIndex]] = [newCols[targetIndex], newCols[index]];
+    setLocalColumns(newCols);
+  };
+
+  const handleColumnRename = (index: number, newName: string) => {
+    const newCols = [...localColumns];
+    newCols[index] = { ...newCols[index], displayName: newName };
+    setLocalColumns(newCols);
+  };
+
+  const handleColumnSave = async () => {
+    try {
+      const config = {
+        columns: localColumns.map((c, idx) => ({
+          name: c.name,
+          displayName: c.displayName,
+          order: idx,
+          visible: true,
+          type: c.type
+        })),
+        multiSortConfig,
+        itemsPerPage // 페이지당 개수 저장
+      };
+      const res = await saveSourceViewSettingsAction(reportId, config);
+      if (res.success) {
+        showStatus('설정 저장 완료', '컬럼 뷰 설정이 중앙 저장소에 반영되었습니다. 모든 메뉴에서 동일하게 적용됩니다.', 'success');
+        setIsColumnEditMode(false);
+        router.refresh();
+      } else {
+        showStatus('저장 실패', res.error || '설정 저장 중 오류가 발생했습니다.', 'error');
+      }
+    } catch (err) {
+      showStatus('저장 실패', '네트워크 오류가 발생했습니다.', 'error');
+    }
+  };
+  // -----------------------------
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, sortConfig, showDeleted]);
+  }, [searchTerm, multiSortConfig, showDeleted]);
 
   // 1. 데이터 필터링 및 정렬
   const processedData = useMemo(() => {
@@ -140,23 +222,48 @@ export function DynamicTable({
             )
         );
     }
-    if (sortConfig.key && sortConfig.direction) {
+    if (multiSortConfig.length > 0) {
         filtered.sort((a, b) => {
-            let aVal = a[sortConfig.key];
-            let bVal = b[sortConfig.key];
-            if (aVal === bVal) {
-                const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-                const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-                return timeB - timeA;
+            for (const config of multiSortConfig) {
+                const aVal = a[config.key];
+                const bVal = b[config.key];
+                const aEmpty = aVal === null || aVal === undefined || aVal === '';
+                const bEmpty = bVal === null || bVal === undefined || bVal === '';
+
+                if (aEmpty && bEmpty) continue; // 둘 다 비었으면 다음 우선순위로
+                if (aEmpty) return 1;  // a만 비었으면 뒤로
+                if (bEmpty) return -1; // b만 비었으면 뒤로
+
+                if (aVal === bVal) continue;
+
+                // 🔢 숫자/통화 처리 (콤마 제거 후 비교)
+                const colDef = localColumns.find(c => c.name === config.key);
+                if (colDef?.type === 'number' || colDef?.type === 'currency') {
+                    const parseNum = (v: any) => {
+                        if (typeof v === 'number') return v;
+                        const s = String(v || '').replace(/,/g, '');
+                        const n = parseFloat(s);
+                        return isNaN(n) ? -Infinity : n;
+                    };
+                    const numA = parseNum(aVal);
+                    const numB = parseNum(bVal);
+                    if (numA === numB) continue;
+                    return config.direction === 'asc' ? numA - numB : numB - numA;
+                }
+                
+                const result = String(aVal).localeCompare(String(bVal), undefined, { numeric: true, sensitivity: 'base' });
+                if (result === 0) continue;
+                
+                return config.direction === 'asc' ? result : -result;
             }
-            if (aVal === null || aVal === undefined || aVal === '') return 1;
-            if (bVal === null || bVal === undefined || bVal === '') return -1;
-            const result = String(aVal).localeCompare(String(bVal), undefined, { numeric: true, sensitivity: 'base' });
-            return sortConfig.direction === 'asc' ? result : -result;
+            // 모든 정렬 기준이 같으면 최신순
+            const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+            const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+            return timeB - timeA;
         });
     }
     return filtered;
-  }, [data, searchTerm, sortConfig, showDeleted]);
+  }, [data, searchTerm, multiSortConfig, showDeleted]);
 
   // 2. 페이지네이션 계산
   const totalPages = Math.ceil(processedData.length / itemsPerPage);
@@ -220,13 +327,54 @@ export function DynamicTable({
     setIsExportingMenuOpen(false);
   };
 
-  const toggleSort = (key: string) => {
-    setSortConfig(prev => {
-        if (prev.key === key) {
-            if (prev.direction === 'asc') return { key, direction: 'desc' };
-            if (prev.direction === 'desc') return { key: '', direction: null };
+  const toggleSort = (key: string, isMulti: boolean = false) => {
+    setMultiSortConfig(prev => {
+        let next: { key: string; direction: 'asc' | 'desc' }[] = [];
+        const existingIdx = prev.findIndex(c => c.key === key);
+        
+        if (isMulti) {
+            if (existingIdx >= 0) {
+                const current = prev[existingIdx];
+                if (current.direction === 'asc') {
+                    next = [...prev];
+                    next[existingIdx] = { key, direction: 'desc' };
+                } else {
+                    next = prev.filter(c => c.key !== key);
+                }
+            } else {
+                next = [...prev, { key, direction: 'asc' }];
+            }
+        } else {
+            if (existingIdx >= 0 && prev.length === 1) {
+                const current = prev[0];
+                if (current.direction === 'asc') next = [{ key, direction: 'desc' }];
+                else next = [];
+            } else {
+                next = [{ key, direction: 'asc' }];
+            }
         }
-        return { key, direction: 'asc' };
+
+        // 🚀 설정 변경 시 즉시 중앙 저장소에 반영 (백그라운드 저장)
+        lastInitialSortRef.current = JSON.stringify(next); // 수동 변경임을 마킹하여 useEffect 초기화 방지
+
+        if (hasBaseEditAuth && !isReadOnly) {
+            const config = {
+                columns: localColumns.map((c, idx) => ({
+                    name: c.name,
+                    displayName: c.displayName,
+                    order: idx,
+                    visible: true,
+                    type: c.type
+                })),
+                multiSortConfig: next,
+                itemsPerPage
+            };
+            saveSourceViewSettingsAction(reportId, config).catch(err => {
+                console.error('Failed to auto-save sort preference:', err);
+            });
+        }
+
+        return next;
     });
   };
 
@@ -340,6 +488,35 @@ export function DynamicTable({
         </div>
 
         <div className="flex items-center gap-3">
+            {/* --- [NEW] 컬럼 편집 모드 버튼 --- */}
+            {canManageView && (
+              <div className="flex items-center gap-2 mr-3 border-r pr-6 border-slate-100">
+                {isColumnEditMode ? (
+                  <>
+                    <button 
+                      onClick={handleColumnSave}
+                      className="flex items-center gap-2 px-6 py-3.5 bg-green-600 text-white font-black rounded-2xl hover:bg-green-700 transition-all shadow-xl shadow-green-500/20 active:scale-95 text-xs uppercase tracking-widest whitespace-nowrap"
+                    >
+                      <SafeIcon icon={Save} isMounted={isMounted} size={16} strokeWidth={3} /> Save View
+                    </button>
+                    <button 
+                      onClick={() => { setIsColumnEditMode(false); router.refresh(); }}
+                      className="flex items-center gap-2 px-6 py-3.5 bg-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-200 transition-all active:scale-95 text-xs uppercase tracking-widest whitespace-nowrap"
+                    >
+                      <SafeIcon icon={XIcon} isMounted={isMounted} size={16} /> Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button 
+                    onClick={() => setIsColumnEditMode(true)}
+                    className="flex items-center gap-2 px-6 py-3.5 bg-white text-slate-600 font-black rounded-2xl border border-slate-200 hover:bg-slate-50 transition-all shadow-lg shadow-slate-900/5 active:scale-95 text-xs uppercase tracking-widest whitespace-nowrap"
+                  >
+                    <SafeIcon icon={ArrowLeftRight} isMounted={isMounted} size={16} /> Column Setup
+                  </button>
+                )}
+              </div>
+            )}
+
             {hasBaseEditAuth && (onToggleAddRecord || onToggleBulkUpload || onToggleAIImport) && (
               <div className="flex items-center gap-3 mr-3 border-r pr-6 border-slate-100">
                 {onToggleAddRecord && (
@@ -378,14 +555,16 @@ export function DynamicTable({
                     </div>
                 )}
             </div>
-
-            <button
-                onClick={() => { setShowDeleted(!showDeleted); setSelectedIds([]); }}
-                className={`flex items-center gap-2 px-6 py-3.5 font-black rounded-2xl border transition-all text-xs uppercase tracking-widest active:scale-95 shadow-lg ${showDeleted ? 'bg-red-50 text-red-600 border-red-200 shadow-red-500/5' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50 hover:border-slate-200'}`}
-            >
-                <SafeIcon icon={Trash2} isMounted={isMounted} size={16} className={showDeleted ? 'animate-pulse' : ''} />
-                {showDeleted ? 'EXIT TRASH' : '삭제 내역'}
-            </button>
+            
+            {canManageView && (
+              <button
+                  onClick={() => { setShowDeleted(!showDeleted); setSelectedIds([]); }}
+                  className={`flex items-center gap-2 px-6 py-3.5 font-black rounded-2xl border transition-all text-xs uppercase tracking-widest active:scale-95 shadow-lg ${showDeleted ? 'bg-red-50 text-red-600 border-red-200 shadow-red-500/5' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50 hover:border-slate-200'}`}
+              >
+                  <SafeIcon icon={Trash2} isMounted={isMounted} size={16} className={showDeleted ? 'animate-pulse' : ''} />
+                  {showDeleted ? 'EXIT TRASH' : '삭제 내역'}
+              </button>
+            )}
             
             {hasBaseEditAuth && selectedIds.length > 0 && (
                <div className="bg-blue-600 flex items-center gap-2 p-1.5 rounded-[22px] shadow-2xl shadow-blue-500/30 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -419,14 +598,67 @@ export function DynamicTable({
                   <input type="checkbox" checked={processedData.length > 0 && selectedIds.length === processedData.length} onChange={toggleSelectAll} className="w-5 h-5 rounded border-slate-300 text-blue-600 cursor-pointer transition-all focus:ring-blue-500" />
                 </th>
               )}
-              {columns.map((col) => (
-                <th key={col.name} onClick={() => toggleSort(col.name)} className={`px-6 py-5 text-left text-[11px] font-black uppercase tracking-widest cursor-pointer group transition-all whitespace-nowrap ${sortConfig.key === col.name ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                  <div className="flex items-center gap-2">
-                    {col.name}
-                    <span className={`transition-all ${sortConfig.key === col.name ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                        {sortConfig.key === col.name ? (sortConfig.direction === 'asc' ? <SafeIcon icon={ArrowUp} isMounted={isMounted} size={12} /> : <SafeIcon icon={ArrowDown} isMounted={isMounted} size={12} />) : <SafeIcon icon={ArrowUpDown} isMounted={isMounted} size={12} />}
-                    </span>
-                  </div>
+              {localColumns.map((col, idx) => (
+                <th 
+                  key={col.name} 
+                  className={`px-6 py-5 text-left transition-all relative ${isColumnEditMode ? 'bg-blue-50/50 ring-1 ring-inset ring-blue-100' : 'cursor-pointer hover:bg-slate-100/50'}`}
+                  onClick={(e) => {
+                    if (!isColumnEditMode) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleSort(col.name, e.shiftKey);
+                    }
+                  }}
+                >
+                  {isColumnEditMode ? (
+                    <div className="flex flex-col gap-2 min-w-[140px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-black text-blue-600 uppercase tracking-tighter opacity-50">{col.name}</span>
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => handleColumnMove(idx, 'left')} 
+                            disabled={idx === 0}
+                            className="p-1 hover:bg-white rounded text-blue-500 disabled:opacity-20 transition-all"
+                          >
+                            <SafeIcon icon={MoveLeft} isMounted={isMounted} size={12} />
+                          </button>
+                          <button 
+                            onClick={() => handleColumnMove(idx, 'right')} 
+                            disabled={idx === localColumns.length - 1}
+                            className="p-1 hover:bg-white rounded text-blue-500 disabled:opacity-20 transition-all"
+                          >
+                            <SafeIcon icon={MoveRight} isMounted={isMounted} size={12} />
+                          </button>
+                        </div>
+                      </div>
+                      <input 
+                        type="text" 
+                        value={col.displayName} 
+                        onChange={(e) => handleColumnRename(idx, e.target.value)}
+                        className="w-full bg-white border border-blue-200 rounded-lg px-3 py-1.5 text-[11px] font-black text-blue-800 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                        placeholder="표시명 입력"
+                      />
+                    </div>
+                  ) : (
+                    <div 
+                      className={`flex items-center gap-2 text-[11px] font-black uppercase tracking-widest group whitespace-nowrap ${multiSortConfig.some(c => c.key === col.name) ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'}`}
+                    >
+                      {col.displayName || col.name}
+                      <div className="flex items-center gap-0.5">
+                        {multiSortConfig.map((c, pIdx) => c.key === col.name && (
+                           <div key={pIdx} className="flex items-center gap-0.5">
+                             {c.direction === 'asc' ? <SafeIcon icon={ArrowUp} isMounted={isMounted} size={12} /> : <SafeIcon icon={ArrowDown} isMounted={isMounted} size={12} />}
+                             {multiSortConfig.length > 1 && (
+                               <span className="text-[9px] bg-blue-100 text-blue-600 px-1 rounded-sm leading-none">{pIdx + 1}</span>
+                             )}
+                           </div>
+                        ))}
+                        {!multiSortConfig.some(c => c.key === col.name) && (
+                          <SafeIcon icon={ArrowUpDown} isMounted={isMounted} size={12} className="opacity-0 group-hover:opacity-100 transition-all" />
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </th>
               ))}
               {hasBaseEditAuth && <th className="px-6 py-5 text-center text-[11px] font-black uppercase tracking-widest text-slate-400 w-24">Actions</th>}
@@ -440,7 +672,7 @@ export function DynamicTable({
                     {isRowManager(row) && <input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleSelectRow(row.id)} className="w-5 h-5 rounded border-slate-300 text-blue-600 cursor-pointer transition-all focus:ring-blue-500" />}
                   </td>
                 )}
-                {columns.map((col) => {
+                {localColumns.map((col) => {
                   const val = row[col.name];
                   const isEditing = editingRowId === row.id;
                   if (isEditing) {
@@ -506,32 +738,83 @@ export function DynamicTable({
       <div className="flex flex-col sm:flex-row items-center justify-between gap-6 bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-900/5">
         <div className="flex items-center gap-8">
           <div className="flex flex-col">
-            <p className="text-xs font-black text-slate-900 uppercase tracking-widest">Total Population</p>
-            <p className="text-2xl font-black text-blue-600 font-mono leading-none mt-1">{processedData.length}<span className="text-[10px] text-slate-300 ml-1">RECORDS</span></p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Data Volume</p>
+            <p className="text-2xl font-black text-slate-900 font-mono leading-none">{processedData.length}<span className="text-[10px] text-slate-300 ml-1">RECORDS</span></p>
           </div>
-          {isReadOnly && <span className="px-4 py-1.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-sm animate-pulse">Read-Only Mode</span>}
-        </div>
-        <div className="flex items-center gap-3">
+          <div className="flex flex-col border-l pl-8 border-slate-100">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">View Port</p>
             <select 
               value={itemsPerPage} 
-              onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-              className="px-4 py-3 bg-slate-50 border border-slate-100/50 text-slate-500 rounded-2xl text-xs font-black outline-none hover:bg-slate-100 hover:text-slate-700 transition-all cursor-pointer shadow-sm appearance-none pr-8 relative"
-              style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2394a3b8\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px' }}
+              onChange={async (e) => { 
+                const newVal = Number(e.target.value);
+                setItemsPerPage(newVal); 
+                setCurrentPage(1);
+                // 자동 저장
+                if (hasBaseEditAuth && !isReadOnly) {
+                  const config = {
+                    columns: localColumns.map((c, idx) => ({
+                      name: c.name,
+                      displayName: c.displayName,
+                      order: idx,
+                      visible: true,
+                      type: c.type
+                    })),
+                    multiSortConfig,
+                    itemsPerPage: newVal
+                  };
+                  await saveSourceViewSettingsAction(reportId, config);
+                }
+              }}
+              className="bg-transparent border-none text-blue-600 font-black text-sm outline-none cursor-pointer hover:text-blue-700 transition-colors appearance-none"
             >
-              <option value={10}>10 records / page</option>
-              <option value={20}>20 records / page</option>
-              <option value={50}>50 records / page</option>
-              <option value={100}>100 records / page</option>
+              <option value={10}>Show 10</option>
+              <option value={20}>Show 20</option>
+              <option value={50}>Show 50</option>
+              <option value={100}>Show 100</option>
             </select>
-            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 transition-all active:scale-90 border border-slate-100/50"><SafeIcon icon={ChevronsLeft} isMounted={isMounted} size={18} /></button>
-            <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 transition-all active:scale-90 border border-slate-100/50"><SafeIcon icon={ChevronLeft} isMounted={isMounted} size={18} /></button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded-2xl border border-slate-100">
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
+              disabled={currentPage === 1} 
+              className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl disabled:opacity-20 transition-all active:scale-90"
+            >
+              <SafeIcon icon={ChevronLeft} isMounted={isMounted} size={18} />
+            </button>
             
-            <div className="flex items-center px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl shadow-slate-900/20 min-w-[100px] justify-center">
-                <span className="text-xs font-black text-white tracking-widest">{currentPage} <span className="text-slate-500 mx-1">/</span> {totalPages || 1}</span>
+            <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum = currentPage;
+                    if (totalPages <= 5) pageNum = i + 1;
+                    else if (currentPage <= 3) pageNum = i + 1;
+                    else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                    else pageNum = currentPage - 2 + i;
+
+                    return (
+                        <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`w-10 h-10 flex items-center justify-center rounded-xl text-xs font-black transition-all active:scale-90 ${
+                                currentPage === pageNum 
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
+                                : 'text-slate-400 hover:text-slate-900 hover:bg-white'
+                            }`}
+                        >
+                            {pageNum}
+                        </button>
+                    );
+                })}
             </div>
             
-            <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 transition-all active:scale-90 border border-slate-100/50"><SafeIcon icon={ChevronRight} isMounted={isMounted} size={18} /></button>
-            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || totalPages === 0} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 transition-all active:scale-90 border border-slate-100/50"><SafeIcon icon={ChevronsRight} isMounted={isMounted} size={18} /></button>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
+              disabled={currentPage === totalPages || totalPages === 0} 
+              className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl disabled:opacity-20 transition-all active:scale-90"
+            >
+              <SafeIcon icon={ChevronRight} isMounted={isMounted} size={18} />
+            </button>
         </div>
       </div>
 

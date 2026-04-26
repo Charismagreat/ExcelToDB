@@ -301,5 +301,12 @@ export const SYSTEM_TABLES = [
             { name: 'sample_analysis', type: 'TEXT' },
             { name: 'updated_at', type: 'TEXT', notNull: true }
         ] as any[]
+    },
+    {
+        tableName: 'source_view_settings', displayName: 'Centralized Source View Settings', schema: [
+            { name: 'id', type: 'TEXT', notNull: true }, // sourceTableId
+            { name: 'view_config', type: 'TEXT', notNull: true }, // JSON: { columns: [{ name, displayName, order, visible, type }] }
+            { name: 'updatedAt', type: 'TEXT', notNull: true }
+        ] as any[]
     }
 ];

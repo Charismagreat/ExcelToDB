@@ -20,6 +20,7 @@ interface ReportDetailClientProps {
     canEdit: boolean;
     isReadOnly?: boolean;
     id: string;
+    multiSortConfig?: { key: string; direction: 'asc' | 'desc' }[];
 }
 
 export function ReportDetailClient({ 
@@ -31,7 +32,8 @@ export function ReportDetailClient({
     isAdmin, 
     canEdit,
     isReadOnly = false,
-    id
+    id,
+    multiSortConfig
 }: ReportDetailClientProps) {
     const [showAddRecordForm, setShowAddRecordForm] = useState(false);
     const [showBulkUpload, setShowBulkUpload] = useState(false);
@@ -97,6 +99,7 @@ export function ReportDetailClient({
                         isReadOnly={isReadOnly || report.isReadOnly}
                         userRole={user?.role}
                         currentUserId={user?.id}
+                        initialSortConfig={multiSortConfig} // 다중 정렬 배열 전달
                         onToggleAddRecord={() => {
                             setShowAddRecordForm(!showAddRecordForm);
                             setShowBulkUpload(false);

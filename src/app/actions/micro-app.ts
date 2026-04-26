@@ -140,7 +140,7 @@ export async function createMicroAppProjectAction(name: string) {
 
   await insertRows(PROJECT_TABLE, [project]);
   revalidatePath('/publishing');
-  return { success: true, id };
+  return { success: true, id: project.id };
 }
 
 /**
@@ -171,18 +171,31 @@ export async function listMicroAppProjectsAction() {
  */
 export async function getMicroAppProjectAction(id: string) {
   await ensureProjectTable();
-  const results = await queryTable(PROJECT_TABLE, {
-    filters: { id }
-  });
+  const results = await queryTable(PROJECT_TABLE);
+  console.log(`[getMicroAppProjectAction] Searching for ID: "${id}"`);
+  console.log(`[getMicroAppProjectAction] Total Projects in DB: ${results?.length || 0}`);
+  
+  // 1. 정확한 ID 일치 확인
+  let project = (results || []).find((p: any) => p.id === id);
+  
+  // 2. 혹시 모를 ID 형식 차이(공백 등) 대비 트리밍 후 재확인
+  if (!project && id) {
+    project = (results || []).find((p: any) => String(p.id).trim() === String(id).trim());
+  }
 
-  if (!results || results.length === 0) return null;
-  const p = results[0];
+  if (!project) {
+    console.error(`[getMicroAppProjectAction] Project NOT FOUND for ID: ${id}`);
+    return null;
+  }
+  
+  console.log(`[getMicroAppProjectAction] Found Project: "${project.name}"`);
+  
   return {
-    ...p,
-    sources: JSON.parse(p.sources || '[]'),
-    tags: JSON.parse(p.tags || '[]'),
-    mappingConfig: p.mappingConfig ? JSON.parse(p.mappingConfig) : [],
-    uiSettings: p.uiSettings ? JSON.parse(p.uiSettings) : { theme: 'blue' }
+    ...project,
+    sources: project.sources ? JSON.parse(project.sources) : [],
+    tags: JSON.parse(project.tags || '[]'),
+    mappingConfig: project.mappingConfig ? JSON.parse(project.mappingConfig) : [],
+    uiSettings: project.uiSettings ? JSON.parse(project.uiSettings) : { theme: 'blue' }
   };
 }
 
@@ -190,6 +203,8 @@ export async function getMicroAppProjectAction(id: string) {
  * 프로젝트에 여러 데이터 소스(테이블)를 한 번에 추가합니다.
  */
 export async function addSourcesToProjectAction(appId: string, newSources: Array<{ id: string, name: string }>) {
+  if (!appId) throw new Error('프로젝트 ID가 필요합니다.');
+  await ensureProjectTable();
   const project = await getMicroAppProjectAction(appId);
   if (!project) throw new Error('프로젝트를 찾을 수 없습니다.');
 
@@ -203,6 +218,7 @@ export async function addSourcesToProjectAction(appId: string, newSources: Array
   
   await updateRows(PROJECT_TABLE, { sources: JSON.stringify(sources), updatedAt: new Date().toISOString() }, { filters: { id: appId } });
   revalidatePath(`/publishing/edit/${appId}`);
+  revalidatePath('/publishing');
   return { success: true };
 }
 
@@ -214,9 +230,27 @@ export async function addSourceToProjectAction(appId: string, source: { id: stri
 }
 
 /**
+ * 프로젝트의 모든 데이터 소스를 한 번에 제거(초기화)합니다.
+ */
+export async function removeAllSourcesFromProjectAction(appId: string) {
+  if (!appId) throw new Error('프로젝트 ID가 필요합니다.');
+  await ensureProjectTable();
+  await updateRows(PROJECT_TABLE, { 
+    sources: JSON.stringify([]), 
+    updatedAt: new Date().toISOString() 
+  }, { filters: { id: appId } });
+  
+  revalidatePath(`/publishing/edit/${appId}`);
+  revalidatePath('/publishing');
+  return { success: true };
+}
+
+/**
  * 프로젝트에서 데이터 소스를 제거합니다.
  */
 export async function removeSourceFromProjectAction(appId: string, sourceId: string) {
+  if (!appId) throw new Error('프로젝트 ID가 필요합니다.');
+  await ensureProjectTable();
   const project = await getMicroAppProjectAction(appId);
   if (!project) throw new Error('프로젝트를 찾을 수 없습니다.');
 
@@ -224,6 +258,7 @@ export async function removeSourceFromProjectAction(appId: string, sourceId: str
   
   await updateRows(PROJECT_TABLE, { sources: JSON.stringify(sources), updatedAt: new Date().toISOString() }, { filters: { id: appId } });
   revalidatePath(`/publishing/edit/${appId}`);
+  revalidatePath('/publishing');
   return { success: true };
 }
 
@@ -231,6 +266,7 @@ export async function removeSourceFromProjectAction(appId: string, sourceId: str
  * 프로젝트를 삭제합니다.
  */
 export async function deleteMicroAppProjectAction(id: string) {
+  if (!id) throw new Error('프로젝트 ID가 필요합니다.');
   await ensureProjectTable();
   await deleteRows(PROJECT_TABLE, { filters: { id } });
   revalidatePath('/publishing');
@@ -248,6 +284,7 @@ export async function updateMicroAppProjectAction(id: string, data: {
   mappingConfig?: any,
   uiSettings?: any
 }) {
+  if (!id) throw new Error('프로젝트 ID가 필요합니다.');
   await ensureProjectTable();
   const updateData: any = { ...data, updatedAt: new Date().toISOString() };
   if (data.tags) updateData.tags = JSON.stringify(data.tags);

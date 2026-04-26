@@ -27,9 +27,10 @@ interface CashReportProps {
   };
   uiSettings: any;
   appName: string;
+  id: string;
 }
 
-export function CashReport({ data, mapping, uiSettings, appName }: CashReportProps) {
+export function CashReport({ id, data, mapping, uiSettings, appName }: CashReportProps) {
   const [rawData, setRawData] = useState<any[]>([]);
   const [serverAccounts, setServerAccounts] = useState<any[]>([]);
 

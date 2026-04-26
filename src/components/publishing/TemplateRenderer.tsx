@@ -13,6 +13,7 @@ interface TemplateRendererProps {
   mappingConfig: any;
   uiSettings: any;
   appName: string;
+  id: string;
 }
 
 export function TemplateRenderer({
@@ -21,6 +22,7 @@ export function TemplateRenderer({
   mappingConfig,
   uiSettings,
   appName,
+  id,
 }: TemplateRendererProps) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +75,7 @@ export function TemplateRenderer({
     case 'cash-report':
       return (
         <CashReport 
+          id={id}
           data={data} 
           mapping={mappingConfig} 
           uiSettings={uiSettings} 
@@ -83,6 +86,7 @@ export function TemplateRenderer({
     case 'custom-app':
       return (
         <GenericReport
+          id={id}
           data={data}
           mapping={mappingConfig}
           uiSettings={uiSettings}
