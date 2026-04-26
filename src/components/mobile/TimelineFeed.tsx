@@ -18,7 +18,7 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-import { useBranding } from '../providers/BrandingProvider';
+import { useBranding } from '@/components/providers/BrandingProvider';
 
 interface TimelineItem {
   id: string;

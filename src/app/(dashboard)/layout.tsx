@@ -3,6 +3,7 @@ import { getSessionAction } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
 import NavigationSidebar from '@/components/NavigationSidebar';
 import DashboardLayoutClient from '@/components/DashboardLayoutClient';
+import { BrandingProvider } from '@/components/providers/BrandingProvider';
 import { queryTable } from '@/egdesk-helpers';
 
 import { SystemConfigService } from '@/lib/services/system-config-service';
@@ -32,10 +33,12 @@ export default async function DashboardLayout({
   const microApps = await listMicroAppsAction();
 
   return (
-    <DashboardLayoutClient 
-      sidebar={<NavigationSidebar user={user} microApps={microApps} />}
-    >
-      {children}
-    </DashboardLayoutClient>
+    <BrandingProvider settings={settings}>
+      <DashboardLayoutClient 
+        sidebar={<NavigationSidebar user={user} microApps={microApps} />}
+      >
+        {children}
+      </DashboardLayoutClient>
+    </BrandingProvider>
   );
 }

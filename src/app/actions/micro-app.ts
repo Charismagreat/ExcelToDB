@@ -329,24 +329,9 @@ export async function publishProjectAction(projectId: string) {
   };
 
   try {
-    // 동일한 projectId로 이미 발행된 설정이 있는지 확인
-    const existing = await queryTable('micro_app_config', { filters: { projectId } });
-    const existingRows = Array.isArray(existing) ? existing : (existing?.rows || []);
-
-    if (existingRows.length > 0) {
-      // 기존 설정 업데이트
-      const existingId = existingRows[0].id;
-      await updateRows('micro_app_config', {
-        ...config,
-        id: existingId, // 기존 ID 유지
-        createdAt: existingRows[0].createdAt // 최초 생성일 유지
-      }, { filters: { id: existingId } });
-      console.log(`[발행] 기존 앱 업데이트 완료 (ID: ${existingId})`);
-    } else {
-      // 신규 발행
-      await insertRows('micro_app_config', [config]);
-      console.log(`[발행] 신규 앱 발행 완료 (ID: ${config.id})`);
-    }
+    // [사용자 요청 반영] 항상 새로운 앱 인스턴스 발행 (Instance Spawning)
+    await insertRows('micro_app_config', [config]);
+    console.log(`[발행] 신규 앱 인스턴스 발행 완료 (ID: ${config.id}, Template: ${config.templateId})`);
     
     // 프로젝트 상태를 PUBLISHED로 변경
     await updateRows(PROJECT_TABLE, { status: 'PUBLISHED', updatedAt: new Date().toISOString() }, { filters: { id: projectId } });

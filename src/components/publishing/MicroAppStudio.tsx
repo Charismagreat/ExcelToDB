@@ -178,7 +178,7 @@ export function MicroAppStudio({ project, user }: MicroAppStudioProps) {
       console.log('[MicroAppStudio] AI Suggestion Result:', suggestion);
       
       if (suggestion.success) {
-        alert(`AI 추천 완료: ${suggestion.data.uiSettings.description}\n\n추천된 디자인과 매핑이 프로젝트에 적용되었습니다. 이제 'PUBLISH MICRO APP' 버튼을 눌러 발행하세요!`);
+        alert(`AI 추천 완료: ${suggestion.data.uiSettings.description}\n\n추천된 디자인과 매핑이 프로젝트에 적용되었습니다. 이제 발행 버튼을 눌러 발행하세요!`);
         
         // AI 추천 설정을 프로젝트에 저장 (태그 정보 포함)
         await updateMicroAppProjectAction(project.id, {
@@ -388,41 +388,12 @@ export function MicroAppStudio({ project, user }: MicroAppStudioProps) {
             
             <div className="flex items-center gap-3 shrink-0">
                 <button 
-                  onClick={handleAISuggest}
-                  disabled={pending}
-                  className="px-6 py-3.5 bg-indigo-50 text-indigo-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 border border-indigo-100 disabled:opacity-50 group"
-                  title="전체 구성(매핑+디자인) 추천"
-                >
-                  <Sparkles size={18} className="group-hover:rotate-12 transition-transform" />
-                  AI Full Suggest
-                </button>
-
-                <button 
-                  onClick={handleDesignRefresh}
-                  disabled={pending}
-                  className="px-6 py-3.5 bg-slate-50 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all flex items-center gap-2 border border-slate-100 disabled:opacity-50 group"
-                  title="디자인 스타일만 추천"
-                >
-                  <Palette size={18} className="group-hover:scale-110 transition-transform" />
-                  Design Refresh
-                </button>
-
-                <button 
                   onClick={() => setIsModalOpen(true)}
                   disabled={pending}
                   className="px-8 py-3.5 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
                 >
                   <Plus size={18} />
                   데이터 소스 추가
-                </button>
-
-                <button 
-                    onClick={handlePublish}
-                    disabled={isPublishing}
-                    className="flex items-center gap-2 px-8 py-3.5 bg-slate-900 text-white font-black rounded-2xl hover:bg-blue-600 transition-all text-[10px] uppercase tracking-widest active:scale-95 shadow-xl shadow-slate-900/20 disabled:opacity-50"
-                >
-                    <Rocket size={16} strokeWidth={2.5} />
-                    {isPublishing ? 'Publishing...' : 'Publish Micro App'}
                 </button>
             </div>
           </div>
@@ -431,7 +402,98 @@ export function MicroAppStudio({ project, user }: MicroAppStudioProps) {
           <div className="p-0">
             {activeTab === 'general' ? (
               <div className="space-y-0">
-                {/* 1. Source List (Original) */}
+                {/* 1. Template Selection & Preview (Moved UP) */}
+                <div className="p-8 md:p-12 space-y-12 bg-slate-50/30 border-b border-slate-100">
+                  {/* AI Magic Orchestration Bar */}
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white p-6 rounded-[32px] border border-indigo-100 shadow-xl shadow-indigo-500/5 animate-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center border border-indigo-100 shadow-inner">
+                        <Sparkles size={24} className="animate-pulse" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-0.5">AI Magic Setup</h4>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">AI가 데이터에 맞는 최적의 템플릿과 디자인을 추천합니다.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={handleAISuggest}
+                        disabled={pending}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20 disabled:opacity-50 group"
+                        title="전체 구성(매핑+디자인) 추천"
+                      >
+                        <Sparkles size={16} className="group-hover:rotate-12 transition-transform" />
+                        AI Full Suggest
+                      </button>
+
+                      <button 
+                        onClick={handleDesignRefresh}
+                        disabled={pending}
+                        className="px-6 py-3 bg-white text-slate-600 border border-slate-200 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center gap-2 disabled:opacity-50 group"
+                        title="디자인 스타일만 추천"
+                      >
+                        <Palette size={16} className="group-hover:scale-110 transition-transform" />
+                        Design Refresh
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Template Selection */}
+                  <div className="space-y-6 pt-4">
+                    <div className="flex items-center gap-3 px-2">
+                      <Layout className="text-slate-400" size={18} />
+                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">Template Selection & Publish</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {[
+                        { id: 'cash-report', name: '추천 템플릿', icon: '✨', desc: 'AI 기반 전문가 분석 & 금융 리포트' },
+                        { id: 'custom-app', name: '범용 리포트', icon: '📊', desc: '모든 테이블 범용 시각화' },
+                        { id: 'custom-html', name: '커스텀 HTML', icon: '🌐', desc: '직접 제작한 HTML/CSS' }
+                      ].map(t => (
+                        <div
+                          key={t.id}
+                          className={`p-8 rounded-[40px] border-2 transition-all flex flex-col relative overflow-hidden group bg-white ${project.templateId === t.id ? 'border-blue-600 shadow-2xl shadow-blue-900/10' : 'border-slate-100 hover:border-blue-200 shadow-sm'}`}
+                        >
+                          <button
+                            onClick={async () => {
+                              await updateMicroAppProjectAction(project.id, { templateId: t.id });
+                              router.refresh();
+                            }}
+                            className="text-left w-full"
+                          >
+                            <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">{t.icon}</div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="text-lg font-black text-slate-900">{t.name}</div>
+                              {t.id === 'cash-report' && (
+                                <span className="px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black rounded-md uppercase tracking-widest">Premium</span>
+                              )}
+                            </div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mb-6">{t.desc}</div>
+                          </button>
+                          
+                          <button 
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await updateMicroAppProjectAction(project.id, { templateId: t.id });
+                              handlePublish();
+                            }}
+                            disabled={isPublishing}
+                            className={`mt-auto py-3 px-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${project.templateId === t.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-900 text-white hover:bg-blue-600'}`}
+                          >
+                            <Rocket size={14} />
+                            {isPublishing ? 'Publishing...' : 'Publish with this Template'}
+                          </button>
+
+                          {project.templateId === t.id && (
+                            <div className="absolute top-6 right-6 w-3 h-3 bg-blue-600 rounded-full animate-pulse" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Source List (Moved DOWN) */}
                 <div className="p-4 md:p-8 border-b border-slate-50">
                   <div className="flex items-center justify-between mb-6 px-2">
                     <div className="flex items-center gap-3">
@@ -484,41 +546,9 @@ export function MicroAppStudio({ project, user }: MicroAppStudioProps) {
                   )}
                 </div>
 
-                {/* 2. Template Selection & Preview */}
+                {/* 3. Mapping Configuration */}
                 <div className="p-8 md:p-12 space-y-12 bg-slate-50/30">
-                  {/* Template Selection */}
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-3 px-2">
-                      <Layout className="text-slate-400" size={18} />
-                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">Active Template</h4>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {[
-                        { id: 'cash-report', name: '자금일보', icon: '💰', desc: '은행 거래 및 자산 현황' },
-                        { id: 'custom-app', name: '범용 리포트', icon: '📊', desc: '모든 테이블 범용 시각화' },
-                        { id: 'custom-html', name: '커스텀 HTML', icon: '🌐', desc: '직접 제작한 HTML/CSS' }
-                      ].map(t => (
-                        <button
-                          key={t.id}
-                          onClick={async () => {
-                            await updateMicroAppProjectAction(project.id, { templateId: t.id });
-                            router.refresh();
-                          }}
-                          className={`p-8 rounded-[40px] border-2 transition-all text-left flex flex-col relative overflow-hidden group ${project.templateId === t.id ? 'border-blue-600 bg-white shadow-2xl shadow-blue-900/10' : 'border-white bg-white/50 hover:bg-white hover:border-blue-100'}`}
-                        >
-                          <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">{t.icon}</div>
-                          <div className="text-lg font-black text-slate-900 mb-1">{t.name}</div>
-                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{t.desc}</div>
-                          {project.templateId === t.id && (
-                            <div className="absolute top-6 right-6 w-3 h-3 bg-blue-600 rounded-full animate-pulse" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Mapping Configuration */}
-                  <div className="pt-12 border-t border-slate-100">
+                  <div className="pt-0">
                     <div className="flex items-center gap-3 px-2 mb-6">
                       <Settings className="text-slate-400" size={18} />
                       <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">Data Mapping Configuration</h4>
@@ -640,6 +670,7 @@ export function MicroAppStudio({ project, user }: MicroAppStudioProps) {
                         mappingConfig={project.mappingConfig}
                         uiSettings={project.uiSettings}
                         appName={project.name}
+                        id={project.id}
                       />
                     </div>
                   </div>

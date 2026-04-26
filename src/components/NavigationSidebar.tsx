@@ -27,7 +27,7 @@ import {
 // 🚀 DEFAULT IMPORTS: New consistency standard
 import LogoutButton from './LogoutButton';
 import NotificationCenter from './NotificationCenter';
-import { useBranding } from './providers/BrandingProvider';
+import { useBranding } from '@/components/providers/BrandingProvider';
 
 interface NavigationSidebarProps {
   user: any;

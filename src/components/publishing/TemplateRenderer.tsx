@@ -39,7 +39,7 @@ export function TemplateRenderer({
           ? sourceTableId.split(',').map(id => id.trim()).filter(id => id)
           : sourceTableId;
 
-        const results = await fetchPublishingDataAction(ids, { limit: 100 });
+        const results = await fetchPublishingDataAction(ids, { limit: 10000, projectId: id });
         setData(results);
       } catch (err: any) {
         console.error('Failed to fetch data for micro-app:', err);

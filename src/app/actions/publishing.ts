@@ -13,6 +13,7 @@ import {
 } from '@/egdesk-helpers';
 import { generateId } from './shared';
 import { getSessionAction } from './auth';
+import { getUnifiedTableSchema, getUnifiedTableName } from './schema-registry';
 
 /**
  * AI가 워크스페이스 테이블을 스캔하여 발행 가능한 마이크로 앱을 추천합니다.
@@ -165,25 +166,7 @@ export async function getProjectSourceSchemasAction(sourceIds: string[]) {
       const viewSettingsRes = await getSourceViewSettingsAction(id);
       const savedConfig = viewSettingsRes.success && viewSettingsRes.data ? viewSettingsRes.data.view_config : null;
 
-      let columns: any[] = [];
-      
-      // 2. 가상 테이블(FinanceHub) 기본 스키마 정의
-      if (id === 'finance-hub-bank-table' || id === 'finance-hub-card-table' || id === 'FinanceHub') {
-        const isCard = id.includes('card');
-        columns = [
-          { name: 'date', displayName: '날짜', type: 'date' },
-          { name: '_bankName', displayName: isCard ? '카드사' : '은행명', type: 'string' },
-          { name: 'accountNumber', displayName: isCard ? '카드번호' : '계좌번호', type: 'string' },
-          { name: 'accountName', displayName: '계좌명', type: 'string' },
-          { name: 'description', displayName: '적요', type: 'string' },
-          { name: 'withdrawal', displayName: '출금액', type: 'currency' },
-          { name: 'deposit', displayName: '입금액', type: 'currency' },
-          { name: 'balance', displayName: '잔액', type: 'currency' },
-          { name: 'updatedAt', displayName: '최종갱신', type: 'date' }
-        ];
-      } else {
-        columns = await getTableSchema(id).catch(() => []);
-      }
+      let columns: any[] = await getUnifiedTableSchema(id);
 
       // 3. 저장된 설정(savedConfig)이 있으면 이름과 순서 덮어쓰기
       if (savedConfig && savedConfig.columns) {
@@ -665,189 +648,108 @@ function inferColumnType(name: string): string {
  * 복수 소스(배열) 처리를 지원하도록 고도화되었습니다.
  */
 export async function fetchPublishingDataAction(sourceTableIds: string | string[], options: any = {}) {
-  let ids: string[] = [];
-  if (Array.isArray(sourceTableIds)) {
-    ids = sourceTableIds;
-  } else if (typeof sourceTableIds === 'string') {
-    ids = sourceTableIds.split(',').map(id => id.trim()).filter(id => id);
+  const ids = Array.isArray(sourceTableIds) ? sourceTableIds : [sourceTableIds];
+  
+  // [강화] 프로젝트 메타데이터에서 소스 이름 맵 생성
+  let projectSourceMap = new Map<string, string>();
+  if (options.projectId) {
+    try {
+      const { getMicroAppProjectAction } = await import('@/app/actions/micro-app');
+      const project = await getMicroAppProjectAction(options.projectId);
+      if (project && project.sources) {
+        project.sources.forEach((s: any) => {
+          projectSourceMap.set(s.id, s.name);
+        });
+      }
+    } catch (e) {
+      console.warn(`[fetchPublishingDataAction] Failed to load project metadata for names:`, e);
+    }
   }
-  
-  if (ids.length === 0) return { transactions: [], columns: [], _sourceName: '데이터 없음' };
-  
-  const allResults = await Promise.all(ids.map(id => fetchSingleSourceData(id, options)));
+
+  // 모든 데이터셋 가져오기 (이름 맵 전달)
+  const allResults = await Promise.all(ids.map(id => fetchSingleSourceData(id, { ...options, projectSourceMap })));
   
   // 모든 결과를 하나로 합침 (하위 호환성 유지)
   const mergedTransactions = allResults.flatMap(r => r.transactions);
   const mergedColumns = allResults[0]?.columns || []; 
-  const mergedSourceName = ids.length > 1 ? `${allResults.length}개 소스 통합` : (allResults[0]?._sourceName || '통합 데이터');
 
   return { 
     datasets: allResults, // [NEW] 개별 소스별 데이터셋 포함
     transactions: mergedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     columns: mergedColumns,
-    _sourceName: mergedSourceName 
+    _sourceName: allResults.length === 1 ? allResults[0]._sourceName : (allResults[0]?._sourceName || 'Multiple Sources')
   };
 }
 
 /**
  * 단일 소스 데이터를 가져오는 내부 함수
+ * [수정] 독자적인 조인 로직을 제거하고 @/egdesk-helpers의 통합 queryTable을 사용합니다.
+ * 또한 MY DB의 뷰 설정(savedConfig)을 자동으로 상속받습니다.
  */
 async function fetchSingleSourceData(sourceTableId: string, options: any = {}) {
   const user = await getSessionAction();
   if (!user) console.warn('[fetchPublishingDataAction] No session found');
 
   const { 
-    queryBankTransactions, 
-    queryCardTransactions,
     queryTable,
-    listAccounts,
-    listBanks,
-    queryTaxInvoices,
-    queryTaxExemptInvoices,
-    queryCashReceipts,
-    queryPromissoryNotes,
     getTableSchema
   } = await import('@/egdesk-helpers');
 
-  let rows: any[] = [];
-  let columns: any[] = [];
-  let sourceName = '';
+  // 1. 데이터 가져오기 (가상 테이블 핸들러가 포함된 통합 queryTable 사용)
+  const rows = await queryTable(sourceTableId, { ...options, limit: options.limit || 10000 });
+  
+  // 2. 기본 스키마(컬럼) 정보 가져오기 (중앙 레지스트리 활용)
+  let columns: any[] = await getUnifiedTableSchema(sourceTableId);
 
-  // 1. 은행/카드 금융 데이터 (FinanceHub)
-  if (sourceTableId === 'finance-hub-bank-table' || sourceTableId === 'finance-hub-card-table' || sourceTableId === 'finance_bank_transactions') {
-    const isCard = sourceTableId === 'finance-hub-card-table';
-    sourceName = isCard ? '신용카드 거래 내역 (FinanceHub)' : '은행 계좌 거래 내역 (FinanceHub)';
-    
-    let allTransactions: any[] = [];
-    let offset = 0;
-    const limit = 1000;
-    while (true) {
-        const txData = isCard 
-            ? await queryCardTransactions({ limit, offset, orderBy: 'date', orderDir: 'desc' })
-            : await queryBankTransactions({ limit, offset, orderBy: 'date', orderDir: 'desc' });
-        const batch = Array.isArray(txData) ? txData : (txData?.transactions || []);
-        if (batch.length > 0) allTransactions.push(...batch);
-        if (batch.length < limit) break;
-        offset += limit;
+  // 3. [핵심] MY DB의 뷰 설정(컬럼명 변경, 순서 등) 상속
+  try {
+    const viewSettingsRes = await getSourceViewSettingsAction(sourceTableId);
+    const savedConfig = viewSettingsRes.success && viewSettingsRes.data ? viewSettingsRes.data.view_config : null;
+
+    if (savedConfig && savedConfig.columns) {
+      const configuredCols = savedConfig.columns;
+      
+      // 설정된 컬럼들을 순서대로 정렬하고 별칭 적용
+      const mergedColumns = configuredCols
+        .filter((cc: any) => cc.visible !== false)
+        .map((cc: any) => {
+          const originalCol = columns.find(c => c.name === cc.name) || {};
+          return {
+            ...originalCol,
+            name: cc.name,
+            displayName: cc.displayName || originalCol.displayName || cc.name,
+            type: originalCol.type || cc.type || 'string'
+          };
+        }).filter((c: any) => c.name);
+
+      // 설정에 없는 나머지 컬럼들 추가
+      const remainingCols = columns.filter(c => !configuredCols.some((cc: any) => cc.name === c.name));
+      columns = [...mergedColumns, ...remainingCols];
     }
-
-    const [accountData, bankData] = await Promise.all([listAccounts(), listBanks()]);
-    const accounts = Array.isArray(accountData) ? accountData : (accountData?.accounts || []);
-    const accountMap = new Map(accounts.map((a: any) => [a.id, a]));
-    const banks = (bankData as any)?.banks || [];
-    const bankMap = new Map(banks.map((b: any) => [b.id, b.nameKo || b.name]));
-    
-        rows = allTransactions.map((t: any) => {
-            const acc = accountMap.get(t.accountId);
-            let displayDate = t.date || '';
-            if (displayDate.length === 8 && !displayDate.includes('-')) {
-                displayDate = `${displayDate.substring(0, 4)}-${displayDate.substring(4, 6)}-${displayDate.substring(6, 8)}`;
-            }
-            // 시간 정보가 있으면 날짜 뒤에 붙임 (정밀 정렬용)
-            if (t.time && !displayDate.includes(':')) {
-                displayDate += ` ${t.time}`;
-            } else if (t.transaction_datetime) {
-                displayDate = t.transaction_datetime;
-            }
-
-            return {
-                ...t,
-                date: displayDate,
-                _bankName: isCard ? (bankMap.get(t.cardCompanyId) || t.cardCompanyId || '') : (bankMap.get(t.bankId) || t.bankId || ''),
-                accountNumber: isCard ? (t.cardNumber || '') : (acc?.accountNumber || ''),
-                accountName: acc?.accountName || '',
-                withdrawal: isCard ? Number(t.amount || 0) : Number(t.withdrawal || t.outAmount || 0),
-                deposit: isCard ? 0 : Number(t.deposit || t.inAmount || 0),
-                balance: Number(t.balance || 0),
-            };
-        });
-
-    columns = [
-        { name: 'date', displayName: '날짜', type: 'date' },
-        { name: '_bankName', displayName: isCard ? '카드사' : '은행명', type: 'string' },
-        { name: 'accountNumber', displayName: isCard ? '카드번호' : '계좌번호', type: 'string' },
-        { name: 'description', displayName: '적요', type: 'string' },
-        { name: 'withdrawal', displayName: '출금액', type: 'currency' },
-        { name: 'deposit', displayName: '입금액', type: 'currency' },
-        { name: 'balance', displayName: '잔액', type: 'currency' }
-    ];
-  } 
-  // 2. 홈택스/전자어음 (특수 필터링 적용)
-  else if (sourceTableId.startsWith('finance-hub-hometax-') || sourceTableId === 'finance-hub-promissory-table' || sourceTableId === 'hometax_sales_invoices') {
-    let allFetched: any[] = [];
-    let offset = 0;
-    const limit = 1000;
-    
-    while (true) {
-        let batchData: any = null;
-        if (sourceTableId.includes('-tax') || sourceTableId === 'hometax_sales_invoices') {
-            batchData = await queryTaxInvoices({ invoiceType: sourceTableId.includes('purchase') ? 'purchase' : 'sales', limit, offset });
-        } else if (sourceTableId.includes('-bill')) {
-            batchData = await queryTaxExemptInvoices({ invoiceType: sourceTableId.includes('purchase') ? 'purchase' : 'sales', limit, offset });
-        } else if (sourceTableId.includes('-cash-receipt')) {
-            batchData = await queryCashReceipts({ limit, offset });
-        } else if (sourceTableId === 'finance-hub-promissory-table') {
-            batchData = await queryPromissoryNotes({ limit, offset });
-        }
-
-        const rawBatch = Array.isArray(batchData) ? batchData : (
-            batchData?.rows || batchData?.invoices || batchData?.receipts || batchData?.notes || []
-        );
-
-        let filteredBatch = rawBatch;
-        if ((sourceTableId.includes('-tax') || sourceTableId === 'hometax_sales_invoices') && sourceTableId.includes('hometax')) {
-            filteredBatch = rawBatch.filter((b: any) => b['전자세금계산서분류'] && b['전자세금계산서분류'].includes('세금계산서'));
-        } else if (sourceTableId.includes('-bill') && sourceTableId.includes('hometax')) {
-            filteredBatch = rawBatch.filter((b: any) => {
-                const cls = b['전자세금계산서분류'] || '';
-                return (cls.includes('계산서') && !cls.includes('세금계산서')) || !cls;
-            });
-        }
-
-        if (filteredBatch.length > 0) allFetched.push(...filteredBatch);
-        if (rawBatch.length < limit) break;
-        offset += limit;
-    }
-
-    rows = allFetched;
-    const firstRow = rows[0] || {};
-    columns = Object.keys(firstRow).filter(k => k !== 'id').map(k => ({
-        name: k,
-        displayName: k,
-        type: inferColumnType(k)
-    }));
-    sourceName = `MY DB 시스템 테이블 (${sourceTableId})`;
+  } catch (e) {
+    console.warn(`[fetchSingleSourceData] Failed to inherit view settings for ${sourceTableId}:`, e);
   }
-  // 3. 일반 테이블
-  else {
-    let allRows: any[] = [];
-    let offset = 0;
-    const limit = 1000;
-    while (true) {
-      const batch = await queryTable(sourceTableId, { ...options, limit, offset });
-      if (batch.length > 0) allRows.push(...batch);
-      if (batch.length < limit) break;
-      offset += limit;
-    }
-    
-    rows = allRows;
-    const schema = await getTableSchema(sourceTableId).catch(() => []);
-    columns = schema.length > 0 ? schema.map((s: any) => ({
-        name: s.name,
-        displayName: s.displayName || s.name,
-        type: s.type || inferColumnType(s.name)
-    })) : Object.keys(rows[0] || {}).map(k => ({ name: k, displayName: k, type: inferColumnType(k) }));
-    
-    sourceName = `MY DB 테이블 (${sourceTableId})`;
+
+  // 4. 소스 이름 가져오기 (프로젝트 메타데이터 우선 -> DB 검색 -> 시스템 폴백)
+  let sourceName = '';
+  
+  // [1순위] 전달받은 프로젝트 소스 맵에서 이름 찾기 (가장 정확함)
+  if (options.projectSourceMap && options.projectSourceMap.has(sourceTableId)) {
+    sourceName = options.projectSourceMap.get(sourceTableId);
+  } 
+  
+  if (!sourceName) {
+    sourceName = await getUnifiedTableName(sourceTableId);
   }
 
   return { 
     id: sourceTableId,
     _sourceName: sourceName,
-    transactions: rows.map(r => ({ ...r, _sourceId: sourceTableId })), 
+    transactions: rows.map((r: any) => ({ ...r, _sourceId: sourceTableId })), 
     columns: columns
   };
 }
+
 
 /**
  * 데이터 구조는 유지한 채 디자인 스타일(테마, 타이틀, 설명 등)만 새롭게 제안합니다.

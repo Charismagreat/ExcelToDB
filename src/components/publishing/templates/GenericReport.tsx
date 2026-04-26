@@ -38,8 +38,8 @@ export function GenericReport({ id, data, mapping, uiSettings, appName }: Generi
               <div className="px-6 py-4 bg-slate-50/50 border-y border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">
-                    {dataset._sourceName || `Source ${idx + 1}`}
+                  <h3 className="text-sm font-black text-slate-800 tracking-widest">
+                    {dataset._sourceName || dataset.name || dataset.id || `Source ${idx + 1}`}
                   </h3>
                 </div>
                 <div className="text-[10px] font-bold text-slate-400 bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm">

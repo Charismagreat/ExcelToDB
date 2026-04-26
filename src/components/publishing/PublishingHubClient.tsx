@@ -249,7 +249,7 @@ export function PublishingHubClient({ initialApps, initialProjects, user }: Publ
                 </div>
                 <h3 className="text-lg font-black text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">{app.name}</h3>
                 <p className="text-xs text-slate-400 font-medium mb-8 line-clamp-1">
-                  {app.templateId === 'cash-report' ? '금융 데이터 기반 리포트' : '커스텀 데이터 리포트'}
+                  {app.templateId === 'cash-report' ? '추천 템플릿 기반 프리미엄 리포트' : '커스텀 데이터 범용 리포트'}
                 </p>
                 <div className="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
                   <span className="flex items-center gap-1.5"><Calendar size={12} /> {new Date(app.createdAt).toLocaleDateString()}</span>

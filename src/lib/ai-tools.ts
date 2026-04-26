@@ -39,23 +39,8 @@ export async function runAITool(name: string, args: any) {
     case "get_finance_statistics":
       return await getStatistics({ startDate: args.startDate, endDate: args.endDate });
     case "list_bank_accounts": {
-      // [방안 A] 정식 금융 API 전수 조사 (최신순 정렬)
-      const res = await queryBankTransactions({ limit: 5000, orderBy: 'date', orderDir: 'desc' }).catch(() => ({ transactions: [] }));
-      const rawData = Array.isArray(res) ? res : (res?.transactions || res?.rows || []);
-      
-      const latestMap = new Map();
-      rawData.forEach((row: any) => {
-        const key = `${row.bankId}-${row.accountNumber}`;
-        if (!latestMap.has(key)) {
-          latestMap.set(key, {
-            ...row,
-            balance: Number(row.balance || 0),
-            bankName: row.bankId
-          });
-        }
-      });
-
-      const items = Array.from(latestMap.values());
+      // [개정] 통합 가상 테이블을 사용하여 MY DB와 동일한 계좌 목록을 가져옵니다.
+      const items = await queryTable('finance-hub-bank-table', { limit: 100 });
       return items.filter((acc: any) => {
         const bId = String(acc.bankId || '').toLowerCase();
         const aName = String(acc.accountName || '').toLowerCase();
@@ -63,14 +48,14 @@ export async function runAITool(name: string, args: any) {
       });
     }
     case "query_bank_transactions": {
-      const res = await queryBankTransactions({
+      // [개정] 가상 테이블을 통해 정규화된 거래 내역을 가져옵니다.
+      const txs = await queryTable('finance-hub-bank-table', {
         startDate: args.startDate,
         endDate: args.endDate,
         limit: args.limit || 100,
         orderBy: 'date',
         orderDir: 'desc'
       });
-      const txs = Array.isArray(res) ? res : (res?.transactions || []);
       
       // [강제 필터링] 대시보드와 동일하게 은행 계좌의 내역만 반환 (카드 제외)
       return txs.filter((tx: any) => {
@@ -80,14 +65,14 @@ export async function runAITool(name: string, args: any) {
       });
     }
     case "query_card_transactions": {
-      const res = await queryCardTransactions({
+      // [개정] 가상 테이블을 통해 정규화된 카드 거래 내역을 가져옵니다.
+      const txs = await queryTable('finance-hub-card-table', {
         startDate: args.startDate,
         endDate: args.endDate,
         limit: args.limit || 100,
         orderBy: 'date',
         orderDir: 'desc'
       });
-      const txs = Array.isArray(res) ? res : (res?.transactions || []);
       
       // [강제 필터링] 카드 거래만 반환
       return txs.filter((tx: any) => {
@@ -97,15 +82,13 @@ export async function runAITool(name: string, args: any) {
       });
     }
     case "get_card_usage_by_approval_date": {
-      const result = await queryCardTransactions({
+      const txs = await queryTable('finance-hub-card-table', {
         startDate: args.startDate,
         endDate: args.endDate,
         limit: 1000,
         orderBy: 'date',
         orderDir: 'desc'
       });
-      
-      const txs = Array.isArray(result) ? result : (result?.transactions || []);
       const totalAmount = txs.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0);
       const categorySummary: Record<string, number> = {};
       txs.forEach((tx: any) => {
@@ -211,22 +194,16 @@ export async function runAITool(name: string, args: any) {
       let targetTable = args.tableId;
       const filters: any = { isDeleted: '0' };
       
-      // 금융 가상 ID를 실제 물리 테이블명으로 매핑 (MY DB와 동일하게)
+      // [개정] 물리 테이블 매핑을 제거하고 queryTable의 자동 핸들링에 맡깁니다.
+      // 가상 ID(finance-hub-*)가 들어오면 queryTable이 알아서 조인 로직을 수행합니다.
       if (targetTable.includes('bank_transactions') || targetTable.includes('bank-table')) {
-        targetTable = 'finance_bank_transactions';
-        delete filters.isDeleted; // 금융 테이블은 isDeleted 컬럼이 없으므로 제거
+        targetTable = 'finance-hub-bank-table';
+        delete filters.isDeleted;
       } else if (targetTable.includes('card_transactions') || targetTable.includes('card-table')) {
-        targetTable = 'finance_card_transactions';
-        delete filters.isDeleted; // 금융 테이블은 isDeleted 컬럼이 없으므로 제거
-      } else if (targetTable.includes('hometax_sales')) {
-        targetTable = 'hometax_sales_invoices';
-        // 홈택스 테이블은 상황에 따라 확인 필요하나 안전을 위해 유지 또는 제거 결정 가능
-      } else if (targetTable.includes('hometax_purchase')) {
-        targetTable = 'hometax_purchase_invoices';
-      } else if (targetTable.includes('hometax_cash')) {
-        targetTable = 'hometax_cash_receipts';
+        targetTable = 'finance-hub-card-table';
+        delete filters.isDeleted;
       } else if (targetTable !== 'report_row' && !targetTable.includes('-')) {
-        // 이미 물리 테이블명인 경우 그대로 사용
+        // 물리 테이블인 경우
       } else {
         targetTable = 'report_row';
         filters.reportId = args.tableId;
