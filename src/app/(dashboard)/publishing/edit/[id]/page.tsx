@@ -10,7 +10,8 @@ interface EditProjectPageProps {
   };
 }
 
-export default async function EditProjectPage({ params }: EditProjectPageProps) {
+export default async function EditProjectPage(props: EditProjectPageProps) {
+  const params = await props.params;
   const user = await getSessionAction();
   if (!user) {
     redirect('/login');

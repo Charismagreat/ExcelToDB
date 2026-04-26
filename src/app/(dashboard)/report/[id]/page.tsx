@@ -16,6 +16,7 @@ function inferColumnType(name: string): string {
   return 'string';
 }
 import { ReportDetailClient } from '@/components/ReportDetailClient';
+import { getSourceViewSettingsAction } from '@/app/actions/publishing';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowLeft, User } from 'lucide-react';
@@ -32,6 +33,28 @@ export default async function ReportDetailPage({
 
   // 실제 세션 사용자 정보 가져오기
   const user = await getSessionAction();
+  
+  // 중앙 관리 뷰 설정 가져오기 (보고서 ID 및 원본 테이블 ID 기반 상속 지원)
+  let viewSettingsRes = await getSourceViewSettingsAction(id);
+  let savedConfig = viewSettingsRes.success && viewSettingsRes.data ? viewSettingsRes.data.view_config : null;
+
+  // 보고서인 경우 원본 테이블의 설정도 확인하여 상속 (중앙 집중식 관리)
+  if (id.startsWith('rep-') && !savedConfig) {
+    try {
+      const { queryTable } = await import('@/egdesk-helpers');
+      const reports = await queryTable('report', { filters: { id }, limit: 1 });
+      const sourceTableName = reports[0]?.tableName;
+      if (sourceTableName) {
+        const sourceSettingsRes = await getSourceViewSettingsAction(sourceTableName);
+        if (sourceSettingsRes.success && sourceSettingsRes.data) {
+          savedConfig = sourceSettingsRes.data.view_config;
+          console.log(`>>> [SERVER] Inherited view settings from source table: ${sourceTableName}`);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to inherit source table settings:', err);
+    }
+  }
 
   let report: any;
   let rows: any[] = [];
@@ -264,16 +287,41 @@ export default async function ReportDetailPage({
     const priorityKeys = ['date', 'description', 'withdrawal', 'deposit', 'balance'];
     const remainingKeys = physicalKeys.filter(k => !priorityKeys.includes(k));
 
+    const financeColMap: Record<string, string> = {
+        'date': '날짜',
+        '_bankName': '은행명',
+        'accountNumber': '계좌번호',
+        'accountName': '계좌명',
+        'summary': '적요',
+        'description': '적요',
+        'withdrawal': '출금액',
+        'deposit': '입금액',
+        'withdrawalAmount': '출금액',
+        'depositAmount': '입금액',
+        'balance': '잔액',
+        'availableBalance': '현재잔액',
+        'time': '시간',
+        'transaction_datetime': '거래일시',
+        'type': '구분',
+        'category': '카테고리',
+        'memo': '메모',
+        'branch': '지점명',
+        'counterparty': '거래처',
+        'customerName': '고객명'
+    };
+
     const financeColumns = [
-        ...extraColumns,
+        ...extraColumns.map(c => ({ ...c, displayName: financeColMap[c.name] || c.displayName || c.name })),
         ...priorityKeys.map(key => ({
             name: key,
+            displayName: financeColMap[key] || key,
             type: (key === 'amount' || key === 'foreignAmountUsd' || key === 'withdrawal' || key === 'deposit' || key === 'balance' || key === 'availableBalance') 
                 ? 'currency' 
                 : inferColumnType(key)
         })),
         ...remainingKeys.map(key => ({
             name: key,
+            displayName: financeColMap[key] || key,
             type: (key === 'amount' || key === 'foreignAmountUsd' || key === 'withdrawal' || key === 'deposit' || key === 'balance' || key === 'availableBalance') 
                 ? 'currency' 
                 : inferColumnType(key)
@@ -521,8 +569,36 @@ export default async function ReportDetailPage({
           }));
       }
     }
+    }
   }
-}
+
+  // [중요] 중앙 관리 뷰 설정(savedConfig) 병합 및 정렬
+  if (savedConfig && savedConfig.columns && columns.length > 0) {
+    const configuredCols = savedConfig.columns;
+    
+    // 설정된 컬럼들을 먼저 순서대로 정렬하여 배치
+    const mergedColumns = configuredCols
+      .filter((cc: any) => cc.visible !== false)
+      .map((cc: any) => {
+        const originalCol = columns.find(c => (typeof c === 'string' ? c : c.name) === cc.name);
+        const colObj = typeof originalCol === 'string' ? { name: originalCol, type: inferColumnType(originalCol) } : originalCol;
+        
+        return {
+          ...colObj,
+          name: cc.name,
+          displayName: cc.displayName || (colObj?.displayName) || cc.name,
+          type: colObj?.type || cc.type || 'string'
+        };
+      }).filter((c: any) => c.name); // 유효한 컬럼만 유지
+
+    // 설정에 없는 나머지 컬럼들 추가
+    const remainingCols = columns.filter(c => {
+      const name = typeof c === 'string' ? c : c.name;
+      return !configuredCols.some((cc: any) => cc.name === name);
+    }).map(c => typeof c === 'string' ? { name: c, type: inferColumnType(c) } : c);
+
+    columns = [...mergedColumns, ...remainingCols];
+  }
 
   const isOwner = report.ownerId === user?.id || report.ownerId === 'system';
   const isAdmin = user?.role === 'ADMIN';
@@ -544,6 +620,7 @@ export default async function ReportDetailPage({
         isOwner={isOwner && !report.isReadOnly}
         isAdmin={isAdmin && !report.isReadOnly}
         canEdit={canEdit}
+        multiSortConfig={savedConfig?.multiSortConfig}
       />
     </div>
   );

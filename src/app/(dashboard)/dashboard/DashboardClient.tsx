@@ -294,7 +294,7 @@ export function DashboardClient({ allTables, user }: DashboardClientProps) {
                   <p className={`text-[9px] tracking-tighter opacity-60 ${
                     selectedIds.includes(table.id) ? 'text-blue-100' : 'text-slate-400'
                   }`}>
-                    <span className="uppercase">ID:</span> {table.tableName || table.id}
+                    <span className="uppercase">ID:</span> {table.id}
                   </p>
                 </div>
                 {selectedIds.includes(table.id) && <ChevronRight size={14} />}

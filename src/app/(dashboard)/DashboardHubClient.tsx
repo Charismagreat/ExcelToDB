@@ -273,7 +273,7 @@ export function DashboardHubClient({ user, isStaff, reports, events, financeStat
 
                         <div className="flex flex-wrap items-center gap-2 pt-5 border-t border-slate-50">
                           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg text-[9px] font-bold text-slate-500 border border-slate-100">
-                            <span className="text-blue-600 font-black">ID:</span> {report.tableName || report.id}
+                            <span className="text-blue-600 font-black">ID:</span> {report.id}
                           </div>
                           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 text-white rounded-lg text-[9px] font-bold shadow-lg shadow-blue-500/10">
                             <span className="opacity-80">REPO:</span> {report.sheetName || 'MY DB'}
