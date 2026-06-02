@@ -29,8 +29,6 @@ interface DashboardHubClientProps {
   isStaff: boolean;
   reports: any[];
   events: CalendarEvent[];
-  financeStats?: any;
-  hometaxStats?: any;
 }
 
 const LocalBadge = ({ children, color = 'blue', scale = 1.0 }: { children: React.ReactNode, color?: string, scale?: number }) => {
@@ -52,7 +50,7 @@ const LocalBadge = ({ children, color = 'blue', scale = 1.0 }: { children: React
     );
   };
 
-export function DashboardHubClient({ user, isStaff, reports, events, financeStats, hometaxStats }: DashboardHubClientProps) {
+export function DashboardHubClient({ user, isStaff, reports, events }: DashboardHubClientProps) {
   const pathname = usePathname();
   const [showManualModal, setShowManualModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'reports' | 'backups'>('reports');
@@ -375,9 +373,6 @@ export function DashboardHubClient({ user, isStaff, reports, events, financeStat
                               SOURCE: {report.tableName || report.id}
                             </LocalBadge>
                           )}
-                          <LocalBadge color="indigo" scale={0.95}>
-                            {report._count?.rows ?? '0'} ROWS
-                          </LocalBadge>
                         </div>
                       </div>
                     </div>

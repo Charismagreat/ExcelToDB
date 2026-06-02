@@ -21,7 +21,7 @@ import {
 import { NewTableSection } from '@/components/NewTableSection';
 import { redirect } from 'next/navigation';
 import LogoutButton from '@/components/LogoutButton';
-import { queryTable, aggregateTable, listTables, getOverallStats, listHometaxConnections } from '@/egdesk-helpers';
+import { queryTable, listTables } from '@/egdesk-helpers';
 import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 import PageHeader from '@/components/PageHeader';
 import { DashboardHubClient } from './DashboardHubClient';
@@ -43,18 +43,10 @@ export default async function DashboardPage() {
   }
 
   let systemTables: any[] = [];
-  let financeStats: any = null;
-  let hometaxStats: any = null;
 
   try {
-    const [tablesRes, statsRes, hometaxRes] = await Promise.all([
-      listTables(),
-      getOverallStats().catch(() => null),
-      listHometaxConnections().catch(() => null)
-    ]);
+    const tablesRes = await listTables();
     systemTables = tablesRes?.tables || [];
-    financeStats = statsRes;
-    hometaxStats = hometaxRes;
   } catch (err) {
     console.error('Failed to fetch system data:', err);
   }
@@ -94,70 +86,12 @@ export default async function DashboardPage() {
     });
   }
 
-  // [통합 로직] 보고서별 데이터 행 개수 계산 함수
-  const getReportRowCount = async (r: any) => {
-    // 1. FinanceHub 및 홈택스 (물리 테이블 직접 집계)
-    if (r.tableName) {
-      try {
-        const aggr = await aggregateTable(r.tableName, 'id', 'COUNT');
-        return Number(aggr?.value ?? aggr) || 0;
-      } catch (err) {
-        return 0;
-      }
-    }
-
-    // 2. 홈택스 데이터 (API 통계와 DB 집계 중 최대값 선택)
-    if (r.tableName?.startsWith('hometax_')) {
-      const hometaxConnection = hometaxStats?.connections?.[0] || {};
-      const fieldMap: Record<string, string> = {
-        'hometax_sales_invoices': 'sales_count',
-        'hometax_purchase_invoices': 'purchase_count',
-        'hometax_cash_receipts': 'cash_receipt_count'
-      };
-      const apiCount = hometaxConnection[fieldMap[r.tableName] || ''] || 0;
-      let dbCount = 0;
-      try {
-        const aggr = await aggregateTable(r.tableName, 'id', 'COUNT');
-        dbCount = Number(aggr?.value ?? aggr) || 0;
-      } catch (err) {}
-      return Math.max(apiCount, dbCount);
-    }
-
-    // 3. 테스트 데이터 예외 처리
-    if (r.id === 'test-report-id') return 133;
-
-    // 4. 일반 물리 테이블 직접 집계 (Templates 등)
-    if (r.tableName) {
-      try {
-        const aggr = await aggregateTable(r.tableName, 'id', 'COUNT');
-        return Number(aggr?.value ?? aggr) || 0;
-      } catch (err) {
-        return 0;
-      }
-    }
-
-    // 5. 순수 가상 보고서 (dashboard_data 기반)
-    try {
-      const aggr = await aggregateTable('dashboard_data', 'id', 'COUNT', {
-        filters: { reportId: r.reportId || String(r.id), isDeleted: '0' }
-      });
-      return Number(aggr?.value ?? aggr) || 0;
-    } catch (err) {
-      return 0;
-    }
-  };
-
-  // 모든 가상 리포트에 통합 로직 적용
-  let virtualReports = await Promise.all(allReports.map(async (r: any) => {
-    const count = await getReportRowCount(r);
-    return {
-      ...r,
-      id: r.reportId || String(r.id), // UI 식별자로 reportId 우선 사용
-      physicalId: r.id, // 실제 DB 정수 ID 보존
-      _count: { rows: count },
-      isVirtualReport: true,
-      isDirectTable: r.id === 'test-report-id'
-    };
+  const virtualReports = allReports.map((r: any) => ({
+    ...r,
+    id: r.reportId || String(r.id),
+    physicalId: r.id,
+    isVirtualReport: true,
+    isDirectTable: r.id === 'test-report-id'
   }));
 
   // 관리자/에디터 권한 판별
@@ -166,13 +100,10 @@ export default async function DashboardPage() {
 
   // 상단 FinanceHub 카드 구성 (통합 로직의 결과를 동일하게 참조)
   if (isAdminOrEditor) {
-    const getCountById = (id: string) => virtualReports.find(v => v.id === id)?._count?.rows || 0;
-
     reports.push({
       id: 'card_approvals',
       name: '신용카드 거래 내역',
       tableName: 'card_approvals',
-      _count: { rows: getCountById('card_approvals') },
       isFinanceTable: true,
       isSystemTable: true,
       isReadOnly: true,
@@ -182,7 +113,6 @@ export default async function DashboardPage() {
       id: 'bank_transactions',
       name: '은행거래내역',
       tableName: 'bank_transactions',
-      _count: { rows: getCountById('bank_transactions') },
       isFinanceTable: true,
       isSystemTable: true,
       isReadOnly: true,
@@ -192,7 +122,6 @@ export default async function DashboardPage() {
       id: 'hometax_sales_tax_invoices',
       name: '매출세금계산서',
       tableName: 'hometax_sales_tax_invoices',
-      _count: { rows: getCountById('hometax_sales_tax_invoices') },
       isFinanceTable: true,
       isSystemTable: true,
       isReadOnly: true,
@@ -202,7 +131,6 @@ export default async function DashboardPage() {
       id: 'hometax_sales_invoices',
       name: '매출계산서',
       tableName: 'hometax_sales_invoices',
-      _count: { rows: getCountById('hometax_sales_invoices') },
       isFinanceTable: true,
       isSystemTable: true,
       isReadOnly: true,
@@ -212,7 +140,6 @@ export default async function DashboardPage() {
       id: 'hometax_purchase_tax_invoices',
       name: '매입세금계산서',
       tableName: 'hometax_purchase_tax_invoices',
-      _count: { rows: getCountById('hometax_purchase_tax_invoices') },
       isFinanceTable: true,
       isSystemTable: true,
       isReadOnly: true,
@@ -222,7 +149,6 @@ export default async function DashboardPage() {
       id: 'hometax_purchase_invoices',
       name: '매입계산서',
       tableName: 'hometax_purchase_invoices',
-      _count: { rows: getCountById('hometax_purchase_invoices') },
       isFinanceTable: true,
       isSystemTable: true,
       isReadOnly: true,
@@ -232,7 +158,6 @@ export default async function DashboardPage() {
       id: 'hometax_cash_receipts',
       name: '현금영수증 내역',
       tableName: 'hometax_cash_receipts',
-      _count: { rows: getCountById('hometax_cash_receipts') },
       isFinanceTable: true,
       isSystemTable: true,
       isReadOnly: true,
@@ -244,7 +169,6 @@ export default async function DashboardPage() {
         id: t.slug,
         name: t.displayName || t.slug,
         tableName: t.slug,
-        _count: { rows: t.rowCount || 0 },
         isFinanceTable: true,
         isSystemTable: true,
         isReadOnly: true,
@@ -272,10 +196,9 @@ export default async function DashboardPage() {
         
         return {
           id: t.tableName,
-          tableName: t.tableName, // 카드 UI에서 표시할 ID 필드 추가
+          tableName: t.tableName,
           name: tName,
           sheetName: isMaster ? 'Master Data' : 'System Table',
-          _count: { rows: t.rowCount !== null && t.rowCount !== undefined ? t.rowCount : 'N/A' },
           isSystemTable: !isMaster,
           ownerId: 'system',
           isReadOnly: isMaster ? false : (t.tableName === 'user' ? false : true),
@@ -293,7 +216,7 @@ export default async function DashboardPage() {
   reports.forEach(r => {
     const key = r.id; // 이미 위에서 reportId로 통일됨
     if (reportsMap.has(key)) {
-      // 병합: 하드코딩된 속성(isFinanceTable 등)과 DB 데이터(count, ownerId 등)를 합침
+      // 병합: 하드코딩된 속성(isFinanceTable 등)과 DB 데이터(ownerId 등)를 합침
       reportsMap.set(key, { ...reportsMap.get(key), ...r });
     } else {
       reportsMap.set(key, r);
@@ -314,8 +237,6 @@ export default async function DashboardPage() {
       isStaff={isStaff} 
       reports={uniqueReports} 
       events={events}
-      financeStats={financeStats}
-      hometaxStats={hometaxStats}
     />
   );
 }
